@@ -49,7 +49,7 @@ import secrets
 print(">> SGE a arrancar a partir do ficheiro:", __file__)
 print(">> Pasta atual:", os.getcwd())
 from werkzeug.utils import secure_filename
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from PIL import Image
 from PIL import Image, ImageOps
 from reportlab.lib.units import cm, mm
@@ -58,6 +58,7 @@ import io
 import time 
 import sqlite3
 import calendar
+from functools import wraps
 from datetime import datetime, timedelta
 import math
 from io import StringIO
@@ -154,6 +155,161 @@ def _check_admin_password(password):
             return False
     return bool(stored_plain and secrets.compare_digest(stored_plain, password or ''))
 
+
+# === GESTÃO DE UTILIZADORES E PERMISSÕES (V3.3) ===
+USER_ROLES = {
+    'admin': 'Administrador',
+    'gestor': 'Gestor / Supervisor',
+    'tecnico': 'Técnico Operacional',
+    'leitura': 'Operador de Leituras',
+    'consulta': 'Consulta / Visualizador',
+}
+
+ROLE_DESCRIPTIONS = {
+    'admin': 'Acesso total ao SGE, incluindo criação de utilizadores e configurações.',
+    'gestor': 'Acesso operacional amplo, sem gestão de utilizadores.',
+    'tecnico': 'Pode registar e actualizar dados técnicos, alertas, equipamentos e leituras.',
+    'leitura': 'Focado em registo e consulta de leituras operacionais e mensais.',
+    'consulta': 'Apenas consulta e relatórios, sem alterações de dados.',
+}
+
+def _ensure_users_schema():
+    """Cria a tabela de utilizadores e garante um administrador inicial."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                full_name TEXT,
+                role TEXT NOT NULL DEFAULT 'consulta',
+                email TEXT,
+                ativo INTEGER NOT NULL DEFAULT 1,
+                must_change_password INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                updated_at TEXT,
+                last_login TEXT
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_users_ativo ON users(ativo)")
+        c.execute("SELECT COUNT(*) FROM users")
+        count = int(c.fetchone()[0] or 0)
+        if count == 0:
+            admin_user = os.environ.get('SGE_ADMIN_USER', 'admin').strip() or 'admin'
+            admin_hash = os.environ.get('SGE_ADMIN_PASSWORD_HASH')
+            admin_plain = os.environ.get('SGE_ADMIN_PASSWORD')
+            phash = admin_hash if admin_hash else generate_password_hash(admin_plain or 'admin123')
+            c.execute("""INSERT INTO users(username, password_hash, full_name, role, ativo, must_change_password)
+                         VALUES (?, ?, ?, 'admin', 1, ?)""",
+                      (admin_user, phash, 'Administrador do Sistema', 0 if (admin_hash or admin_plain) else 1))
+        conn.commit()
+    except Exception as e:
+        print('Falha ao preparar tabela users:', e)
+    finally:
+        try:
+            conn and conn.close()
+        except Exception:
+            pass
+
+def _user_row_to_dict(row):
+    if not row:
+        return None
+    return {
+        'id': row[0], 'username': row[1], 'full_name': row[2] or row[1], 'role': row[3] or 'consulta',
+        'email': row[4] or '', 'ativo': int(row[5] or 0), 'must_change_password': int(row[6] or 0),
+        'created_at': row[7], 'updated_at': row[8], 'last_login': row[9],
+        'role_label': USER_ROLES.get(row[3] or 'consulta', row[3] or 'Consulta')
+    }
+
+def _get_user_by_username(username):
+    _ensure_users_schema()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""SELECT id, username, full_name, role, email, ativo, must_change_password, created_at, updated_at, last_login, password_hash
+                 FROM users WHERE username=? LIMIT 1""", ((username or '').strip(),))
+    row = c.fetchone(); conn.close()
+    return row
+
+def _get_user_by_id(user_id):
+    _ensure_users_schema()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""SELECT id, username, full_name, role, email, ativo, must_change_password, created_at, updated_at, last_login
+                 FROM users WHERE id=? LIMIT 1""", (int(user_id),))
+    row = c.fetchone(); conn.close()
+    return _user_row_to_dict(row)
+
+def current_user():
+    uid = session.get('user_id')
+    if uid:
+        user = _get_user_by_id(uid)
+        if user and user.get('ativo') == 1:
+            return user
+    if session.get('sge_logged_in'):
+        return {
+            'id': None,
+            'username': session.get('username', 'admin'),
+            'full_name': session.get('full_name') or session.get('username', 'admin'),
+            'role': session.get('role', 'admin'),
+            'role_label': USER_ROLES.get(session.get('role', 'admin'), 'Administrador'),
+            'ativo': 1,
+        }
+    return None
+
+def _user_has_role(*roles):
+    u = current_user()
+    return bool(u and u.get('role') in roles)
+
+def _deny_access(message='Sem permissão para executar esta acção.'):
+    if request.path.startswith('/api/') or request.headers.get('X-Requested-With','').lower() == 'xmlhttprequest':
+        return jsonify(success=False, error='forbidden', message=message), 403
+    flash(message, 'warning')
+    return redirect(request.referrer or url_for('index'))
+
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not _user_has_role('admin'):
+            return _deny_access('Apenas administradores podem aceder à gestão de utilizadores.')
+        return fn(*args, **kwargs)
+    return wrapper
+
+@app.context_processor
+def _inject_user_context():
+    return {
+        'current_user': current_user(),
+        'USER_ROLES': USER_ROLES,
+        'ROLE_DESCRIPTIONS': ROLE_DESCRIPTIONS,
+    }
+
+def _permission_guard_after_login():
+    u = current_user()
+    if not u:
+        return None
+    role = u.get('role') or 'consulta'
+    path = (request.path or '/').lower()
+    method = (request.method or 'GET').upper()
+    if role == 'admin':
+        return None
+    if path.startswith('/usuarios'):
+        return _deny_access('A gestão de utilizadores é reservada ao administrador.')
+    if method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    if role == 'consulta':
+        return _deny_access('O seu perfil permite apenas consulta e emissão de relatórios.')
+    if role == 'leitura':
+        allowed = ('/monitoria', '/leituras', '/leituras_mensal', '/energia')
+        if not path.startswith(allowed):
+            return _deny_access('O seu perfil permite alterar apenas leituras e monitoria operacional.')
+    if role == 'tecnico':
+        blocked = ('/usuarios',)
+        if path.startswith(blocked):
+            return _deny_access('O seu perfil técnico não permite gestão de utilizadores.')
+    return None
+
 @app.before_request
 def _require_login_online():
     if not _login_required_enabled():
@@ -162,7 +318,7 @@ def _require_login_online():
     if path in AUTH_EXEMPT_PATHS or any(path.startswith(prefix) for prefix in AUTH_EXEMPT_PREFIXES):
         return
     if session.get('sge_logged_in'):
-        return
+        return _permission_guard_after_login()
     if request.path.startswith('/api/') or request.headers.get('X-Requested-With','').lower() == 'xmlhttprequest':
         return jsonify(success=False, error='auth_required', message='Autenticação necessária.'), 401
     return redirect(url_for('login', next=request.url))
@@ -172,20 +328,44 @@ def login():
     if not _login_required_enabled():
         flash('Autenticação não está activa neste ambiente.', 'info')
         return redirect(url_for('index'))
+    _ensure_users_schema()
     if request.method == 'POST':
-        if not _auth_configured():
-            flash('Login activo, mas a palavra-passe de administrador ainda não foi configurada nas variáveis de ambiente.', 'error')
-        else:
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        row = _get_user_by_username(username)
+        if row:
+            uid, uname, full_name, role, email, ativo, must_change, created_at, updated_at, last_login, phash = row
+            if int(ativo or 0) != 1:
+                flash('Este utilizador está desativado. Contacte o administrador.', 'error')
+            elif check_password_hash(phash, password or ''):
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute("UPDATE users SET last_login=datetime('now','localtime') WHERE id=?", (uid,))
+                conn.commit(); conn.close()
+                session.clear()
+                session['sge_logged_in'] = True
+                session['user_id'] = uid
+                session['username'] = uname
+                session['full_name'] = full_name or uname
+                session['role'] = role or 'consulta'
+                session.permanent = True
+                if int(must_change or 0) == 1:
+                    return redirect(url_for('perfil_password'))
+                return redirect(request.args.get('next') or url_for('index'))
+            else:
+                flash('Credenciais inválidas.', 'error')
+        elif _auth_configured():
             expected_user = os.environ.get('SGE_ADMIN_USER', 'admin')
             if secrets.compare_digest(username, expected_user) and _check_admin_password(password):
                 session.clear()
                 session['sge_logged_in'] = True
                 session['username'] = username
+                session['full_name'] = 'Administrador do Sistema'
+                session['role'] = 'admin'
                 session.permanent = True
                 return redirect(request.args.get('next') or url_for('index'))
             flash('Credenciais inválidas.', 'error')
+        else:
+            flash('Login activo, mas ainda não existe administrador configurado.', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -193,6 +373,138 @@ def logout():
     session.clear()
     flash('Sessão terminada com sucesso.', 'success')
     return redirect(url_for('login') if _login_required_enabled() else url_for('index'))
+
+
+@app.route('/perfil/password', methods=['GET', 'POST'])
+def perfil_password():
+    u = current_user()
+    if not u:
+        return redirect(url_for('login'))
+    if not u.get('id'):
+        flash('Este login usa variáveis de ambiente. Para alterar a senha, actualize SGE_ADMIN_PASSWORD no Render.', 'info')
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        atual = request.form.get('atual','')
+        nova = request.form.get('nova','')
+        confirmar = request.form.get('confirmar','')
+        row = _get_user_by_username(u['username'])
+        if not row or not check_password_hash(row[10], atual or ''):
+            flash('Palavra-passe actual inválida.', 'danger')
+        elif len(nova) < 8:
+            flash('A nova palavra-passe deve ter pelo menos 8 caracteres.', 'warning')
+        elif nova != confirmar:
+            flash('A confirmação da palavra-passe não coincide.', 'warning')
+        else:
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("UPDATE users SET password_hash=?, must_change_password=0, updated_at=datetime('now','localtime') WHERE id=?", (generate_password_hash(nova), u['id']))
+            conn.commit(); conn.close()
+            flash('Palavra-passe actualizada com sucesso.', 'success')
+            return redirect(url_for('index'))
+    return render_template('perfil_password.html')
+
+@app.route('/usuarios')
+@admin_required
+def usuarios_list():
+    _ensure_users_schema()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    rows = c.execute("""SELECT id, username, full_name, role, email, ativo, must_change_password, created_at, updated_at, last_login
+                        FROM users ORDER BY ativo DESC, username COLLATE NOCASE""").fetchall()
+    conn.close()
+    users = [_user_row_to_dict(r) for r in rows]
+    return render_template('usuarios.html', users=users)
+
+@app.route('/usuarios/novo', methods=['GET', 'POST'])
+@admin_required
+def usuarios_novo():
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        full_name = (request.form.get('full_name') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        role = (request.form.get('role') or 'consulta').strip()
+        password = request.form.get('password') or ''
+        ativo = 1 if request.form.get('ativo','1') == '1' else 0
+        must_change = 1 if request.form.get('must_change_password') == '1' else 0
+        if not username:
+            flash('O nome de utilizador é obrigatório.', 'warning')
+        elif role not in USER_ROLES:
+            flash('Nível de acesso inválido.', 'warning')
+        elif len(password) < 8:
+            flash('A palavra-passe deve ter pelo menos 8 caracteres.', 'warning')
+        else:
+            try:
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute("""INSERT INTO users(username, password_hash, full_name, role, email, ativo, must_change_password)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                          (username, generate_password_hash(password), full_name, role, email, ativo, must_change))
+                conn.commit(); conn.close()
+                flash('Utilizador criado com sucesso.', 'success')
+                return redirect(url_for('usuarios_list'))
+            except sqlite3.IntegrityError:
+                flash('Já existe um utilizador com esse nome.', 'danger')
+            except Exception as e:
+                flash(f'Não foi possível criar o utilizador: {e}', 'danger')
+    return render_template('usuario_form.html', mode='novo', user=None)
+
+@app.route('/usuarios/<int:user_id>/editar', methods=['GET', 'POST'])
+@admin_required
+def usuarios_editar(user_id):
+    user = _get_user_by_id(user_id)
+    if not user:
+        flash('Utilizador não encontrado.', 'warning')
+        return redirect(url_for('usuarios_list'))
+    if request.method == 'POST':
+        full_name = (request.form.get('full_name') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        role = (request.form.get('role') or 'consulta').strip()
+        ativo = 1 if request.form.get('ativo','0') == '1' else 0
+        if role not in USER_ROLES:
+            flash('Nível de acesso inválido.', 'warning')
+        else:
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("""UPDATE users SET full_name=?, email=?, role=?, ativo=?, updated_at=datetime('now','localtime') WHERE id=?""",
+                      (full_name, email, role, ativo, user_id))
+            conn.commit(); conn.close()
+            flash('Utilizador actualizado com sucesso.', 'success')
+            return redirect(url_for('usuarios_list'))
+    return render_template('usuario_form.html', mode='editar', user=user)
+
+@app.route('/usuarios/<int:user_id>/password', methods=['GET', 'POST'])
+@admin_required
+def usuarios_password(user_id):
+    user = _get_user_by_id(user_id)
+    if not user:
+        flash('Utilizador não encontrado.', 'warning')
+        return redirect(url_for('usuarios_list'))
+    if request.method == 'POST':
+        password = request.form.get('password') or ''
+        must_change = 1 if request.form.get('must_change_password') == '1' else 0
+        if len(password) < 8:
+            flash('A palavra-passe deve ter pelo menos 8 caracteres.', 'warning')
+        else:
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("UPDATE users SET password_hash=?, must_change_password=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (generate_password_hash(password), must_change, user_id))
+            conn.commit(); conn.close()
+            flash('Palavra-passe redefinida com sucesso.', 'success')
+            return redirect(url_for('usuarios_list'))
+    return render_template('usuario_password.html', user=user)
+
+@app.route('/usuarios/<int:user_id>/toggle', methods=['POST'])
+@admin_required
+def usuarios_toggle(user_id):
+    user = _get_user_by_id(user_id)
+    if not user:
+        flash('Utilizador não encontrado.', 'warning')
+        return redirect(url_for('usuarios_list'))
+    if user.get('id') == session.get('user_id'):
+        flash('Não podes desativar o teu próprio utilizador.', 'warning')
+        return redirect(url_for('usuarios_list'))
+    novo = 0 if int(user.get('ativo',1)) == 1 else 1
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("UPDATE users SET ativo=?, updated_at=datetime('now','localtime') WHERE id=?", (novo, user_id))
+    conn.commit(); conn.close()
+    flash('Estado do utilizador actualizado.', 'success')
+    return redirect(url_for('usuarios_list'))
 
 @app.get('/healthz')
 def healthz():
@@ -743,8 +1055,17 @@ def init_db():
         conn.commit()
         conn.close()
 
+try:
+    _ensure_users_schema()
+except Exception:
+    pass
+
 init_db()
 
+try:
+    _ensure_users_schema()
+except Exception:
+    pass
 
 
 def _to_float(val, default=0.0):

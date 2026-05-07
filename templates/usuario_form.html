@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{% if mode=='novo' %}Novo utilizador{% else %}Editar utilizador{% endif %} | SGE{% endblock %}
+{% block content %}
+<section class="sge-page-header"><div class="sge-page-eyebrow"><i class="bi bi-person-gear"></i> Utilizadores</div><h1>{% if mode=='novo' %}Novo utilizador{% else %}Editar utilizador{% endif %}</h1><p>Defina identidade, nível de acesso e estado da conta.</p></section>
+<div class="sge-card sge-panel">
+  <form method="post" class="row g-3">
+    {% if mode=='novo' %}
+    <div class="col-md-6"><label class="form-label">Utilizador *</label><input name="username" class="form-control" required autocomplete="off"></div>
+    <div class="col-md-6"><label class="form-label">Palavra-passe inicial *</label><input name="password" type="password" class="form-control" required minlength="8" autocomplete="new-password"></div>
+    {% endif %}
+    <div class="col-md-6"><label class="form-label">Nome completo</label><input name="full_name" class="form-control" value="{{ user.full_name if user else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input name="email" type="email" class="form-control" value="{{ user.email if user else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Nível de acesso</label><select name="role" class="form-select">{% for key,label in USER_ROLES.items() %}<option value="{{ key }}" {% if user and user.role==key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Estado</label><select name="ativo" class="form-select"><option value="1" {% if not user or user.ativo %}selected{% endif %}>Activo</option><option value="0" {% if user and not user.ativo %}selected{% endif %}>Desactivado</option></select></div>
+    {% if mode=='novo' %}<div class="col-md-3"><label class="form-label">Segurança</label><select name="must_change_password" class="form-select"><option value="1" selected>Obrigar trocar senha</option><option value="0">Não obrigar</option></select></div>{% endif %}
+    <div class="col-12 d-flex gap-2 flex-wrap mt-3"><button class="btn btn-primary">Guardar</button><a class="btn btn-outline-secondary" href="{{ url_for('usuarios_list') }}">Cancelar</a></div>
+  </form>
+</div>
+{% endblock %}

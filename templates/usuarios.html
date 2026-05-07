@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Utilizadores | SGE{% endblock %}
+{% block content %}
+<section class="sge-page-header">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div>
+      <div class="sge-page-eyebrow"><i class="bi bi-shield-lock"></i> Administração</div>
+      <h1>Gestão de Utilizadores</h1>
+      <p>Criação de contas, níveis de acesso, estado dos utilizadores e redefinição segura de palavras-passe.</p>
+    </div>
+    <div class="sge-actions"><a class="btn btn-light" href="{{ url_for('usuarios_novo') }}"><i class="bi bi-person-plus"></i> Novo utilizador</a></div>
+  </div>
+</section>
+<div class="sge-card sge-panel mb-3">
+  <div class="row g-3">
+    {% for key,label in USER_ROLES.items() %}
+    <div class="col-md-6 col-xl"><div class="p-3 rounded-4 border bg-white h-100"><strong>{{ label }}</strong><div class="small text-muted mt-1">{{ ROLE_DESCRIPTIONS[key] }}</div></div></div>
+    {% endfor %}
+  </div>
+</div>
+<div class="sge-card p-0 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Utilizador</th><th>Nome</th><th>Nível</th><th>Email</th><th>Estado</th><th>Último login</th><th class="text-end">Acções</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td><strong>{{ u.username }}</strong>{% if u.must_change_password %}<div class="small text-warning">Deve alterar senha</div>{% endif %}</td>
+          <td>{{ u.full_name }}</td>
+          <td><span class="badge-soft">{{ u.role_label }}</span></td>
+          <td>{{ u.email or '—' }}</td>
+          <td>{% if u.ativo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Desactivado</span>{% endif %}</td>
+          <td>{{ u.last_login or '—' }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('usuarios_editar', user_id=u.id) }}">Editar</a>
+            <a class="btn btn-sm btn-outline-dark" href="{{ url_for('usuarios_password', user_id=u.id) }}">Senha</a>
+            <form method="post" action="{{ url_for('usuarios_toggle', user_id=u.id) }}" class="d-inline" onsubmit="return confirm('Alterar estado deste utilizador?')">
+              <button class="btn btn-sm btn-outline-warning" {% if current_user.id == u.id %}disabled{% endif %}>{% if u.ativo %}Desactivar{% else %}Activar{% endif %}</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-5">Ainda não existem utilizadores.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

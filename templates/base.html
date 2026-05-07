@@ -47,6 +47,21 @@
           </ul>
         </li>
         <li class="nav-item"><a class="nav-link" href="/solar"><i class="bi bi-sun me-1"></i>Energia Solar</a></li>
+        {% if current_user %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navUser" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-person-circle me-1"></i>{{ current_user.username }}</a>
+          <ul class="dropdown-menu dropdown-menu-end sge-dropdown" aria-labelledby="navUser">
+            <li><h6 class="dropdown-header">{{ current_user.full_name }}</h6></li>
+            <li><span class="dropdown-item-text small text-muted">{{ current_user.role_label }}</span></li>
+            {% if current_user.role == 'admin' %}<li><a class="dropdown-item" href="{{ url_for('usuarios_list') }}"><i class="bi bi-people me-2"></i>Utilizadores</a></li>{% endif %}
+            <li><a class="dropdown-item" href="{{ url_for('perfil_password') }}"><i class="bi bi-key me-2"></i>Alterar senha</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Sair / Logout</a></li>
+          </ul>
+        </li>
+        {% else %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}"><i class="bi bi-box-arrow-in-right me-1"></i>Login</a></li>
+        {% endif %}
       </ul>
     </div>
   </div>
