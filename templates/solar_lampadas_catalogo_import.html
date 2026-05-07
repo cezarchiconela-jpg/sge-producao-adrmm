@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Importar CSV - Catálogo Lâmpadas</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="container py-4">
+
+  <div class="d-flex justify-content-between mb-3">
+    <h3 class="mb-0">Importar CSV</h3>
+    <a href="{{ url_for('solar_lampadas_catalogo_list') }}" class="btn btn-sm btn-outline-secondary">← Catálogo</a>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>Cole um CSV com cabeçalhos:</strong>
+    <code>modelo;fabricante;potencia_w;fluxo_lm;bateria_wh;autonomia_h;altura_poste_m;preco_mt;nota</code><br>
+    Pode usar delimitador <code>;</code> (padrão) ou <code>,</code>.
+  </div>
+
+  <form method="post" action="{{ url_for('solar_lampadas_catalogo_import') }}" class="vstack gap-3">
+    <div>
+      <label class="form-label">Delimitador</label>
+      <select name="delim" class="form-select" style="max-width:260px">
+        <option value=";">Ponto e vírgula (;)</option>
+        <option value=",">Vírgula (,)</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="form-label">CSV</label>
+      <textarea name="csv_text" class="form-control" rows="12" placeholder="Cole aqui o CSV">
+modelo;fabricante;potencia_w;fluxo_lm;bateria_wh;autonomia_h;altura_poste_m;preco_mt;nota
+SL-30W;ACME;30;4200;192;12;4;12000;Linha pedonal
+SL-50W;ACME;50;7000;384;12;6;18000;Rua local
+SL-80W;ACME;80;11000;480;12;8;24000;Avenida
+      </textarea>
+    </div>
+
+    <div>
+      <button type="submit" class="btn btn-primary">Importar</button>
+      <a href="{{ url_for('solar_lampadas_catalogo_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+
+</body>
+</html>

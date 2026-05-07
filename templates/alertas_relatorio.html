@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relatório Executivo de Alertas</title>
+<style>
+  body{font-family:Segoe UI,Arial,sans-serif;margin:0;color:#0f172a;background:#fff}.page{max-width:1120px;margin:0 auto;padding:24px}.head{border-bottom:4px solid #0b3d91;padding-bottom:12px;margin-bottom:16px}.head h1{margin:0;color:#0b3d91}.head p{margin:6px 0;color:#64748b}.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:14px 0}.kpi{border:1px solid #e5e7eb;border-radius:14px;padding:10px}.kpi small{color:#64748b;font-weight:800;text-transform:uppercase}.kpi b{display:block;font-size:1.35rem;color:#0b3d91;margin-top:6px}.crit b{color:#b91c1c}.warn b{color:#b45309}.ok b{color:#159447}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-bottom:12px}.card h2{margin:0 0 8px;color:#0b3d91;font-size:1.05rem}.pill{display:inline-block;background:#f1f5f9;border-radius:999px;padding:6px 9px;margin:3px;font-weight:800;color:#334155}.nivel{border-radius:999px;padding:4px 7px;font-weight:900;font-size:.78rem}.Crítico{background:#fee2e2;color:#991b1b}.Atenção{background:#fef3c7;color:#92400e}.Informativo{background:#e0f2fe;color:#075985}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #edf2f7;padding:7px;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:10px}.muted{color:#64748b}.actions{margin:10px 0}.btn{border:0;border-radius:10px;padding:9px 12px;background:#0b3d91;color:#fff;font-weight:900;cursor:pointer}@media print{.actions{display:none}.page{padding:10px;max-width:100%}.kpis{grid-template-columns:repeat(6,1fr)}body{font-size:11px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="actions"><button class="btn" onclick="window.print()">Imprimir / Guardar em PDF</button> <a class="btn" href="/alertas" style="text-decoration:none">Voltar aos alertas</a></div>
+  <section class="head">
+    <h1>Relatório Executivo de Alertas e Acções Correctivas</h1>
+    <p>Período: <b>{{data_ini}}</b> a <b>{{data_fim}}</b> · Gerado em {{gerado_em}} · Estado geral: <b>{{estado_geral}}</b></p>
+  </section>
+  <div class="kpis">
+    <div class="kpi"><small>Total</small><b>{{resumo.total}}</b></div>
+    <div class="kpi crit"><small>Críticos</small><b>{{resumo.criticos}}</b></div>
+    <div class="kpi warn"><small>Atenção</small><b>{{resumo.atencao}}</b></div>
+    <div class="kpi crit"><small>Vencidos</small><b>{{resumo.vencidos}}</b></div>
+    <div class="kpi ok"><small>Resolvidos</small><b>{{resumo.resolvidos}}</b></div>
+    <div class="kpi"><small>Taxa resolução</small><b>{{resumo.taxa_resolucao}}%</b></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Distribuição por origem</h2>{% for k,v in origem_counts.items() %}<span class="pill">{{k}}: {{v}}</span>{% else %}<p class="muted">Sem dados.</p>{% endfor %}</div>
+    <div class="card"><h2>Distribuição por categoria</h2>{% for k,v in categoria_counts.items() %}<span class="pill">{{k}}: {{v}}</span>{% else %}<p class="muted">Sem dados.</p>{% endfor %}</div>
+  </div>
+  <div class="card"><h2>Locais mais afectados</h2>{% for loc,c in ranking_locais %}<span class="pill">{{loc}}: {{c}}</span>{% else %}<p class="muted">Sem alertas no período.</p>{% endfor %}</div>
+  <div class="card">
+    <h2>Plano de acção recomendado</h2>
+    <ol>
+      {% if resumo.vencidos > 0 %}<li>Regularizar imediatamente os alertas vencidos e registar evidência da acção tomada.</li>{% endif %}
+      {% if resumo.criticos > 0 %}<li>Priorizar alertas críticos relacionados com tensão, corrente, sobrecarga, leituras decrescentes e FP muito baixo.</li>{% endif %}
+      <li>Distribuir responsáveis por local/equipamento e estabelecer prazo de resolução.</li>
+      <li>Após correcção, marcar o alerta como resolvido e manter observação técnica.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>Alertas prioritários</h2>
+    <table><thead><tr><th>Nível</th><th>SLA</th><th>Estado</th><th>Origem</th><th>Local / Equipamento</th><th>Alerta</th><th>Acção recomendada</th><th>Responsável</th></tr></thead><tbody>
+    {% for e in eventos %}<tr><td><span class="nivel {{e.nivel}}">{{e.nivel}}</span></td><td>{{e.sla}}<br><span class="muted">{{e.prazo}}</span></td><td>{{e.estado}}</td><td>{{e.origem}}</td><td><b>{{e.local}}</b><br><span class="muted">{{e.equipamento}}</span></td><td><b>{{e.tipo}}</b><br><span class="muted">{{e.causa}}</span></td><td>{{e.acao}}</td><td>{{e.responsavel or '—'}}</td></tr>{% else %}<tr><td colspan="8">Sem alertas para apresentar.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+</body></html>

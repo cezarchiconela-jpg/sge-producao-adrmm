@@ -1,0 +1,673 @@
+:root {
+  --sge-blue-dark:#143e74;
+  --sge-blue:#1f5ea8;
+  --sge-blue-mid:#2d7cc6;
+  --sge-cyan:#45b3e8;
+  --sge-cyan-soft:#dff4fb;
+  --sge-green:#4c8f4f;
+  --sge-bg:#eef6fb;
+  --sge-surface:#ffffff;
+  --sge-text:#17385f;
+  --sge-muted:#6f86a0;
+  --sge-border:#cfe0ee;
+  --sge-shadow:0 10px 30px rgba(20,62,116,.08);
+  --sge-radius:22px;
+}
+html,body{height:100%}
+body.sge-body{
+  background:
+    linear-gradient(180deg,#f7fbfe 0%,#edf6fb 100%);
+  color:var(--sge-text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+body.sge-body::before{
+  content:"";
+  position:fixed;
+  inset:auto 0 2rem 0;
+  margin:auto;
+  width:min(70vw,820px);
+  height:min(70vw,820px);
+  background:url('/static/adrmm_logo.png') center/contain no-repeat;
+  opacity:.06;
+  pointer-events:none;
+  z-index:0;
+  filter:saturate(1.15);
+}
+.sge-shell,.navbar{position:relative;z-index:1}
+.sge-shell{padding:1.25rem 0 2rem}
+.sge-topbar.navbar{
+  background:linear-gradient(90deg,var(--sge-blue-dark),var(--sge-blue));
+  box-shadow:0 8px 20px rgba(10,45,90,.15);
+  border-bottom:1px solid rgba(255,255,255,.15);
+}
+.sge-topbar .navbar-brand{display:flex;align-items:center;gap:.9rem;color:#fff!important;font-weight:800}
+.sge-brand-logo{
+  width:42px;height:42px;object-fit:contain;background:rgba(255,255,255,.95);border-radius:12px;padding:5px;
+  box-shadow:0 4px 12px rgba(0,0,0,.12)
+}
+.sge-brand-stack{line-height:1.05}
+.sge-brand-stack small{display:block;font-size:.83rem;font-weight:500;opacity:.9}
+.navbar-dark .navbar-nav .nav-link{
+  color:rgba(255,255,255,.9);font-weight:600;padding:.75rem 1rem;border-radius:999px;transition:.2s ease;
+}
+.navbar-dark .navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link.active{
+  color:#fff;background:rgba(255,255,255,.13)
+}
+.sge-page-header{
+  background:linear-gradient(120deg,var(--sge-blue-dark),var(--sge-blue-mid) 55%,#6ec7ec 100%);
+  color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:30px;padding:1.6rem 1.7rem;
+  box-shadow:var(--sge-shadow);position:relative;overflow:hidden;margin-bottom:1.25rem;
+}
+.sge-page-header::before,.sge-page-header::after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.09)}
+.sge-page-header::before{width:260px;height:260px;right:-80px;top:-80px}
+.sge-page-header::after{width:190px;height:190px;left:-40px;bottom:-70px}
+.sge-page-eyebrow{
+  display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);
+  padding:.5rem .95rem;border-radius:999px;font-size:.92rem;font-weight:700;margin-bottom:.95rem
+}
+.sge-page-header h1,.sge-page-header h2,.sge-page-header h3{margin:0;font-weight:900;letter-spacing:-.03em}
+.sge-page-header p{max-width:900px;margin:.7rem 0 0;color:rgba(255,255,255,.95);font-size:1.08rem}
+.sge-actions{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+.sge-card,.card{
+  background:rgba(255,255,255,.9);backdrop-filter: blur(6px);border:1px solid var(--sge-border)!important;border-radius:var(--sge-radius)!important;
+  box-shadow:var(--sge-shadow)
+}
+.sge-panel{padding:1rem 1.1rem}
+.sge-stat{
+  min-height:148px;padding:1rem 1.1rem;position:relative;overflow:hidden
+}
+.sge-stat::after{
+  content:"";position:absolute;right:-18px;bottom:-20px;width:110px;height:110px;border-radius:50%;background:rgba(69,179,232,.11)
+}
+.sge-stat h6{font-size:.85rem;text-transform:uppercase;letter-spacing:.07em;color:#5f83ac;font-weight:800}
+.sge-stat .value{font-size:2.2rem;font-weight:900;color:var(--sge-blue-dark);line-height:1}
+.sge-section-title{font-size:2rem;font-weight:900;color:var(--sge-blue-dark);letter-spacing:-.02em;margin:0}
+.sge-subtitle{color:var(--sge-muted);margin:.35rem 0 0}
+.sge-toolbar{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+.btn{
+  border-radius:14px!important;font-weight:700!important;padding:.62rem 1rem!important
+}
+.btn-primary{background:linear-gradient(90deg,var(--sge-blue),var(--sge-blue-mid))!important;border-color:transparent!important}
+.btn-outline-primary{color:#0a66ff!important;border-color:#0a66ff!important}
+.btn-outline-secondary{color:#61778f!important;border-color:#8ea5be!important}
+.btn-success{background:linear-gradient(90deg,#1e9866,#1ca778)!important;border-color:transparent!important}
+.btn-warning{background:linear-gradient(90deg,#ffc03a,#f0ac15)!important;border-color:transparent!important;color:#513600!important}
+.btn-dark{background:linear-gradient(90deg,#223447,#1b2430)!important;border-color:transparent!important}
+.form-control,.form-select{
+  border-radius:16px!important;border:1px solid #c9dceb!important;min-height:48px;box-shadow:none!important
+}
+.form-control:focus,.form-select:focus{
+  border-color:#5aaee0!important;box-shadow:0 0 0 .2rem rgba(69,179,232,.12)!important
+}
+.table{--bs-table-bg:transparent}
+.table thead th{
+  background:#eaf4fb!important;color:#25578f;font-weight:800;border-bottom:1px solid var(--sge-border)!important;white-space:nowrap
+}
+.table tbody td{border-color:#ddebf6!important;vertical-align:middle}
+.table tbody tr:hover{background:rgba(69,179,232,.05)}
+.sge-module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+.sge-module-card{
+  padding:1.25rem 1.15rem;min-height:170px;display:flex;flex-direction:column;gap:.75rem;text-decoration:none;color:inherit;transition:.18s ease
+}
+.sge-module-card:hover{transform:translateY(-4px);color:inherit}
+.sge-module-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#ebf6fc,#d9f0fb);color:var(--sge-blue);font-size:1.3rem}
+.sge-module-card h5{font-weight:800;margin:0;color:var(--sge-blue-dark)}
+.sge-module-card p{margin:0;color:var(--sge-muted)}
+.badge-soft{
+  background:#edf7ff;border:1px solid #cfe7ff;color:#1f5ea8;border-radius:999px;padding:.45rem .8rem;font-weight:800
+}
+.sge-kpi .card-body{padding:1rem 1rem 1.05rem}
+.sge-kpi .label{font-size:.86rem;color:var(--sge-muted);font-weight:700}
+.sge-kpi .big{font-size:2rem;font-weight:900;line-height:1.1;color:#142f56}
+.sge-grid-2{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+.sge-input-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.sge-summary-strip{
+  background:linear-gradient(90deg,#dff4fb,#edf9ff);border:1px solid #bfe6f6;border-radius:16px;padding:.8rem 1rem;color:#0d537f;font-weight:700
+}
+.sge-table-wrap{border-radius:22px;overflow:hidden}
+.sge-sticky-actions{position:sticky;right:0;background:#fff}
+.alert{border-radius:16px!important}
+@media (max-width: 992px){
+  .sge-grid-2,.sge-input-grid{grid-template-columns:1fr}
+  .sge-page-header{padding:1.3rem}
+}
+@media (max-width: 768px){
+  .sge-brand-stack strong{font-size:1rem}
+  .sge-page-header h1,.sge-page-header h2{font-size:2rem}
+  .sge-section-title{font-size:1.6rem}
+  .sge-stat .value{font-size:1.8rem}
+}
+
+/* =========================================================
+   Fase 8A · Harmonização geral, nomenclatura e tela cheia
+   ========================================================= */
+html, body { min-height: 100%; }
+body.sge-fullscreen { overflow-x: hidden; }
+.sge-shell{
+  width:100%;
+  max-width:none!important;
+  padding-top:1.15rem;
+  padding-bottom:2rem;
+}
+.sge-shell > .container,
+.sge-shell > .container-sm,
+.sge-shell > .container-md,
+.sge-shell > .container-lg,
+.sge-shell > .container-xl,
+.sge-shell > .container-xxl{
+  max-width:none!important;
+  width:100%!important;
+  padding-left:0!important;
+  padding-right:0!important;
+}
+.sge-topbar.navbar{min-height:70px;}
+.sge-topbar .container-fluid{max-width:none;}
+.sge-brand-logo{width:44px;height:44px;}
+.sge-brand-stack strong{font-size:1.05rem;letter-spacing:.01em;}
+.sge-brand-stack small{font-size:.78rem;}
+.navbar-dark .navbar-nav .nav-link{
+  font-size:.92rem;
+  padding:.62rem .82rem;
+  white-space:nowrap;
+}
+.navbar-dark .navbar-nav .nav-link.active{
+  background:rgba(255,255,255,.18);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.sge-card,.card,.sge-workspace-panel{
+  border-radius:20px!important;
+}
+.sge-page-header,
+.sge-home-hero{
+  width:100%;
+  border-radius:26px;
+}
+.sge-home-hero{
+  min-height:220px;
+  padding:1.8rem 1.9rem;
+  margin-bottom:1.1rem;
+  display:flex;
+  justify-content:space-between;
+  gap:1.25rem;
+  align-items:center;
+  color:#fff;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(255,255,255,.18) 0 0, transparent 190px),
+    linear-gradient(120deg,var(--sge-blue-dark),var(--sge-blue-mid) 56%,#67c3e8 100%);
+  box-shadow:var(--sge-shadow);
+  overflow:hidden;
+  position:relative;
+}
+.sge-home-hero::before{
+  content:"";
+  position:absolute;
+  inset:auto auto -95px -65px;
+  width:230px;
+  height:230px;
+  border-radius:50%;
+  background:rgba(255,255,255,.10);
+}
+.sge-home-hero-content,.sge-home-hero-actions{position:relative;z-index:1;}
+.sge-home-hero h1{
+  font-size:clamp(2.1rem,3.2vw,3.6rem);
+  line-height:1;
+  font-weight:950;
+  letter-spacing:-.045em;
+  margin:0;
+}
+.sge-home-hero p{
+  max-width:920px;
+  margin:.85rem 0 0;
+  font-size:1.07rem;
+  color:rgba(255,255,255,.94);
+}
+.sge-home-hero-actions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:.75rem;
+  min-width:340px;
+}
+.sge-workspace-panel{
+  background:rgba(255,255,255,.92);
+  border:1px solid var(--sge-border);
+  box-shadow:var(--sge-shadow);
+  padding:1.25rem;
+}
+.sge-workspace-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:1rem;
+  margin-bottom:1rem;
+}
+.sge-workspace-head h2{
+  margin:0;
+  font-size:clamp(1.7rem,2.2vw,2.55rem);
+  font-weight:950;
+  color:var(--sge-blue-dark);
+  letter-spacing:-.035em;
+}
+.sge-workspace-head p{margin:.25rem 0 0;color:var(--sge-muted);}
+.sge-command-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:1rem;
+}
+.sge-command-card{
+  min-height:190px;
+  padding:1.1rem;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:1rem;
+  text-decoration:none;
+  color:inherit;
+  background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);
+  border:1px solid var(--sge-border);
+  border-radius:20px;
+  box-shadow:0 10px 28px rgba(20,62,116,.06);
+  transition:.18s ease;
+}
+.sge-command-card:hover{
+  transform:translateY(-3px);
+  border-color:#9ed0ef;
+  box-shadow:0 16px 38px rgba(20,62,116,.11);
+  color:inherit;
+}
+.sge-command-card-primary{
+  background:linear-gradient(180deg,#f5fbff 0%,#ffffff 100%);
+  border-color:#8dc7ed;
+}
+.sge-command-icon{
+  width:48px;
+  height:48px;
+  border-radius:15px;
+  display:grid;
+  place-items:center;
+  background:#e5f5fd;
+  color:#0874d1;
+  font-size:1.35rem;
+}
+.sge-command-card h3{
+  margin:0 0 .45rem;
+  font-size:1.16rem;
+  line-height:1.18;
+  color:var(--sge-blue-dark);
+  font-weight:900;
+  letter-spacing:-.015em;
+}
+.sge-command-card p{margin:0;color:#6882a1;line-height:1.5;}
+.sge-home-strip{
+  margin-top:1rem;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:.85rem;
+}
+.sge-home-strip a{
+  text-decoration:none;
+  color:var(--sge-blue-dark);
+  background:#eef8ff;
+  border:1px solid #cde7f7;
+  border-radius:16px;
+  padding:.85rem 1rem;
+  font-weight:850;
+  text-align:center;
+}
+.sge-home-strip a:hover{background:#e2f4ff;color:#0b5fa7;}
+.table-responsive,
+.sge-table-wrap{
+  width:100%;
+}
+/* Dá mais largura às páginas antigas que ainda usam blocos centralizados */
+main.sge-shell .row,
+main.sge-shell form,
+main.sge-shell section{max-width:none;}
+@media (min-width: 1600px){
+  .sge-command-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media (max-width: 1300px){
+  .sge-command-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media (max-width: 992px){
+  .sge-home-hero{align-items:flex-start;flex-direction:column;}
+  .sge-home-hero-actions{justify-content:flex-start;min-width:0;}
+  .sge-workspace-head{flex-direction:column;}
+  .sge-command-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .sge-home-strip{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width: 640px){
+  .sge-shell{padding-left:.75rem!important;padding-right:.75rem!important;}
+  .sge-home-hero{padding:1.25rem;border-radius:20px;}
+  .sge-home-hero-actions .btn{width:100%;}
+  .sge-workspace-panel{padding:1rem;}
+  .sge-command-grid,.sge-home-strip{grid-template-columns:1fr;}
+  .sge-command-card{min-height:160px;}
+}
+@media print{
+  .sge-topbar,.sge-home-strip,.sge-home-hero-actions{display:none!important;}
+  .sge-shell{padding:0!important;}
+  .sge-card,.card,.sge-workspace-panel{box-shadow:none!important;}
+}
+
+/* =========================================================
+   Fase 8B · Fecho visual: nomenclatura, tela cheia e harmonia
+   ========================================================= */
+:root{
+  --sge-page-x: clamp(14px, 1.6vw, 30px);
+  --sge-topbar-h: 72px;
+}
+.sge-navbar-inner{
+  width:100%;
+  max-width:none;
+  padding-left:var(--sge-page-x)!important;
+  padding-right:var(--sge-page-x)!important;
+}
+.sge-shell{
+  padding-left:var(--sge-page-x)!important;
+  padding-right:var(--sge-page-x)!important;
+  max-width:none!important;
+}
+.sge-brand{min-width:320px;}
+.sge-nav-pills{gap:.25rem;}
+.sge-dropdown{
+  border:1px solid rgba(207,224,238,.95);
+  border-radius:18px;
+  box-shadow:0 18px 44px rgba(20,62,116,.16);
+  padding:.55rem;
+  min-width:275px;
+}
+.sge-dropdown .dropdown-item{
+  border-radius:12px;
+  font-weight:750;
+  color:#214d7e;
+  padding:.7rem .8rem;
+}
+.sge-dropdown .dropdown-item:hover,
+.sge-dropdown .dropdown-item.active{
+  color:#083f78;
+  background:#e9f6ff;
+}
+.sge-flash-area{margin-bottom:1rem;}
+.sge-home-compact{
+  min-height:170px;
+  padding:1.45rem 1.55rem;
+  margin-bottom:1rem;
+  border-radius:24px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:1.2rem;
+  color:#fff;
+  background:
+    radial-gradient(circle at 94% 12%, rgba(255,255,255,.18), transparent 205px),
+    linear-gradient(120deg,var(--sge-blue-dark),var(--sge-blue-mid) 58%,#65c5ea 100%);
+  box-shadow:var(--sge-shadow);
+  overflow:hidden;
+  position:relative;
+}
+.sge-home-compact::before{
+  content:"";position:absolute;left:-55px;bottom:-105px;width:225px;height:225px;border-radius:999px;background:rgba(255,255,255,.10)
+}
+.sge-home-compact > *{position:relative;z-index:1;}
+.sge-home-compact h1{
+  margin:0;
+  font-size:clamp(2rem,2.8vw,3.3rem);
+  line-height:1;
+  font-weight:950;
+  letter-spacing:-.045em;
+}
+.sge-home-compact p{
+  margin:.65rem 0 0;
+  max-width:850px;
+  color:rgba(255,255,255,.94);
+  font-size:1.04rem;
+}
+.sge-home-compact-actions{display:flex;gap:.7rem;flex-wrap:wrap;justify-content:flex-end;min-width:360px;}
+.sge-home-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 310px;
+  gap:1rem;
+  align-items:start;
+}
+.sge-home-main,
+.sge-home-side{
+  background:rgba(255,255,255,.94);
+  border:1px solid var(--sge-border);
+  border-radius:24px;
+  box-shadow:var(--sge-shadow);
+  padding:1.15rem;
+}
+.sge-workspace-head.compact{margin-bottom:.75rem;}
+.sge-workspace-head.compact h2{font-size:clamp(1.55rem,2vw,2.35rem);}
+.sge-group-title{
+  display:flex;
+  align-items:center;
+  color:#164477;
+  font-weight:950;
+  letter-spacing:-.01em;
+  background:#edf7ff;
+  border:1px solid #cfe7f8;
+  border-radius:16px;
+  padding:.7rem .9rem;
+  margin:.6rem 0 .8rem;
+}
+.sge-command-grid-compact{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.sge-command-grid-compact .sge-command-card{
+  min-height:170px;
+  padding:1rem;
+}
+.sge-command-grid-compact .sge-command-card h3{font-size:1.08rem;}
+.sge-command-grid-compact .sge-command-card p{font-size:.95rem;line-height:1.45;}
+.sge-home-side{
+  position:sticky;
+  top:calc(var(--sge-topbar-h) + 12px);
+}
+.sge-home-side h3{
+  margin:0 0 .8rem;
+  font-size:1.25rem;
+  font-weight:950;
+  color:var(--sge-blue-dark);
+}
+.sge-home-side a{
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+  text-decoration:none;
+  color:#174777;
+  background:#f3f9fe;
+  border:1px solid #d4e8f7;
+  border-radius:16px;
+  padding:.85rem .9rem;
+  font-weight:850;
+  margin-bottom:.65rem;
+  transition:.16s ease;
+}
+.sge-home-side a:hover{background:#e5f5ff;transform:translateX(3px);}
+.sge-home-side i{
+  width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:#dff3fb;color:#0a69b8;
+}
+/* Força harmonização de módulos antigos com estilos centralizados */
+main.sge-shell [style*="max-width"]{max-width:none!important;}
+main.sge-shell [style*="width: 1100px"],
+main.sge-shell [style*="width:1100px"],
+main.sge-shell [style*="width: 1200px"],
+main.sge-shell [style*="width:1200px"]{width:100%!important;}
+.sge-container-fluidized{
+  max-width:none!important;
+  width:100%!important;
+  padding-left:0!important;
+  padding-right:0!important;
+}
+main.sge-shell > h1,
+main.sge-shell > h2,
+main.sge-shell > h3{
+  color:var(--sge-blue-dark);
+  font-weight:950;
+  letter-spacing:-.03em;
+  margin-top:.35rem;
+}
+main.sge-shell > h1:first-child,
+main.sge-shell > h2:first-child{
+  padding:.95rem 1.1rem;
+  background:linear-gradient(90deg,#ffffff,#f2f9fe);
+  border:1px solid var(--sge-border);
+  border-radius:20px;
+  box-shadow:var(--sge-shadow);
+}
+.sge-table-scroll{
+  width:100%;
+  overflow:auto;
+  border:1px solid var(--sge-border);
+  border-radius:20px;
+  background:rgba(255,255,255,.92);
+}
+.sge-table-scroll table{margin-bottom:0;min-width:980px;}
+/* Botões mais consistentes em páginas antigas */
+main.sge-shell a.btn,
+main.sge-shell button.btn,
+main.sge-shell input[type="submit"].btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.35rem;
+}
+/* Cards antigos ganham aparência institucional sem reescrever cada template */
+main.sge-shell .card,
+main.sge-shell .panel,
+main.sge-shell .box{
+  border-color:var(--sge-border)!important;
+  box-shadow:var(--sge-shadow);
+}
+@media (max-width: 1500px){
+  .sge-command-grid-compact{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .sge-home-layout{grid-template-columns:minmax(0,1fr) 285px;}
+}
+@media (max-width: 1180px){
+  .sge-home-layout{grid-template-columns:1fr;}
+  .sge-home-side{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;}
+  .sge-home-side h3{grid-column:1/-1;margin-bottom:.1rem;}
+  .sge-home-side a{margin-bottom:0;}
+  .sge-command-grid-compact{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width: 992px){
+  .sge-brand{min-width:0;}
+  .sge-home-compact{align-items:flex-start;flex-direction:column;}
+  .sge-home-compact-actions{min-width:0;justify-content:flex-start;}
+}
+@media (max-width: 680px){
+  .sge-shell{padding-left:.75rem!important;padding-right:.75rem!important;}
+  .sge-home-compact{padding:1.15rem;border-radius:20px;}
+  .sge-home-compact-actions,.sge-home-compact-actions .btn{width:100%;}
+  .sge-command-grid-compact,.sge-home-side{grid-template-columns:1fr;}
+  .sge-brand-stack small{display:none;}
+}
+@media print{
+  .sge-home-compact,.sge-home-side,.sge-topbar{display:none!important;}
+  body.sge-body::before{opacity:.04;}
+}
+
+/* =========================================================
+   Fase 8C · Correcção final de tela cheia para módulos técnicos
+   Motores, Alertas e Energia Solar deixam de ficar centralizados
+   ========================================================= */
+body.sge-body[data-route="motores"],
+body.sge-body[data-route="alertas"],
+body.sge-body[data-route="solar"]{
+  --sge-page-x: clamp(14px, 1.35vw, 26px);
+}
+body.sge-body[data-route="motores"] main.sge-shell,
+body.sge-body[data-route="alertas"] main.sge-shell,
+body.sge-body[data-route="solar"] main.sge-shell{
+  width:100vw!important;
+  max-width:none!important;
+  min-height:calc(100vh - var(--sge-topbar-h));
+  margin:0!important;
+  padding-left:var(--sge-page-x)!important;
+  padding-right:var(--sge-page-x)!important;
+}
+/* Wrappers comuns usados nos módulos antigos */
+body.sge-force-module-full main.sge-shell > *,
+body.sge-force-module-full main.sge-shell .container,
+body.sge-force-module-full main.sge-shell .container-sm,
+body.sge-force-module-full main.sge-shell .container-md,
+body.sge-force-module-full main.sge-shell .container-lg,
+body.sge-force-module-full main.sge-shell .container-xl,
+body.sge-force-module-full main.sge-shell .container-xxl,
+body.sge-force-module-full main.sge-shell .container-fluid,
+body.sge-force-module-full main.sge-shell .wrap,
+body.sge-force-module-full main.sge-shell .wrapper,
+body.sge-force-module-full main.sge-shell .page,
+body.sge-force-module-full main.sge-shell .page-wrap,
+body.sge-force-module-full main.sge-shell .page-wrapper,
+body.sge-force-module-full main.sge-shell .content,
+body.sge-force-module-full main.sge-shell .main,
+body.sge-force-module-full main.sge-shell .main-content,
+body.sge-force-module-full main.sge-shell .shell,
+body.sge-force-module-full main.sge-shell .layout,
+body.sge-force-module-full main.sge-shell .workspace,
+body.sge-force-module-full main.sge-shell .solar-wrap,
+body.sge-force-module-full main.sge-shell .solar-page,
+body.sge-force-module-full main.sge-shell .motor-wrap,
+body.sge-force-module-full main.sge-shell .motores-wrap,
+body.sge-force-module-full main.sge-shell .alerts-wrap,
+body.sge-force-module-full main.sge-shell .alertas-wrap{
+  max-width:none!important;
+  width:100%!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+/* Captura classes personalizadas que contenham nomes de wrapper sem obrigar cards internos a 100% */
+body.sge-force-module-full main.sge-shell [class*="container"],
+body.sge-force-module-full main.sge-shell [class*="wrapper"],
+body.sge-force-module-full main.sge-shell [class*="page-wrap"],
+body.sge-force-module-full main.sge-shell [class*="workspace"]{
+  max-width:none!important;
+}
+body.sge-force-module-full main.sge-shell .card,
+body.sge-force-module-full main.sge-shell .sge-card,
+body.sge-force-module-full main.sge-shell .panel,
+body.sge-force-module-full main.sge-shell .box{
+  max-width:none!important;
+}
+body.sge-force-module-full main.sge-shell .row{
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+body.sge-force-module-full main.sge-shell .row > [class*="col"]{
+  min-width:0;
+}
+/* Grelhas técnicas aproveitam melhor monitores largos */
+body.sge-force-module-full main.sge-shell .grid,
+body.sge-force-module-full main.sge-shell .cards,
+body.sge-force-module-full main.sge-shell .kpis,
+body.sge-force-module-full main.sge-shell .stats,
+body.sge-force-module-full main.sge-shell .sge-module-grid,
+body.sge-force-module-full main.sge-shell .sge-command-grid{
+  width:100%;
+  max-width:none!important;
+}
+/* Tabelas e relatórios com rolagem horizontal limpa, sem centralização */
+body.sge-force-module-full main.sge-shell table{
+  width:100%;
+}
+body.sge-force-module-full main.sge-shell .table-responsive,
+body.sge-force-module-full main.sge-shell .sge-table-scroll,
+body.sge-force-module-full main.sge-shell .table-wrap{
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+/* Evita que páginas de impressão/PDF fiquem excessivamente esticadas na visualização de impressão */
+@media print{
+  body.sge-force-module-full main.sge-shell{
+    width:auto!important;
+    padding:0!important;
+  }
+}

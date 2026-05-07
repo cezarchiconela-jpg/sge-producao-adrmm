@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Leituras mensais{% endblock %}
+{% block extra_head %}
+<style>
+  :root{--lm-blue:#073b78;--lm-blue2:#0f6fc6;--lm-soft:#f4faff;--lm-line:#d8e8f8;--lm-text:#103b63;--lm-green:#198754;}
+  .lm-hero{background:linear-gradient(135deg,var(--lm-blue),var(--lm-blue2));color:#fff;border-radius:22px;padding:18px 20px;box-shadow:0 18px 45px rgba(6,46,92,.18)}
+  .lm-hero h2{font-weight:850;margin:0 0 4px;font-size:1.35rem}.lm-hero p{opacity:.94;margin:0;max-width:980px;font-size:.95rem}
+  .lm-card{border:1px solid var(--lm-line);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(6,46,92,.055)}
+  .lm-toolbar{position:sticky;top:0;z-index:20;background:rgba(244,250,255,.96);backdrop-filter:blur(8px);border:1px solid var(--lm-line);border-radius:18px;padding:12px;box-shadow:0 10px 28px rgba(6,46,92,.08)}
+  .lm-kpi{border:1px solid var(--lm-line);border-radius:17px;padding:13px;background:#fff;height:100%;box-shadow:0 10px 28px rgba(6,46,92,.045)}
+  .lm-kpi .lbl{font-size:.72rem;text-transform:uppercase;color:#607d9d;font-weight:800;letter-spacing:.03em}.lm-kpi .val{font-size:1.15rem;font-weight:850;color:var(--lm-blue);line-height:1.15}.lm-kpi .sub{font-size:.78rem;color:#6f85a0;margin-top:3px}
+  .lm-periodo-bar{border:1px solid var(--lm-line);border-radius:18px;background:linear-gradient(135deg,#fff,#f5fbff);padding:12px 14px;box-shadow:0 10px 26px rgba(6,46,92,.05)}
+  .lm-lock{border-color:#f1c0c0!important;background:#fff7f7!important;color:#9b1c1c!important}.lm-open{border-color:#bfe5cc!important;background:#f2fbf5!important;color:#146c43!important}
+  .lm-validation{border:1px solid var(--lm-line);border-radius:16px;padding:11px 13px;background:#fff}.lm-validation ul{margin:.35rem 0 0 1rem;padding:0}.lm-validation li{margin:.18rem 0}.lm-validation.ok{border-color:#bfe5cc;background:#f6fff8}.lm-validation.warn{border-color:#ffd8a8;background:#fffaf2}.lm-validation.danger{border-color:#f2b8bf;background:#fff6f7}
+  .lm-status{display:flex;gap:8px;flex-wrap:wrap}.lm-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--lm-line);background:#fff;border-radius:999px;padding:7px 11px;font-weight:700;color:var(--lm-text);font-size:.82rem}.lm-pill.warn{border-color:#ffd8a8;background:#fff8ef;color:#8a5200}.lm-pill.ok{border-color:#cfead9;background:#f2fbf5;color:#146c43}.lm-pill.danger{border-color:#f3b5bb;background:#fff4f5;color:#a51d2d}
+  .lm-tabs{display:flex;gap:8px;flex-wrap:wrap}.lm-tabs a,.lm-tabs button{border-radius:999px!important;font-weight:700}
+  .lm-section-title{font-weight:850;color:var(--lm-blue);margin:0}.small-note{font-size:.84rem;color:#607d9d}.alert-soft{background:var(--lm-soft);border:1px solid var(--lm-line);border-radius:16px;padding:10px 13px;color:#244f78}
+  .lm-table-shell{border:1px solid var(--lm-line);border-radius:18px;background:#fff;overflow:hidden}.table-wrap-premium{max-height:74vh;min-height:420px;overflow:auto;background:#fff;scroll-behavior:smooth}
+  #tabelaMensal{border-collapse:separate;border-spacing:0}#tabelaMensal th{font-size:.74rem;white-space:nowrap;background:#eaf4ff;color:var(--lm-blue);vertical-align:middle;text-align:center;border-color:#d3e5f7;position:sticky;top:0;z-index:6}#tabelaMensal tfoot th{position:sticky;bottom:0;z-index:5;background:#f7fbff!important;color:var(--lm-blue)}
+  #tabelaMensal td{vertical-align:middle;text-align:center;white-space:nowrap;border-color:#edf3fa}#tabelaMensal input{min-width:92px;border-radius:10px;min-height:35px;text-align:right;border-color:#cfe0f2}#tabelaMensal input:focus{box-shadow:0 0 0 .18rem rgba(15,111,198,.14)}#tabelaMensal input[readonly]{background:#f6f9fd;color:#254b70;font-weight:700}#tabelaMensal .data-col{font-weight:850;color:var(--lm-blue);min-width:104px;background:#fbfdff;position:sticky;left:0;z-index:4}#tabelaMensal th:first-child{left:0;z-index:8}#tabelaMensal tr.row-today td{background:#fffdf1}#tabelaMensal tr.row-complete td{background:#f8fff9}#tabelaMensal tr.row-low-fp td{background:#fff6f6}#tabelaMensal tr.row-negative td{background:#fff1e8}
+  .col-calc{transition:opacity .2s}.lm-compact #tabelaMensal .col-calc,.lm-compact #tabelaMensal th.col-calc{display:none}.lm-compact #tabelaMensal input{min-width:100px}.lm-compact .table-wrap-premium{min-height:500px}.lm-input-ok{border-color:#a7dfbb!important;background:#f6fff8!important}.lm-input-warn{border-color:#f0b4b4!important;background:#fff7f7!important}
+  .lm-savebar{position:sticky;bottom:0;z-index:30;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border:1px solid var(--lm-line);border-radius:16px;padding:10px;box-shadow:0 -10px 25px rgba(6,46,92,.08)}
+  .chart-wrap{min-height:330px;padding:18px}.lm-mobile-hint{display:none}
+  @media(max-width:768px){.lm-hero{padding:16px}.lm-hero h2{font-size:1.12rem}.lm-toolbar{top:0;border-radius:14px}.lm-kpi .val{font-size:1.03rem}.table-wrap-premium{max-height:70vh;min-height:430px}#tabelaMensal input{min-width:88px}.lm-mobile-hint{display:block}.lm-tabs .btn{width:100%;}.lm-tabs{width:100%}.lm-tabs a,.lm-tabs button{flex:1 1 100%}.lm-savebar .btn{flex:1 1 100%}}
+</style>
+{% endblock %}
+{% block content %}
+
+<section class="lm-hero mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+    <div>
+      <h2>Leituras mensais operacionais</h2>
+      <p>Planilha única para o operador lançar as leituras diárias do contador. O SGE aplica o fator multiplicativo do Local, calcula consumo diário, consumo específico, fator de potência, reativa excedente, ponta, pré-custo e suporte à fatura EDM.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-light btn-sm" href="/energia">Centro de Leituras</a>
+      <a class="btn btn-outline-light btn-sm" href="/">Início</a>
+    </div>
+  </div>
+</section>
+
+<section class="lm-toolbar mb-3">
+  <form method="GET" action="/leituras_mensal" class="row g-2 align-items-end" id="formCarregarMensal">
+    <div class="col-lg-4 col-md-5">
+      <label class="form-label mb-1">Local / Instalação</label>
+      <select name="local" class="form-select" required id="select_local">
+        {% for lid, lname in locais_db %}
+          <option value="{{ lid }}" {% if selected_local_id==lid %}selected{% endif %}>{{ lname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-2 col-md-3 col-6">
+      <label class="form-label mb-1">Mês</label>
+      <select name="mes" class="form-select" required id="select_mes">
+        {% for m in meses %}
+          <option value="{{ m[0] }}" {% if m[0]==mes %}selected{% endif %}>{{ m[1] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-2 col-md-2 col-6">
+      <label class="form-label mb-1">Ano</label>
+      <input type="number" name="ano" id="anoInput" class="form-control" value="{{ ano }}" min="2000" max="2100" required>
+    </div>
+    <div class="col-lg-4 col-md-12 d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary" type="submit">Carregar</button>
+      <a class="btn btn-outline-dark" href="/leituras_mensal/fatura_edm?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Fatura EDM</a>
+      <a class="btn btn-outline-success" href="/leituras_mensal/export_xlsx?local={{ local }}&mes={{ mes }}&ano={{ ano }}">XLSX</a>
+      <a class="btn btn-outline-dark" href="/leituras_mensal/financeiro?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Resumo financeiro</a>
+      <a class="btn btn-outline-primary" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Auditoria inteligente</a>
+      <a class="btn btn-outline-secondary" href="/leituras_mensal/arquivo?local={{ local }}">Arquivo leituras</a>
+      <a class="btn btn-outline-secondary" href="/leituras_mensal/faturas?local={{ local }}">Arquivo facturas</a>
+    </div>
+  </form>
+</section>
+
+<section class="row g-2 mb-3">
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">Dias preenchidos</div><div class="val" id="kpi_dias">0/{{ dias|length }}</div><div class="sub">Linhas com leitura</div></div></div>
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">Consumo mensal</div><div class="val" id="kpi_kwh">{{ '%.2f'|format(resumo.kwh_total or 0) }}</div><div class="sub">kWh por Δ diário</div></div></div>
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">Água elevada</div><div class="val" id="kpi_agua">{{ '%.2f'|format(resumo.agua_total or 0) }} m³</div><div class="sub">Total do mês</div></div></div>
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">Consumo específico</div><div class="val" id="kpi_esp">{{ '%.3f'|format(resumo.consumo_especifico or 0) }}</div><div class="sub">kWh/m³</div></div></div>
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">FP médio</div><div class="val" id="kpi_fp">{{ '%.3f'|format(fp_medio or 0) }}</div><div class="sub">Ativa/Reativa</div></div></div>
+  <div class="col-xl-2 col-md-4 col-6"><div class="lm-kpi"><div class="lbl">Pré-custo</div><div class="val" id="kpi_valor">{{ '%.2f'|format(resumo.valor_total or 0) }} MT</div><div class="sub">Energia + reativa + ponta</div></div></div>
+</section>
+
+<section class="lm-card p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Fator multiplicativo</label><input id="fator_mult_top" class="form-control" value="{{ fator_mult or 1 }}" readonly></div>
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Pot. contratada</label><input id="pot_contratada_top" class="form-control" value="{{ pot_contratada or 0 }} kVA" readonly></div>
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Pot. instalada</label><input id="pot_instalada_top" class="form-control" value="{{ pot_instalada or 0 }} kW" readonly></div>
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Tarifa ativa</label><input id="tarifa_ativa_top" class="form-control" value="{{ cfg_selected.tarifa_ativa or 0 }}" readonly></div>
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Tarifa reativa</label><input id="tarifa_reativa_top" class="form-control" value="{{ cfg_selected.tarifa_reativa or 0 }}" readonly></div>
+    <div class="col-lg-2 col-md-4 col-6"><label class="form-label mb-1">Tarifa ponta</label><input id="tarifa_ponta_top" class="form-control" value="{{ cfg_selected.tarifa_ponta or 0 }}" readonly></div>
+  </div>
+  <input type="hidden" id="seed_anterior_primeiro_dia" value="{{ first_prev_ativa or 0 }}">
+  <input type="hidden" id="seed_reativa_primeiro_dia" value="{{ first_prev_reativa or 0 }}">
+  <div class="lm-status mt-3">
+    <span class="lm-pill ok" id="pill_estado">Planilha pronta</span>
+    <span class="lm-pill" id="pill_ponta">Ponta máx. corrigida: 0.00 kW</span>
+    <span class="lm-pill" id="pill_ponta_fat">Ponta faturável: 0.00 kW</span>
+    <span class="lm-pill" id="pill_reativa">Reativa exced.: 0.00</span>
+    <span class="lm-pill" id="pill_alertas">Sem alertas críticos</span>
+  </div>
+</section>
+
+<section class="lm-card p-3 p-lg-4 mb-3" id="lm-operacao">
+  <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
+    <div>
+      <h5 class="lm-section-title">Planilha diária de preenchimento</h5>
+      <div class="small-note">Modo rápido: preencha <strong>hora, ativa lida, reativa lida, ponta lida e água</strong>. A ponta lida aceita qualquer decimal, pode manter-se igual ou aumentar gradualmente; para a fatura será considerada a maior ponta do mês.</div>
+      <div class="small-note lm-mobile-hint mt-1">No telemóvel, use o modo compacto e role a tabela para os lados.</div>
+    </div>
+    <div class="lm-tabs">
+      <button type="button" id="btn-compacto" class="btn btn-primary btn-sm">Modo compacto</button>
+      <button type="button" id="btn-hoje" class="btn btn-outline-primary btn-sm">Ir para hoje</button>
+      <button type="button" id="btn-preencher-horas" class="btn btn-outline-secondary btn-sm">Preencher horas</button>
+      <button type="button" id="btn-recalc" class="btn btn-outline-secondary btn-sm">Recalcular</button>
+      <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/financeiro?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Resumo financeiro</a>
+      <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/fatura_edm?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Fatura EDM</a>
+      <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/fatura_edm_pdf?local={{ local }}&mes={{ mes }}&ano={{ ano }}">PDF 1 página</a>
+      <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/arquivo?local={{ local }}">Arquivo</a>
+    </div>
+  </div>
+
+  
+  {% set pst = periodo_status or {'status':'aberto','fechado':False} %}
+  {% set valp = validacao_periodo or {'ok_para_faturar':False,'criticos':[],'avisos':[],'dias_preenchidos':0,'total_dias':dias|length,'progresso_pct':0} %}
+  <div class="lm-periodo-bar mb-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="lm-status mb-2">
+          {% if pst.fechado %}
+            <span class="lm-pill lm-lock">🔒 Mês fechado</span>
+          {% else %}
+            <span class="lm-pill lm-open">🟢 Mês aberto para lançamento</span>
+          {% endif %}
+          <span class="lm-pill">📊 Preenchimento: {{ valp.dias_preenchidos }}/{{ valp.total_dias }} dias · {{ valp.progresso_pct }}%</span>
+          {% if valp.ok_para_faturar %}<span class="lm-pill ok">✅ Pronto para faturação</span>{% else %}<span class="lm-pill warn">⚠️ Requer validação</span>{% endif %}
+        </div>
+        <div class="small-note">
+          O fecho do mês arquiva a fatura e protege as leituras contra alterações acidentais. Para corrigir depois, use <b>Reabrir mês</b>.
+          {% if pst.fechado and pst.fechado_em %}<br>Fechado em {{ pst.fechado_em }} por {{ pst.fechado_por or 'operador' }}.{% endif %}
+        </div>
+      </div>
+      <form method="POST" action="/leituras_mensal/status" class="d-flex gap-2 flex-wrap align-items-center">
+        <input type="hidden" name="local" value="{{ local }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        {% if pst.fechado %}
+          <input type="hidden" name="operacao" value="reabrir">
+          <button class="btn btn-outline-danger btn-sm" type="submit" onclick="return confirm('Reabrir este mês para permitir alterações?')">Reabrir mês</button>
+        {% else %}
+          <input type="hidden" name="operacao" value="fechar">
+          <button class="btn btn-dark btn-sm" type="submit" onclick="return confirm('Fechar este mês, arquivar a fatura e bloquear alterações?')">Fechar mês</button>
+        {% endif %}
+        <a class="btn btn-outline-primary btn-sm" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Ver auditoria</a>
+        <a class="btn btn-outline-success btn-sm" href="/leituras_mensal/faturas?local={{ local }}">Facturas arquivadas</a>
+      </form>
+    </div>
+    <div class="lm-validation mt-3 {% if valp.criticos %}danger{% elif valp.avisos %}warn{% else %}ok{% endif %}">
+      <b>Validação operacional do período</b>
+      {% if valp.criticos %}
+        <ul>{% for a in valp.criticos %}<li><b>Crítico:</b> {{ a }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if valp.avisos %}
+        <ul>{% for a in valp.avisos[:4] %}<li>{{ a }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if not valp.criticos and not valp.avisos %}<div class="small-note mt-1">Sem inconsistências relevantes detectadas para este período.</div>{% endif %}
+    </div>
+  </div>
+
+  <form method="POST" action="/leituras_mensal_salvar" id="formMensal" data-locked="{{ 1 if pst.fechado else 0 }}">
+    <input type="hidden" name="local" value="{{ selected_local_id or local }}">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <input type="hidden" name="ano" value="{{ ano }}">
+    <input id="fator_mult_hidden" type="hidden" name="fator_mult" value="{{ fator_mult }}">
+    <input type="hidden" name="acao" id="acao_mensal" value="">
+
+    <div class="lm-table-shell">
+      <div class="table-wrap-premium" id="tableWrapMensal">
+        <table class="table table-bordered table-sm mb-0" id="tabelaMensal" data-local="{{ local }}" data-total-dias="{{ dias|length }}">
+          <thead>
+            <tr>
+              <th>Data</th><th>Hora</th>
+              <th>Ativa lida<br><small>kWh</small></th>
+              <th class="col-calc">Ativa faturada<br><small>kWh</small></th>
+              <th>Reativa lida<br><small>kVArh</small></th>
+              <th class="col-calc">Reativa faturada<br><small>kVArh</small></th>
+              <th>Ponta lida<br><small>kW</small></th>
+              <th class="col-calc">Ponta faturável<br><small>kW</small></th>
+              <th>FP</th>
+              <th class="col-calc">Pot. contratada</th>
+              <th class="col-calc">Anterior</th>
+              <th class="col-calc">Atual</th>
+              <th>Δ Consumo</th>
+              <th>Água<br><small>m³</small></th>
+              <th>kWh/m³</th>
+              <th class="col-calc">Acumulado</th>
+              <th class="col-calc">Reativa exced.</th>
+              <th>Valor dia<br><small>MT</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in dias %}
+            {% set row = leituras.get(d) %}
+            <tr data-data="{{ d }}">
+              <td class="data-col">{{ d }}<input type="hidden" name="data_{{ loop.index0 }}" value="{{ d }}"></td>
+              <td><input class="form-control form-control-sm hora" type="time" name="hora_{{ loop.index0 }}" value="{{ row.hora if row else '' }}"></td>
+              <td><input class="form-control form-control-sm ativa-lida" type="number" step="0.01" name="ativa_lida_{{ loop.index0 }}" value="{{ row.ativa_lida if row else '' }}" placeholder="0.00"></td>
+              <td class="col-calc"><input class="form-control form-control-sm ativa-fat" type="number" step="0.01" value="{{ row.ativa if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm reativa-lida" type="number" step="0.01" name="reativa_lida_{{ loop.index0 }}" value="{{ row.reativa_lida if row else '' }}" placeholder="0.00"></td>
+              <td class="col-calc"><input class="form-control form-control-sm reativa-fat" type="number" step="0.01" value="{{ row.reativa if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm ponta-lida" type="number" step="any" name="ponta_lida_{{ loop.index0 }}" value="{{ row.ponta_lida if row else '' }}" placeholder="0.00"></td>
+              <td class="col-calc"><input class="form-control form-control-sm ponta-fat" type="number" step="0.01" value="{{ row.ponta if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm fp" type="number" step="0.001" name="fp_{{ loop.index0 }}" value="{{ row.fp if row else '' }}" readonly></td>
+              <td class="col-calc"><input class="form-control form-control-sm potc" type="number" step="0.01" name="potc_{{ loop.index0 }}" value="{{ row.potc if row else pot_contratada }}" readonly></td>
+              <td class="col-calc"><input class="form-control form-control-sm anterior" type="number" step="0.01" name="anterior_{{ loop.index0 }}" value="{{ row.anterior if row else '' }}" readonly></td>
+              <td class="col-calc"><input class="form-control form-control-sm atual" type="number" step="0.01" name="atual_{{ loop.index0 }}" value="{{ row.atual if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm diferenca" type="number" step="0.01" name="diferenca_{{ loop.index0 }}" value="{{ row.diferenca if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm agua" type="number" step="0.001" name="agua_{{ loop.index0 }}" value="{{ row.agua if row else '' }}" placeholder="0.000"></td>
+              <td><input class="form-control form-control-sm esp" type="number" step="0.001" name="esp_{{ loop.index0 }}" value="{{ row.esp if row else '' }}" readonly></td>
+              <td class="col-calc"><input class="form-control form-control-sm acum" type="number" step="0.01" name="acum_{{ loop.index0 }}" value="{{ row.acum if row else '' }}" readonly></td>
+              <td class="col-calc"><input class="form-control form-control-sm reativa-exc" type="number" step="0.01" value="{{ row.reativa_excedente if row else '' }}" readonly></td>
+              <td><input class="form-control form-control-sm valor" type="number" step="0.01" name="valor_{{ loop.index0 }}" value="{{ row.valor_total_dia if row else '' }}" readonly></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <th colspan="2" class="text-end">Totais</th>
+              <th id="tot_ativa_lida"></th><th class="col-calc" id="tot_kwh"></th><th id="tot_reativa_lida"></th><th class="col-calc" id="tot_kvarh"></th><th></th><th class="col-calc" id="tot_ponta"></th><th id="tot_fp"></th><th class="col-calc"></th><th class="col-calc"></th><th class="col-calc"></th><th id="tot_delta"></th><th id="tot_agua"></th><th id="tot_esp"></th><th class="col-calc" id="tot_acum"></th><th class="col-calc" id="tot_reativa_exc"></th><th id="tot_valor"></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="lm-savebar d-flex gap-2 flex-wrap mt-3">
+      <button class="btn btn-success" type="submit" {% if pst.fechado %}disabled title="Mês fechado. Reabra para alterar."{% endif %}>Salvar leituras e cálculos</button>
+      <button id="btn_fatura_edm" class="btn btn-outline-dark" type="button" {% if pst.fechado %}disabled title="Mês fechado. Reabra para alterar."{% endif %}>Salvar e abrir fatura EDM</button>
+      <a class="btn btn-outline-primary" href="/leituras_mensal/export_xlsx?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Exportar XLSX</a>
+      <a class="btn btn-outline-primary" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Auditoria inteligente</a>
+    </div>
+  </form>
+</section>
+
+<section class="lm-card chart-wrap mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <h5 class="lm-section-title">Comportamento energético mensal</h5>
+    <span class="small-note">Gráfico dinâmico: actualiza automaticamente enquanto preenche a planilha, sem depender de internet.</span>
+  </div>
+  <canvas id="chartMensal"></canvas>
+</section>
+
+<script>
+(function(){
+  const fator = Number({{ fator_mult or 1 }});
+  const potc = Number({{ pot_contratada or 0 }});
+  const tAtiva = Number({{ cfg_selected.tarifa_ativa or 0 }});
+  const tReativa = Number({{ cfg_selected.tarifa_reativa or 0 }});
+  const tPonta = Number({{ cfg_selected.tarifa_ponta or 0 }});
+  const seedAtiva = Number({{ first_prev_ativa or 0 }});
+  const seedReativa = Number({{ first_prev_reativa or 0 }});
+  const totalDias = Number(document.getElementById('tabelaMensal')?.dataset.totalDias || 0);
+  const chartCanvas = document.getElementById('chartMensal');
+  const formMensal = document.getElementById('formMensal');
+  if(formMensal && formMensal.dataset.locked === '1'){
+    formMensal.querySelectorAll('input, select, textarea').forEach(el=>{
+      if(el.type !== 'hidden') el.setAttribute('disabled','disabled');
+    });
+  }
+  const chartSeriesCfg = [
+    {key:'delta', label:'Consumo diário kWh'},
+    {key:'ponta', label:'Ponta corrigida kW'},
+    {key:'fp', label:'FP'},
+    {key:'esp', label:'kWh/m³'}
+  ];
+  const fmt = (v,dec=2)=> Number.isFinite(v) ? v.toLocaleString('pt-PT',{minimumFractionDigits:dec,maximumFractionDigits:dec}) : '';
+  const fmtInput = (v,dec=2)=> Number.isFinite(v) ? v.toFixed(dec) : '';
+  const num = el => { const raw=(el?.value || '').toString().replace(',', '.'); const v=parseFloat(raw); return Number.isFinite(v) ? v : null; };
+  const setVal=(el,v,dec=2)=>{ if(el) el.value=(v===null || v===undefined || !Number.isFinite(v)) ? '' : fmtInput(v,dec); };
+  const setText=(id,txt)=>{ const el=document.getElementById(id); if(el) el.textContent=txt; };
+  const pontaFaturavel = pontaMaxCorrigida => (0.20 * potc) + (0.80 * (Number.isFinite(pontaMaxCorrigida) ? pontaMaxCorrigida : 0));
+  function drawDynamicChart(chartData){
+    if(!chartCanvas) return;
+    const parent = chartCanvas.parentElement || chartCanvas;
+    const w = Math.max(parent.clientWidth || 900, 320);
+    const h = Math.max(parent.clientHeight || 320, 260);
+    const dpr = window.devicePixelRatio || 1;
+    chartCanvas.width = Math.floor(w*dpr); chartCanvas.height = Math.floor(h*dpr);
+    chartCanvas.style.width = w+'px'; chartCanvas.style.height = h+'px';
+    const ctx = chartCanvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    const padL=54, padR=18, padT=28, padB=54;
+    const plotW=w-padL-padR, plotH=h-padT-padB;
+    ctx.font='12px system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.lineWidth=1; ctx.strokeStyle='#d8e8f8'; ctx.fillStyle='#607d9d';
+    for(let i=0;i<=4;i++){ const y=padT+(plotH*i/4); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke(); }
+    const allValues=[];
+    chartSeriesCfg.forEach(cfg => (chartData[cfg.key]||[]).forEach(v=>{ if(Number.isFinite(v) && v>0) allValues.push(v); }));
+    const maxV=Math.max(...allValues, 1);
+    const scaleY=v => padT + plotH - ((v || 0)/maxV)*plotH;
+    const count=Math.max(chartData.labels.length,1);
+    const scaleX=i => padL + (count===1 ? plotW/2 : (plotW*i/(count-1)));
+    ctx.strokeStyle='#103b63'; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,h-padB); ctx.lineTo(w-padR,h-padB); ctx.stroke();
+    for(let i=0;i<=4;i++){ const val=maxV*(1-i/4); const y=padT+(plotH*i/4); ctx.fillText(val.toFixed(val>=10?0:2), 8, y+4); }
+    const palette=['#0f6fc6','#198754','#f59f00','#6f42c1'];
+    chartSeriesCfg.forEach((cfg,idx)=>{
+      const arr=chartData[cfg.key]||[]; if(!arr.some(v=>Number.isFinite(v) && v>0)) return;
+      ctx.strokeStyle=palette[idx%palette.length]; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
+      arr.forEach((v,i)=>{ const x=scaleX(i), y=scaleY(Number.isFinite(v)?v:0); if(!started){ctx.moveTo(x,y); started=true;} else ctx.lineTo(x,y); });
+      ctx.stroke();
+      ctx.fillStyle=palette[idx%palette.length];
+      arr.forEach((v,i)=>{ if(!Number.isFinite(v) || v<=0) return; const x=scaleX(i), y=scaleY(v); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill(); });
+    });
+    ctx.fillStyle='#103b63'; ctx.font='700 12px system-ui, -apple-system, Segoe UI, sans-serif';
+    let lx=padL; chartSeriesCfg.forEach((cfg,idx)=>{ ctx.fillStyle=palette[idx%palette.length]; ctx.fillRect(lx,padT-18,10,10); ctx.fillStyle='#103b63'; ctx.fillText(cfg.label,lx+14,padT-9); lx += Math.min(190, cfg.label.length*7+34); });
+    ctx.fillStyle='#607d9d'; ctx.font='11px system-ui, -apple-system, Segoe UI, sans-serif';
+    const step=Math.max(1, Math.ceil(count/8));
+    chartData.labels.forEach((lab,i)=>{ if(i%step!==0 && i!==count-1) return; const x=scaleX(i); ctx.save(); ctx.translate(x,h-padB+17); ctx.rotate(-0.45); ctx.fillText(lab.slice(5),0,0); ctx.restore(); });
+  }
+  const isFilledRow=tr=> num(tr.querySelector('.ativa-lida'))!==null || num(tr.querySelector('.reativa-lida'))!==null || num(tr.querySelector('.ponta-lida'))!==null || num(tr.querySelector('.agua'))!==null;
+  let raf=null;
+  function recalc(){
+    let prevA=seedAtiva, prevR=seedReativa, prevPontaCorr=null, acum=0;
+    // Se não houver leitura do mês anterior, a primeira leitura preenchida do mês
+    // fica como linha de base. Isto evita transformar a leitura acumulada histórica
+    // do contador em consumo/reagente excedente do mês.
+    let hasPrevA = Number.isFinite(seedAtiva) && seedAtiva > 0;
+    let hasPrevR = Number.isFinite(seedReativa) && seedReativa > 0;
+    let tot={lidaA:0,fatA:0,lidaR:0,fatR:0,ponta:0,delta:0,agua:0,valorEnergia:0,valor:0,reatExc:0,fpSum:0,fpN:0,dias:0,lowFp:0,negative:0,pontaBaixa:0};
+    let chartData={labels:[], delta:[], ponta:[], fp:[], esp:[]};
+    document.querySelectorAll('#tabelaMensal tbody tr').forEach(tr=>{
+      tr.classList.remove('row-complete','row-low-fp','row-negative');
+      const ativaL=num(tr.querySelector('.ativa-lida'));
+      const reatL=num(tr.querySelector('.reativa-lida'));
+      const pontaL=num(tr.querySelector('.ponta-lida'));
+      const agua=num(tr.querySelector('.agua'));
+      const ativaF=ativaL===null ? null : ativaL*fator;
+      const reatF=reatL===null ? null : reatL*fator;
+      const pontaCorrRaw=pontaL===null ? null : pontaL*fator;
+      let pontaCorr=pontaCorrRaw;
+      if(pontaCorrRaw!==null && prevPontaCorr!==null && pontaCorrRaw + 1e-9 < prevPontaCorr){
+        // A ponta mensal é cumulativa/máxima: se o operador digitar abaixo da anterior, o sistema mantém a anterior.
+        pontaCorr=prevPontaCorr;
+      }
+      const pontaF=pontaCorr===null ? null : pontaFaturavel(pontaCorr);
+      let deltaAReal=0;
+      if(ativaF!==null && hasPrevA){ deltaAReal = ativaF-prevA; }
+      const deltaA=deltaAReal<0 ? 0 : deltaAReal;
+      let deltaRReal=0;
+      if(reatF!==null && hasPrevR){ deltaRReal = reatF-prevR; }
+      const deltaR=deltaRReal<0 ? 0 : deltaRReal;
+      const fp=(deltaA>0 || deltaR>0) ? deltaA/Math.sqrt(deltaA*deltaA+deltaR*deltaR) : null;
+      const reatExc=Math.max(deltaR-0.75*deltaA,0);
+      const esp=agua && agua>0 ? deltaA/agua : null;
+      acum+=deltaA;
+      const valor=deltaA*tAtiva + reatExc*tReativa;
+      setVal(tr.querySelector('.ativa-fat'),ativaF,2); setVal(tr.querySelector('.reativa-fat'),reatF,2); setVal(tr.querySelector('.ponta-fat'),pontaF,2);
+      setVal(tr.querySelector('.fp'),fp,3); setVal(tr.querySelector('.potc'),potc,2); setVal(tr.querySelector('.anterior'),prevA,2); setVal(tr.querySelector('.atual'),ativaF,2);
+      setVal(tr.querySelector('.diferenca'),deltaA,2); setVal(tr.querySelector('.esp'),esp,3); setVal(tr.querySelector('.acum'),acum,2); setVal(tr.querySelector('.reativa-exc'),reatExc,2); setVal(tr.querySelector('.valor'),valor,2);
+      chartData.labels.push(tr.dataset.data || ''); chartData.delta.push(deltaA); chartData.ponta.push(pontaCorr||0); chartData.fp.push(fp||0); chartData.esp.push(esp||0);
+      // Atualiza a referência apenas quando a leitura atual é válida e não recua.
+      // Se a leitura for menor que a anterior, mantém-se a última referência válida
+      // para não contaminar o cálculo dos dias seguintes.
+      if(ativaF!==null){
+        if(!hasPrevA){ prevA=ativaF; hasPrevA=true; }
+        else if(deltaAReal>=0){ prevA=ativaF; }
+      }
+      if(reatF!==null){
+        if(!hasPrevR){ prevR=reatF; hasPrevR=true; }
+        else if(deltaRReal>=0){ prevR=reatF; }
+      }
+      const filled=isFilledRow(tr); if(filled){tot.dias++; tr.classList.add('row-complete');}
+      if(deltaAReal<0 || deltaRReal<0){tot.negative++; tr.classList.add('row-negative');}
+      if(pontaCorrRaw!==null){
+        if(prevPontaCorr!==null && pontaCorrRaw + 1e-9 < prevPontaCorr){ tot.pontaBaixa++; tr.classList.add('row-negative'); }
+        prevPontaCorr = Math.max(prevPontaCorr || 0, pontaCorr);
+      }
+      if(fp!==null && fp<0.85){tot.lowFp++; tr.classList.add('row-low-fp');}
+      [tr.querySelector('.ativa-lida'),tr.querySelector('.reativa-lida'),tr.querySelector('.ponta-lida'),tr.querySelector('.agua')].forEach(input=>{ if(!input) return; const v=num(input); input.classList.toggle('lm-input-ok',v!==null); });
+      if(ativaL!==null) tot.lidaA+=ativaL; if(reatL!==null) tot.lidaR+=reatL; if(ativaF!==null) tot.fatA+=ativaF; if(reatF!==null) tot.fatR+=reatF; if(pontaCorr!==null) tot.ponta=Math.max(tot.ponta,pontaCorr);
+      tot.delta+=deltaA; if(agua) tot.agua+=agua; tot.valorEnergia+=valor; tot.reatExc+=reatExc; if(fp!==null){tot.fpSum+=fp;tot.fpN++;}
+    });
+    const pontaFat = pontaFaturavel(tot.ponta);
+    tot.valor = tot.valorEnergia + (pontaFat * tPonta);
+    setText('tot_ativa_lida',fmt(tot.lidaA,2)); setText('tot_kwh',fmt(tot.fatA,2)); setText('tot_reativa_lida',fmt(tot.lidaR,2)); setText('tot_kvarh',fmt(tot.fatR,2)); setText('tot_ponta',fmt(pontaFat,2)); setText('tot_fp',tot.fpN?fmt(tot.fpSum/tot.fpN,3):''); setText('tot_delta',fmt(tot.delta,2)); setText('tot_agua',fmt(tot.agua,2)); setText('tot_esp',tot.agua?fmt(tot.delta/tot.agua,3):''); setText('tot_acum',fmt(acum,2)); setText('tot_reativa_exc',fmt(tot.reatExc,2)); setText('tot_valor',fmt(tot.valor,2));
+    setText('kpi_dias',`${tot.dias}/${totalDias}`); setText('kpi_kwh',fmt(tot.delta,2)); setText('kpi_valor',fmt(tot.valor,2)+' MT'); setText('kpi_agua',fmt(tot.agua,2)+' m³'); setText('kpi_esp',tot.agua?fmt(tot.delta/tot.agua,3):'0.000'); setText('kpi_fp',tot.fpN?fmt(tot.fpSum/tot.fpN,3):'0.000'); setText('pill_ponta','Ponta máx. corrigida: '+fmt(tot.ponta,2)+' kW'); setText('pill_ponta_fat','Ponta faturável: '+fmt(pontaFat,2)+' kW'); setText('pill_reativa','Reativa exced.: '+fmt(tot.reatExc,2));
+    drawDynamicChart(chartData);
+    const alertEl=document.getElementById('pill_alertas'); if(alertEl){ alertEl.className='lm-pill'; if(tot.negative>0 || tot.pontaBaixa>0){alertEl.classList.add('danger'); alertEl.textContent=`${tot.negative} linha(s) com leitura menor que a anterior${tot.pontaBaixa?` e ${tot.pontaBaixa} ponta(s) abaixo da ponta anterior`:''}`; } else if(tot.lowFp>0){alertEl.classList.add('warn'); alertEl.textContent=`${tot.lowFp} dia(s) com FP abaixo de 0.85`; } else {alertEl.classList.add('ok'); alertEl.textContent='Sem alertas críticos'; }}
+    const estado=document.getElementById('pill_estado'); if(estado){estado.textContent = tot.dias ? 'Preenchimento em curso' : 'Planilha pronta';}
+  }
+  function scheduleRecalc(){ if(raf) cancelAnimationFrame(raf); raf=requestAnimationFrame(recalc); }
+  document.addEventListener('input',e=>{ if(e.target.closest('#tabelaMensal')) scheduleRecalc(); });
+  document.getElementById('btn-recalc')?.addEventListener('click',recalc);
+  document.getElementById('btn-preencher-horas')?.addEventListener('click',()=>{document.querySelectorAll('#tabelaMensal input[type=time]').forEach(i=>{if(!i.value)i.value='00:00'}); recalc();});
+  document.getElementById('btn-compacto')?.addEventListener('click',()=>{document.body.classList.toggle('lm-compact'); const on=document.body.classList.contains('lm-compact'); document.getElementById('btn-compacto').textContent=on?'Modo completo':'Modo compacto';});
+  document.getElementById('btn-hoje')?.addEventListener('click',()=>{ const today=new Date(); const y=today.getFullYear(); const m=String(today.getMonth()+1).padStart(2,'0'); const d=String(today.getDate()).padStart(2,'0'); const row=document.querySelector(`#tabelaMensal tr[data-data="${y}-${m}-${d}"]`) || document.querySelector('#tabelaMensal tbody tr'); if(row){row.classList.add('row-today'); row.scrollIntoView({behavior:'smooth',block:'center',inline:'start'}); const input=row.querySelector('input:not([readonly])'); if(input) setTimeout(()=>input.focus(),400);} });
+  document.getElementById('btn_fatura_edm')?.addEventListener('click',()=>{document.getElementById('acao_mensal').value='fatura_edm'; document.getElementById('formMensal').target='_blank'; document.getElementById('formMensal').submit(); setTimeout(()=>{document.getElementById('formMensal').removeAttribute('target'); document.getElementById('acao_mensal').value='';},500);});
+  let planilhaAlterada=false;
+  document.addEventListener('input',e=>{ if(e.target.closest('#tabelaMensal')) planilhaAlterada=true; });
+  document.getElementById('formMensal')?.addEventListener('submit',()=>{recalc(); planilhaAlterada=false;});
+  document.getElementById('formCarregarMensal')?.addEventListener('submit',(e)=>{
+    if(planilhaAlterada){
+      const ok = confirm('Existem alterações ainda não salvas nesta planilha. Clique em Cancelar para voltar e gravar primeiro, ou OK para carregar outro período sem salvar estas alterações.');
+      if(!ok) e.preventDefault();
+    }
+  });
+  window.SGE_Recalc_LeiturasMensal=recalc; recalc();
+})();
+</script>
+<script>
+window.addEventListener('resize',()=>{ if(window.SGE_Recalc_LeiturasMensal) window.SGE_Recalc_LeiturasMensal(); });
+</script>
+{% endblock %}

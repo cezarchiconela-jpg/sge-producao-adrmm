@@ -1,0 +1,47 @@
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Visualização Mensal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body class="container mt-4">
+  <h3>Gráficos - {{ local }} - {{ mes }}</h3>
+  <form method="get" class="row g-3 mb-3">
+    <div class="col-md-4">
+      <label>Local</label>
+      <select name="local" class="form-select">
+        {% for l in locais %}
+          <option value="{{ l }}" {% if l==local %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label>Mês</label>
+      <input type="month" name="mes" value="{{ mes }}" class="form-control">
+    </div>
+    <div class="col-md-3 align-self-end">
+      <button class="btn btn-primary">Atualizar</button>
+      <a class="btn btn-secondary" href="{{ url_for('leituras_mensal') }}">Voltar</a>
+    </div>
+  </form>
+
+  <div id="graf1"></div>
+  <div id="graf2" class="mt-3"></div>
+  <div id="graf3" class="mt-3"></div>
+
+  <script>
+    const dias = {{ dias|tojson }};
+    const difs = {{ difs|tojson }};
+    const atv = {{ ativas|tojson }};
+    const rtv = {{ reativas|tojson }};
+    const pta = {{ pontas|tojson }};
+    const fps = {{ fps|tojson }};
+    Plotly.newPlot('graf1', [{x:dias, y:difs, mode:'lines+markers', name:'Δ Leitura (kWh)'}], {title:'Consumo diário (Δ Leitura)'});
+    Plotly.newPlot('graf2', [{x:dias, y:atv, mode:'lines', name:'Ativa kWh'}, {x:dias, y:rtv, mode:'lines', name:'Reativa kVArh'}], {title:'Ativa x Reativa'});
+    Plotly.newPlot('graf3', [{x:dias, y:pta, mode:'lines', name:'Ponta kW'}, {x:dias, y:fps, mode:'lines', name:'FP'}], {title:'Ponta e Fator de Potência'});
+  </script>
+</body>
+</html>

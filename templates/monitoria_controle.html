@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Controlo Operacional — SGE</title>
+  <style>
+    :root{--azul:#0b3c78;--azul2:#1f6fbe;--verde:#159957;--bg:#f3f9ff;--linha:#c9e0f6;--txt:#142b44;--muted:#6381a2;--danger:#c82333;--warn:#b7791f;--ok:#159957}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#f7fbff,#edf7ff);color:var(--txt)}
+    .topbar{height:7px;background:linear-gradient(90deg,var(--azul),var(--azul2),var(--verde))}.page{width:min(1640px,96vw);margin:18px auto 40px}
+    .hero{background:linear-gradient(135deg,#073769,#155da4);color:white;border-radius:22px;padding:22px 26px;box-shadow:0 16px 35px rgba(11,60,120,.18);display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.hero h1{margin:0 0 8px;font-size:28px}.hero p{margin:0;color:#dbeeff;line-height:1.45}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.btn{border:1px solid transparent;border-radius:13px;padding:11px 15px;font-weight:900;text-decoration:none;display:inline-flex;gap:7px;align-items:center;background:white;color:#123;white-space:nowrap;cursor:pointer}.btn.primary{background:#1f6fbe;color:white}.btn.green{background:var(--verde);color:white}.btn.dark{background:#253140;color:white}.btn.outline{border-color:#9bc8f4;color:#0b3c78}.btn.warn{background:#fff6db;color:#704500;border-color:#ffd486}
+    .panel{background:rgba(255,255,255,.92);border:1px solid var(--linha);border-radius:20px;padding:18px;box-shadow:0 10px 28px rgba(45,89,130,.08);margin-top:16px}.filters{display:grid;grid-template-columns:1fr 1fr 1.3fr 1.3fr 1.6fr auto;gap:12px;align-items:end}.field label{display:block;font-size:13px;font-weight:900;color:#24476f;margin-bottom:6px}.field input,.field select{width:100%;height:46px;border:1px solid #bcd7f3;border-radius:13px;background:white;padding:0 12px;font-size:14px}.field input:focus,.field select:focus{outline:3px solid #d8ecff;border-color:#3a91e8}
+    .status{display:grid;grid-template-columns:1.1fr 1.9fr;gap:16px}.state-card{border-radius:22px;padding:24px;color:white;min-height:180px;display:flex;flex-direction:column;justify-content:space-between}.state-card.ok{background:linear-gradient(135deg,#159957,#0b6b3a)}.state-card.warn{background:linear-gradient(135deg,#d99b21,#8a5b00)}.state-card.danger{background:linear-gradient(135deg,#c82333,#7b1020)}.state-card.info{background:linear-gradient(135deg,#56718f,#2c3e50)}.state-card .label{font-size:13px;text-transform:uppercase;letter-spacing:.08em;opacity:.85;font-weight:900}.state-card .value{font-size:38px;font-weight:950;margin-top:8px}.state-card p{margin:10px 0 0;color:#f4f8ff;line-height:1.45}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{background:white;border:1px solid var(--linha);border-radius:18px;padding:15px}.kpi .t{font-size:12px;text-transform:uppercase;color:#5d7898;font-weight:950}.kpi .v{font-size:22px;color:#0b3c78;font-weight:950;margin-top:5px}.kpi .s{font-size:12px;color:var(--muted);margin-top:4px}
+    .grid-2{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.table-wrap{overflow:auto;border:1px solid var(--linha);border-radius:18px;background:white;max-height:520px}.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}.tbl th{position:sticky;top:0;background:#eaf4ff;color:#073769;text-align:left;padding:10px;border-bottom:1px solid #c9e0f6}.tbl td{padding:10px;border-bottom:1px solid #edf4fb;vertical-align:top}.tbl td.num,.tbl th.num{text-align:right}.badge{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:950;white-space:nowrap}.badge.Crítico{background:#dc3545;color:white}.badge.Atenção{background:#ffc107;color:#553800}.badge.Informativo{background:#17a2b8;color:white}.score{font-weight:950;color:#0b3c78}.plan{display:grid;gap:10px}.plan-item{background:#f8fcff;border:1px solid #dbeafa;border-left:6px solid #1f6fbe;border-radius:14px;padding:12px 14px;font-weight:700;color:#24476f;line-height:1.4}.checklist{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.check{background:white;border:1px solid var(--linha);border-radius:15px;padding:12px}.check b{color:#0b3c78}.check span{display:block;color:#6381a2;font-size:13px;margin-top:4px;line-height:1.35}
+    @media(max-width:1100px){.hero,.status{grid-template-columns:1fr;display:block}.actions{justify-content:flex-start;margin-top:14px}.filters{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.state-card{margin-bottom:16px}.checklist{grid-template-columns:1fr}}
+    @media(max-width:640px){.page{width:94vw}.filters,.kpis{grid-template-columns:1fr}.hero h1{font-size:23px}.tbl{min-width:820px}.state-card .value{font-size:30px}}
+    @media print{.topbar,.filters,.actions,.btn{display:none!important}.page{width:100%;margin:0}.hero,.panel{box-shadow:none}.hero{color:#111;background:white;border:1px solid #ccc}.hero p{color:#333}.table-wrap{max-height:none;overflow:visible}.tbl{font-size:10px;min-width:0}.state-card{color:#111;background:#f4f4f4!important;border:1px solid #ccc}.state-card p{color:#333}.kpis{grid-template-columns:repeat(4,1fr)}}
+  </style>
+</head>
+<body>
+<div class="topbar"></div>
+<main class="page">
+  <section class="hero">
+    <div>
+      <h1>Painel de Controlo Operacional</h1>
+      <p>Validação inteligente das leituras operacionais por período, local e equipamento. Este painel identifica criticidade, prioriza anomalias e sugere acções técnicas antes de relatórios ou decisões operacionais.</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/monitoria?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">↩ Voltar à monitoria</a>
+      <a class="btn primary" href="/monitoria/nova{% if local %}?local={{ local|urlencode }}{% endif %}">+ Nova leitura</a>
+      <a class="btn outline" href="/monitoria/relatorio?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Relatório técnico</a>
+      <button class="btn dark" onclick="window.print()">Imprimir / PDF</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <form class="filters" method="get" action="/monitoria/controlo">
+      <div class="field"><label>Início</label><input type="date" name="inicio" value="{{ inicio }}"></div>
+      <div class="field"><label>Fim</label><input type="date" name="fim" value="{{ fim }}"></div>
+      <div class="field"><label>Local</label><select name="local"><option value="">Todos</option>{% for l in locais_opts %}<option value="{{ l }}" {% if l==local %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Equipamento</label><select name="equipamento"><option value="">Todos</option>{% for e in equipamentos_opts %}<option value="{{ e }}" {% if e==equipamento %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Pesquisar</label><input name="q" value="{{ q }}" placeholder="observação, equipamento, local..."></div>
+      <button class="btn primary" type="submit">Analisar</button>
+    </form>
+  </section>
+
+  <section class="panel status">
+    <div class="state-card {{ estado_classe }}">
+      <div>
+        <div class="label">Estado operacional do período</div>
+        <div class="value">{{ estado }}</div>
+        <p>{{ resumo_estado }}</p>
+      </div>
+      <div style="font-weight:900">{{ inicio }} a {{ fim }}{% if local %} · {{ local }}{% endif %}{% if equipamento %} · {{ equipamento }}{% endif %}</div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="t">Registos</div><div class="v">{{ total_registos }}</div><div class="s">leituras analisadas</div></div>
+      <div class="kpi"><div class="t">Alertas críticos</div><div class="v">{{ criticos }}</div><div class="s">exigem validação</div></div>
+      <div class="kpi"><div class="t">Alertas atenção</div><div class="v">{{ atencao }}</div><div class="s">acompanhar/corrigir</div></div>
+      <div class="kpi"><div class="t">FP médio</div><div class="v">{{ '%.3f'|format(fp_medio or 0) }}</div><div class="s">leituras com FP válido</div></div>
+      <div class="kpi"><div class="t">Energia ativa</div><div class="v">{{ '%.2f'|format(total_kwh or 0) }}</div><div class="s">kWh no filtro</div></div>
+      <div class="kpi"><div class="t">Ponta máxima</div><div class="v">{{ '%.2f'|format(max_ponta or 0) }}</div><div class="s">kW registado</div></div>
+      <div class="kpi"><div class="t">Tensão média</div><div class="v">{{ '%.1f'|format(tensao_media or 0) }}</div><div class="s">V</div></div>
+      <div class="kpi"><div class="t">kWh/m³</div><div class="v">{{ '%.3f'|format(consumo_especifico or 0) }}</div><div class="s">consumo específico</div></div>
+    </div>
+  </section>
+
+  <section class="grid-2">
+    <div class="panel">
+      <h2 style="margin-top:0;color:#0b3c78">Anomalias priorizadas</h2>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>Nível</th><th>Tipo</th><th>Data/Hora</th><th>Local</th><th>Equipamento</th><th>Valor</th><th>Impacto</th><th>Acção recomendada</th></tr></thead>
+          <tbody>
+          {% for a in alertas %}
+            <tr><td><span class="badge {{ a.nivel }}">{{ a.nivel }}</span></td><td><b>{{ a.tipo }}</b></td><td>{{ a.datahora }}</td><td>{{ a.local }}</td><td>{{ a.equipamento }}</td><td>{{ a.valor }}</td><td>{{ a.impacto }}</td><td>{{ a.acao }}</td></tr>
+          {% else %}
+            <tr><td colspan="8" style="text-align:center;padding:24px">Sem anomalias para o intervalo selecionado.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if alertas_total > alertas|length %}<p style="color:#6381a2">Mostradas {{ alertas|length }} de {{ alertas_total }} anomalias.</p>{% endif %}
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;color:#0b3c78">Plano de acção</h2>
+      <div class="plan">
+        {% for p in plano %}<div class="plan-item">{{ loop.index }}. {{ p }}</div>{% endfor %}
+      </div>
+      <h3 style="color:#0b3c78;margin-top:20px">Checklist de validação</h3>
+      <div class="checklist">
+        <div class="check"><b>1. Dados completos</b><span>Confirmar local, equipamento, data/hora, tensão, corrente, potência, FP e observações.</span></div>
+        <div class="check"><b>2. FP e reativa</b><span>Comparar eventos de FP baixo com o módulo mensal/fatura EDM.</span></div>
+        <div class="check"><b>3. Tensão</b><span>Validar medições por fase e quedas de tensão em cargas críticas.</span></div>
+        <div class="check"><b>4. Equipamentos críticos</b><span>Priorizar equipamentos com maior pontuação no ranking abaixo.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 style="margin-top:0;color:#0b3c78">Ranking por equipamento/local</h2>
+    <div class="table-wrap" style="max-height:420px">
+      <table class="tbl">
+        <thead><tr><th>Equipamento</th><th>Local</th><th class="num">Score</th><th class="num">Críticos</th><th class="num">Alertas</th><th class="num">Registos</th><th class="num">kWh</th><th class="num">kW médio</th><th class="num">FP médio</th><th class="num">I máx.</th><th class="num">Ponta</th><th class="num">kWh/m³</th></tr></thead>
+        <tbody>
+        {% for r in ranking %}
+          <tr><td><b>{{ r.equipamento }}</b></td><td>{{ r.local }}</td><td class="num score">{{ r.score }}</td><td class="num">{{ r.criticos }}</td><td class="num">{{ r.alertas }}</td><td class="num">{{ r.n }}</td><td class="num">{{ '%.2f'|format(r.kwh or 0) }}</td><td class="num">{{ '%.2f'|format(r.avg_kw or 0) }}</td><td class="num">{{ '%.3f'|format(r.avg_fp or 0) }}</td><td class="num">{{ '%.2f'|format(r.imax or 0) }}</td><td class="num">{{ '%.2f'|format(r.ponta or 0) }}</td><td class="num">{{ '%.3f'|format(r.ce or 0) }}</td></tr>
+        {% else %}
+          <tr><td colspan="12" style="text-align:center;padding:24px">Sem equipamentos para apresentar.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{# addons/filtros_listar_embed.html — página leve para incluir/usar #}
+<div class="card mt-3">
+  <div class="card-header">Filtros Salvos</div>
+  <div class="card-body">
+    <form class="row g-2 mb-3" method="post" action="/equipamentos/filtros/salvar">
+      <div class="col-12 col-md-3"><input class="form-control" name="nome" placeholder="Nome"></div>
+      <div class="col-12 col-md-6"><input class="form-control" name="query" placeholder="Query atual (opcional)"></div>
+      <div class="col-12 col-md-3 d-grid"><button class="btn btn-primary">Salvar</button></div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Nome</th><th>Query</th><th class="text-end">Ações</th></tr></thead>
+        <tbody>
+        {% for f in filtros %}
+          <tr>
+            <td>{{ f['nome'] }}</td>
+            <td><code class="small">{{ f['query_json'] }}</code></td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="/equipamentos?{{ f['query_qs'] }}">Aplicar</a>
+              <a class="btn btn-sm btn-outline-danger" href="/equipamentos/filtros/{{ f['id'] }}/delete">Apagar</a>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

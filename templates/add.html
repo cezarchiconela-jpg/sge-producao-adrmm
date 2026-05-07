@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova Leitura Operacional — SGE</title>
+  <style>
+    :root{--azul:#0b3c78;--azul2:#1f6fbe;--verde:#159957;--verde2:#eafff3;--bg:#f3f9ff;--linha:#c9e0f6;--texto:#142b44;--muted:#5f7897;--warn:#b7791f;--danger:#c82333}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#f7fbff,#edf7ff);color:var(--texto)}
+    .topbar{height:7px;background:linear-gradient(90deg,var(--azul),var(--azul2),var(--verde))}.page{width:min(1420px,96vw);margin:18px auto 40px}.hero{background:linear-gradient(135deg,#073769,#155da4);color:white;border-radius:22px;padding:22px 26px;box-shadow:0 16px 35px rgba(11,60,120,.18);display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.hero h1{font-size:28px;margin:0 0 8px}.hero p{margin:0;color:#dbeeff;line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.btn{border:1px solid transparent;border-radius:13px;padding:11px 15px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:white;color:#123;white-space:nowrap}.btn.primary{background:#1f6fbe;color:white}.btn.green{background:var(--verde);color:white}.btn.outline{background:#fff;color:#0b3c78;border-color:#9bc8f4}.btn.dark{background:#253140;color:white}.btn.warn{background:#fff7e2;color:#7a4d00;border-color:#ffd486}
+    .panel{background:rgba(255,255,255,.94);border:1px solid var(--linha);border-radius:20px;padding:18px;box-shadow:0 10px 28px rgba(45,89,130,.08);margin-top:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.grid-2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.field label{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:900;color:#24476f;margin:0 0 6px}.hint{font-size:11px;color:#7c8fa4;font-weight:700}.field input,.field select,.field textarea{width:100%;border:1px solid #bcd7f3;border-radius:13px;background:white;padding:0 12px;font-size:14px;color:#20364d}.field input,.field select{height:46px}.field textarea{min-height:118px;padding-top:12px;resize:vertical}.field input:focus,.field select:focus,.field textarea:focus{outline:3px solid #d8ecff;border-color:#3a91e8}.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px;color:#0b3c78}.section-title h2{font-size:18px;margin:0}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{background:#fff;border:1px solid var(--linha);border-radius:18px;padding:15px}.kpi .t{font-size:12px;color:#5d7898;font-weight:900;text-transform:uppercase}.kpi .v{font-size:20px;color:#0b3c78;font-weight:950;margin-top:4px}.chips{display:flex;gap:9px;flex-wrap:wrap}.chip{border:1px solid #bcd7f3;background:#f8fcff;border-radius:999px;padding:8px 12px;font-weight:900;color:#123e6a;font-size:13px}.chip.green{background:var(--verde2);border-color:#b7e6cb;color:#0f693c}.chip.warn{background:#fff6db;border-color:#ffd486;color:#7a4d00}.chip.danger{background:#fff0f2;border-color:#ffb4bc;color:#9e1d2d}.alert{padding:12px 14px;border-radius:15px;border:1px solid #bcd7f3;background:#f8fcff;margin-top:12px;font-weight:750;line-height:1.45}.alert.warn{background:#fff8e8;border-color:#ffd486;color:#7a4d00}.alert.danger{background:#fff1f3;border-color:#ffb4bc;color:#9e1d2d}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.sticky{position:sticky;bottom:0;background:rgba(243,249,255,.95);backdrop-filter:blur(8px);padding:12px 0;margin-top:12px}.calcbox{background:linear-gradient(135deg,#f8fcff,#eef7ff);border:1px solid var(--linha);border-radius:18px;padding:16px;height:100%}.calcbox h3{margin:0 0 10px;color:#0b3c78}.small-list{padding-left:18px;margin:8px 0 0;color:#4d6885;line-height:1.5}.req{color:#c82333}.badge{font-size:11px;background:#eaf4ff;border:1px solid #c9e0f6;border-radius:999px;padding:4px 8px;color:#0b3c78;font-weight:900}
+    @media(max-width:1050px){.grid,.grid-3,.kpis{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.hero{flex-direction:column}.hero-actions{justify-content:flex-start}}
+    @media(max-width:640px){.page{width:94vw}.grid,.grid-3,.kpis{grid-template-columns:1fr}.hero h1{font-size:23px}.actions{justify-content:stretch}.btn{justify-content:center;flex:1}}
+  </style>
+</head>
+<body>
+<div class="topbar"></div>
+<main class="page">
+  <section class="hero">
+    <div>
+      <h1>Nova Leitura Operacional</h1>
+      <p>Registo técnico pontual para monitoria diária de equipamentos, bombas, quadros, motores e instalações. Este lançamento não substitui a planilha mensal de faturação EDM.</p>
+    </div>
+    <div class="hero-actions">
+      <a class="btn" href="/monitoria">↩ Monitoria</a>
+      <a class="btn green" href="/leituras_mensal">Leituras Mensais</a>
+      <a class="btn outline" href="/energia">Gestão de Leituras</a>
+    </div>
+  </section>
+
+  <form method="post" id="formLeitura">
+    <section class="panel">
+      <div class="section-title"><h2>Identificação do registo</h2><span class="badge">Operacional / pontual</span></div>
+      <div class="grid">
+        <div class="field"><label>Data e hora <span class="req">*</span></label><input type="datetime-local" name="datahora" value="{{ now }}" required></div>
+        <div class="field"><label>Local / Instalação <span class="req">*</span></label><select name="local" id="localSelect" required><option value="">Selecionar local</option>{% for l in locais %}<option value="{{ l.nome }}" data-id="{{ l.id }}" data-fator="{{ l.fator_mult }}" data-pc="{{ l.pot_contratada }}" data-pi="{{ l.pot_instalada }}" {% if selected_local==l.nome %}selected{% endif %}>{{ l.nome }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Equipamento <span class="req">*</span></label><select name="equipamento" id="equipSelect" required><option value="">Selecionar equipamento</option>{% for e in equipamentos %}<option value="{{ e.nome }}" data-local-id="{{ e.local_id }}" data-tag="{{ e.tag }}" {% if selected_equipamento==e.nome %}selected{% endif %}>{{ e.nome }}{% if e.tag %} — {{ e.tag }}{% endif %}</option>{% endfor %}</select></div>
+        <div class="field"><label>Ponto de medição <span class="hint">opcional</span></label><input type="text" id="ponto" placeholder="Ex.: QGBT, VFD, saída bomba, entrada geral"></div>
+      </div>
+      <div class="chips" style="margin-top:14px">
+        <span class="chip" id="chipFator">Fator mult.: —</span>
+        <span class="chip" id="chipPC">Pot. contratada: —</span>
+        <span class="chip" id="chipPI">Pot. instalada: —</span>
+        <span class="chip green" id="chipEq">Equipamento: —</span>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="panel">
+        <div class="section-title"><h2>Grandezas eléctricas e hidráulicas</h2><button type="button" class="btn outline" id="btnCalc">Recalcular</button></div>
+        <div class="grid-3">
+          <div class="field"><label>Energia ativa <span class="hint">kWh</span></label><input type="number" step="any" name="energia_ativa" id="energia_ativa" placeholder="0,00"></div>
+          <div class="field"><label>Energia reativa <span class="hint">kVArh</span></label><input type="number" step="any" name="energia_reativa" id="energia_reativa" placeholder="0,00"></div>
+          <div class="field"><label>Energia aparente <span class="hint">kVAh</span></label><input type="number" step="any" name="energia_aparente" id="energia_aparente" placeholder="auto"></div>
+          <div class="field"><label>Potência ativa <span class="hint">kW</span></label><input type="number" step="any" name="pot_ativa" id="pot_ativa" placeholder="0,00"></div>
+          <div class="field"><label>Potência reativa <span class="hint">kVAr</span></label><input type="number" step="any" name="pot_reativa" id="pot_reativa" placeholder="0,00"></div>
+          <div class="field"><label>Potência aparente <span class="hint">kVA</span></label><input type="number" step="any" name="pot_aparente" id="pot_aparente" placeholder="auto"></div>
+          <div class="field"><label>Fator de potência <span class="hint">auto/manual</span></label><input type="number" step="any" name="fp" id="fp" placeholder="auto"></div>
+          <div class="field"><label>Ponta / demanda <span class="hint">kW</span></label><input type="number" step="any" name="ponta" id="ponta" placeholder="0,00"></div>
+          <div class="field"><label>Água / caudal <span class="hint">m³</span></label><input type="number" step="any" name="caudal_elevada" id="caudal_elevada" placeholder="0,00"></div>
+          <div class="field"><label>Corrente <span class="hint">A</span></label><input type="number" step="any" name="corrente" id="corrente" placeholder="0,00"></div>
+          <div class="field"><label>Tensão <span class="hint">V</span></label><input type="number" step="any" name="tensao" id="tensao" placeholder="0,00"></div>
+          <div class="field"><label>Observações</label><input type="text" id="obsRapida" placeholder="Ex.: operação normal, vibração, ruído, manutenção..."></div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="section-title"><h2>Validação rápida</h2><span class="badge" id="statusBadge">A preencher</span></div>
+        <div class="kpis" style="grid-template-columns:1fr 1fr">
+          <div class="kpi"><div class="t">FP estimado</div><div class="v" id="kpiFp">—</div></div>
+          <div class="kpi"><div class="t">Consumo específico</div><div class="v" id="kpiEsp">—</div></div>
+          <div class="kpi"><div class="t">S aparente</div><div class="v" id="kpiS">—</div></div>
+          <div class="kpi"><div class="t">Alertas</div><div class="v" id="kpiAlertas">0</div></div>
+        </div>
+        <div class="alert" id="alertBox">Preencha os dados medidos. O sistema calcula FP, potência aparente, consumo específico e assinala possíveis anomalias.</div>
+        <div class="calcbox" style="margin-top:12px">
+          <h3>Regras aplicadas</h3>
+          <ul class="small-list">
+            <li>FP = kW/kVA ou kWh/kVAh, quando houver dados suficientes.</li>
+            <li>Potência/energia aparente é estimada por √(ativa² + reativa²).</li>
+            <li>FP abaixo de 0,85 é marcado como alerta operacional.</li>
+            <li>Tensão fora de 360–440 V é sinalizada para investigação.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel">
+      <div class="field"><label>Observações técnicas finais</label><textarea name="observacoes" id="observacoes" placeholder="Registe contexto operacional, condição do equipamento, ruídos, vibração, intervenção realizada, operador, instrumentos usados ou qualquer anomalia observada."></textarea></div>
+      <div class="sticky">
+        <div class="actions">
+          <a class="btn outline" href="/monitoria">Cancelar</a>
+          <button class="btn green" type="submit" name="continuar" value="1">Salvar e lançar outra</button>
+          <button class="btn primary" type="submit">Salvar e ver monitoria</button>
+        </div>
+      </div>
+    </section>
+  </form>
+</main>
+<script>
+function num(id){let v=(document.getElementById(id)?.value||'').replace(',','.');let n=parseFloat(v);return isFinite(n)?n:0}
+function fmt(n,d=3){return isFinite(n)?n.toLocaleString('pt-PT',{minimumFractionDigits:d,maximumFractionDigits:d}):'—'}
+const localSelect=document.getElementById('localSelect'), equipSelect=document.getElementById('equipSelect');
+function updateLocal(){
+  const opt=localSelect.options[localSelect.selectedIndex]; const localId=opt?.dataset.id||'';
+  document.getElementById('chipFator').textContent='Fator mult.: '+(opt?.dataset.fator||'—');
+  document.getElementById('chipPC').textContent='Pot. contratada: '+(opt?.dataset.pc||'—')+' kVA';
+  document.getElementById('chipPI').textContent='Pot. instalada: '+(opt?.dataset.pi||'—')+' kW';
+  [...equipSelect.options].forEach((o,i)=>{ if(i===0){o.hidden=false;return;} o.hidden = localId && o.dataset.localId && o.dataset.localId!==localId; });
+  const cur=equipSelect.options[equipSelect.selectedIndex]; if(cur && cur.hidden) equipSelect.value=''; updateEq();
+}
+function updateEq(){ const opt=equipSelect.options[equipSelect.selectedIndex]; document.getElementById('chipEq').textContent='Equipamento: '+(opt?.textContent||'—'); }
+function recalc(){
+  let ea=num('energia_ativa'), er=num('energia_reativa'), pa=num('pot_ativa'), pr=num('pot_reativa'), agua=num('caudal_elevada'), tensao=num('tensao');
+  let eap=num('energia_aparente'), pap=num('pot_aparente'), fp=num('fp');
+  if(!eap && (ea||er)){ eap=Math.sqrt(ea*ea+er*er); document.getElementById('energia_aparente').value=eap.toFixed(3); }
+  if(!pap && (pa||pr)){ pap=Math.sqrt(pa*pa+pr*pr); document.getElementById('pot_aparente').value=pap.toFixed(3); }
+  if(!fp){ if(pap&&pa) fp=pa/pap; else if(eap&&ea) fp=ea/eap; if(fp){document.getElementById('fp').value=Math.min(1,Math.max(0,fp)).toFixed(3);} }
+  let esp=agua>0 && ea>0 ? ea/agua : 0; let alerts=[];
+  if(fp>0 && fp<0.85) alerts.push('FP baixo ('+fp.toFixed(3)+')');
+  if(tensao>0 && (tensao<360 || tensao>440)) alerts.push('Tensão fora da faixa ('+tensao.toFixed(1)+' V)');
+  if(!ea && !pa && !num('corrente')) alerts.push('Sem energia, potência ou corrente');
+  document.getElementById('kpiFp').textContent=fp?fp.toFixed(3):'—';
+  document.getElementById('kpiEsp').textContent=esp?fmt(esp,3)+' kWh/m³':'—';
+  document.getElementById('kpiS').textContent=pap?fmt(pap,2)+' kVA':(eap?fmt(eap,2)+' kVAh':'—');
+  document.getElementById('kpiAlertas').textContent=alerts.length;
+  const box=document.getElementById('alertBox'), badge=document.getElementById('statusBadge');
+  if(alerts.length){ box.className='alert warn'; box.textContent='Alertas: '+alerts.join('; '); badge.textContent='Com alertas'; }
+  else if(ea||pa||num('corrente')){ box.className='alert'; box.textContent='Dados coerentes para registo operacional. Confirme as observações antes de salvar.'; badge.textContent='Pronto'; }
+  else { box.className='alert'; box.textContent='Preencha os dados medidos. O sistema calcula FP, potência aparente, consumo específico e assinala possíveis anomalias.'; badge.textContent='A preencher'; }
+}
+['energia_ativa','energia_reativa','energia_aparente','pot_ativa','pot_reativa','pot_aparente','fp','ponta','caudal_elevada','corrente','tensao'].forEach(id=>document.getElementById(id)?.addEventListener('input',recalc));
+document.getElementById('btnCalc').addEventListener('click',recalc); localSelect.addEventListener('change',updateLocal); equipSelect.addEventListener('change',updateEq);
+document.getElementById('ponto').addEventListener('input',()=>{ const p=document.getElementById('ponto').value.trim(); const obs=document.getElementById('obsRapida').value.trim(); document.getElementById('observacoes').value=[p?('Ponto: '+p):'',obs].filter(Boolean).join(' | '); });
+document.getElementById('obsRapida').addEventListener('input',()=>{ const p=document.getElementById('ponto').value.trim(); const obs=document.getElementById('obsRapida').value.trim(); document.getElementById('observacoes').value=[p?('Ponto: '+p):'',obs].filter(Boolean).join(' | '); });
+updateLocal(); updateEq(); recalc();
+</script>
+</body>
+</html>

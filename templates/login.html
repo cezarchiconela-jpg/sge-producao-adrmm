@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login | SGE</title>
+  <style>
+    :root{--blue:#0b4ea2;--blue2:#083a7a;--bg:#eef4fb;--card:#fff;--txt:#102033}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#edf5ff,#dbeafe);font-family:Segoe UI,Arial,sans-serif;color:var(--txt)}
+    .box{width:min(440px,92vw);background:var(--card);border-radius:24px;box-shadow:0 22px 60px rgba(9,30,66,.18);padding:34px;border:1px solid rgba(11,78,162,.12)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.mark{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,var(--blue),#13a36f);display:grid;place-items:center;color:#fff;font-weight:800}.brand h1{font-size:22px;margin:0}.brand p{margin:2px 0 0;color:#5d6b7c;font-size:13px}
+    label{display:block;font-weight:700;margin:14px 0 7px}input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:13px 14px;font-size:15px;outline:none}input:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,78,162,.12)}
+    button{width:100%;margin-top:20px;border:0;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;font-weight:800;padding:14px 18px;font-size:15px;cursor:pointer}
+    .msg{border-radius:12px;padding:10px 12px;margin:10px 0;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font-size:14px}.foot{margin-top:18px;text-align:center;color:#64748b;font-size:12px}
+  </style>
+</head>
+<body>
+  <main class="box">
+    <div class="brand"><div class="mark">SGE</div><div><h1>Acesso ao Sistema</h1><p>Sistema de Gestão de Energia</p></div></div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+    <form method="post">
+      <label for="username">Utilizador</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">Palavra-passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Entrar no SGE</button>
+    </form>
+    <div class="foot">PROJETECNICA · Ambiente protegido para produção</div>
+  </main>
+</body>
+</html>

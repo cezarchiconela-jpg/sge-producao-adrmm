@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Gestão de Leituras e Consumo{% endblock %}
+{% block extra_head %}
+<style>
+  .energia-hero{background:linear-gradient(135deg,#0b3b75,#0f6bb5);color:white;border-radius:26px;padding:26px;box-shadow:0 18px 40px rgba(11,59,117,.18)}
+  .energia-hero p{color:rgba(255,255,255,.86);max-width:980px}
+  .energia-kpi{height:100%;border:1px solid rgba(13,110,253,.16);border-radius:22px;padding:20px;background:#fff;box-shadow:0 8px 26px rgba(22,70,120,.06)}
+  .energia-kpi .label{font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7f99;font-weight:800}
+  .energia-kpi .value{font-size:1.85rem;font-weight:900;color:#123c73;line-height:1.1;margin-top:8px}
+  .energia-step{height:100%;border:1px solid rgba(13,110,253,.16);border-radius:24px;background:#fff;padding:22px;box-shadow:0 10px 28px rgba(22,70,120,.07);transition:.2s}
+  .energia-step:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(22,70,120,.12)}
+  .energia-step .icon{width:52px;height:52px;border-radius:17px;display:grid;place-items:center;background:#e7f5ff;color:#0b69b2;font-size:1.5rem;margin-bottom:14px}
+  .energia-step h5{font-weight:900;color:#123c73}
+  .energia-step p{color:#5d7593;min-height:74px}
+  .energia-flow{border-left:4px solid #0d6efd;padding-left:16px}
+  .table-mini th{font-size:.78rem;text-transform:uppercase;color:#607894;letter-spacing:.04em}
+</style>
+{% endblock %}
+{% block content %}
+<section class="energia-hero mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+    <div>
+      <div class="sge-page-eyebrow text-white-50"><i class="bi bi-lightning-charge"></i> Módulo unificado</div>
+      <h1 class="mb-2">Gestão de Leituras, Consumo e Faturação</h1>
+      <p class="mb-0">Este é o centro operacional do SGE. A leitura diária, a consulta das leituras, o preenchimento mensal, os cálculos energéticos, o consumo específico, a estimativa da fatura EDM e os gráficos passam a estar organizados numa única área de trabalho.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-light" href="/leituras_mensal"><i class="bi bi-table me-1"></i> Abrir planilha mensal</a>
+      <a class="btn btn-outline-light" href="/add"><i class="bi bi-plus-square me-1"></i> Nova leitura diária</a>
+    </div>
+  </div>
+</section>
+
+<section class="sge-card p-3 p-lg-4 mb-4">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-lg-5">
+      <label class="form-label fw-bold">Local / Instalação</label>
+      <select name="local_id" class="form-select">
+        {% for l in locais %}
+          <option value="{{ l.id }}" {% if selected_local and l.id == selected_local.id %}selected{% endif %}>{{ l.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label fw-bold">Mês</label>
+      <input type="number" min="1" max="12" name="mes" value="{{ mes }}" class="form-control">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label fw-bold">Ano</label>
+      <input type="number" min="2020" max="2100" name="ano" value="{{ ano }}" class="form-control">
+    </div>
+    <div class="col-md-3 d-grid">
+      <button class="btn btn-primary"><i class="bi bi-funnel me-1"></i> Atualizar visão</button>
+    </div>
+  </form>
+</section>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-3"><div class="energia-kpi"><div class="label">Energia ativa faturável</div><div class="value">{{ '%.2f'|format(resumo.ativa_faturavel) }}</div><div class="text-muted mt-1">kWh × fator multiplicativo</div></div></div>
+  <div class="col-md-6 col-xl-3"><div class="energia-kpi"><div class="label">Consumo específico médio</div><div class="value">{{ '%.3f'|format(resumo.consumo_especifico) }}</div><div class="text-muted mt-1">kWh/m³ no período</div></div></div>
+  <div class="col-md-6 col-xl-3"><div class="energia-kpi"><div class="label">Fator de potência médio</div><div class="value">{{ '%.3f'|format(resumo.fp_medio) }}</div><div class="text-muted mt-1">média das leituras preenchidas</div></div></div>
+  <div class="col-md-6 col-xl-3"><div class="energia-kpi"><div class="label">Fatura estimada</div><div class="value">{{ '%.2f'|format(resumo.total_estimado) }}</div><div class="text-muted mt-1">MZN, estimativa preliminar</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <a class="energia-step text-decoration-none d-block" href="/add">
+      <div class="icon"><i class="bi bi-plus-square"></i></div>
+      <h5>1. Registar leitura diária</h5>
+      <p>Permite ao operador inserir a leitura de um dia, de um local ou equipamento, com energia ativa, reativa, ponta, corrente, tensão, caudal/água e observações.</p>
+      <span class="btn btn-sm btn-primary">Abrir registo diário</span>
+    </a>
+  </div>
+  <div class="col-lg-4">
+    <a class="energia-step text-decoration-none d-block" href="/leituras">
+      <div class="icon"><i class="bi bi-list-check"></i></div>
+      <h5>2. Consultar e auditar leituras</h5>
+      <p>Substitui o botão separado “Leituras”. Aqui ficam a consulta, filtros, edição, visualização consolidada, exportação e verificação dos registos diários.</p>
+      <span class="btn btn-sm btn-outline-primary">Ver leituras registadas</span>
+    </a>
+  </div>
+  <div class="col-lg-4">
+    <a class="energia-step text-decoration-none d-block" href="/leituras_mensal">
+      <div class="icon"><i class="bi bi-clipboard-data"></i></div>
+      <h5>3. Planilha mensal e fatura</h5>
+      <p>Área crucial para preenchimento diário mensal, aplicação do fator multiplicativo, cálculo do consumo específico, resumo financeiro e fatura EDM.</p>
+      <span class="btn btn-sm btn-success">Abrir módulo mensal</span>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <section class="sge-card p-3 p-lg-4 h-100">
+      <h2 class="sge-section-title">Fluxo operacional recomendado</h2>
+      <div class="energia-flow mt-3">
+        <p><strong>Passo diário:</strong> o operador preenche a leitura do dia na planilha mensal do local, com energia ativa, reativa, ponta e água elevada.</p>
+        <p><strong>Cálculo automático:</strong> o sistema usa o fator multiplicativo e as tarifas configuradas em Locais para transformar a leitura em consumo faturável e custo estimado.</p>
+        <p><strong>Fecho mensal:</strong> no fim do mês, o SGE consolida kWh, kVArh, ponta, água, consumo específico, FP médio, gráficos e pré-fatura.</p>
+        <p class="mb-0"><strong>Análise:</strong> o gestor compara tendências, identifica dias anormais e prepara recomendações de eficiência energética.</p>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-5">
+    <section class="sge-card p-3 p-lg-4 h-100">
+      <h2 class="sge-section-title">Parâmetros do local selecionado</h2>
+      {% if selected_local %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm table-mini align-middle">
+          <tr><th>Local</th><td>{{ selected_local.nome }}</td></tr>
+          <tr><th>Fator multiplicativo</th><td>{{ resumo.fator_mult }}</td></tr>
+          <tr><th>Potência contratada</th><td>{{ resumo.pot_contratada }} kVA</td></tr>
+          <tr><th>Potência instalada</th><td>{{ resumo.pot_instalada }} kW</td></tr>
+          <tr><th>Tarifa ativa</th><td>{{ resumo.tarifa_ativa }} MZN/kWh</td></tr>
+          <tr><th>Tarifa reativa</th><td>{{ resumo.tarifa_reativa }} MZN/kVArh excedente</td></tr>
+          <tr><th>Tarifa ponta</th><td>{{ resumo.tarifa_ponta }} MZN/kW</td></tr>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted mt-3">Nenhum local encontrado. Cadastre primeiro os locais do sistema.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

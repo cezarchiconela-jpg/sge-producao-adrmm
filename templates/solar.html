@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Energia Solar Expert{% endblock %}
+{% block content %}
+<style>
+  .solar-hero{background:linear-gradient(135deg,#06345f,#0b6b83 55%,#0b8a55);color:white;border-radius:22px;padding:1.3rem;box-shadow:0 14px 34px rgba(6,52,95,.18)}
+  .solar-hero .muted{color:rgba(255,255,255,.82)}
+  .solar-panel{border:1px solid rgba(10,60,90,.12);border-radius:20px;background:#fff;box-shadow:0 8px 26px rgba(15,23,42,.06)}
+  .solar-panel h4{font-size:1rem;font-weight:800;color:#0b3b66;margin:0 0 .9rem}
+  .mini-help{font-size:.78rem;color:#64748b}
+  .pill{display:inline-flex;gap:.35rem;align-items:center;border-radius:999px;padding:.35rem .65rem;background:#eef8f4;color:#126747;font-weight:700;font-size:.78rem}
+</style>
+
+<section class="solar-hero mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+    <div>
+      <span class="pill mb-3">☀️ Dimensionamento Fotovoltaico Expert</span>
+      <h2 class="mb-2 fw-bold">Sistema Solar Fotovoltaico</h2>
+      <p class="muted mb-0">Calcule potência FV, inversor, baterias, produção mensal, economia, payback, NPV, IRR, LCOE, CO₂ evitado e viabilidade com dados manuais ou consumo real de um Local do SGE.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('solar_home') }}" class="btn btn-light">Centro Solar</a>
+      <a href="{{ url_for('solar_lampadas_form') }}" class="btn btn-outline-light">Lâmpadas solares</a>
+      <a href="{{ url_for('solar_projetos') }}" class="btn btn-outline-light">Simulações salvas</a>
+    </div>
+  </div>
+</section>
+
+<form method="post" action="{{ url_for('solar_calcular') }}" class="mb-5" id="solarForm">
+  <div class="solar-panel p-3 p-lg-4 mb-4">
+    <h4>1. Origem do consumo</h4>
+    <div class="row g-3 align-items-end">
+      <div class="col-12">
+        <div class="d-flex gap-4 flex-wrap">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="modo" id="modo_manual" value="manual" checked>
+            <label class="form-check-label fw-semibold" for="modo_manual">Manual</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="modo" id="modo_local" value="local">
+            <label class="form-check-label fw-semibold" for="modo_local">Usar consumo real de um Local do SGE</label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 bloco-local" style="display:none;">
+        <label class="form-label">Local</label>
+        <select name="local_id" class="form-select">
+          <option value="">-- selecione --</option>
+          {% for lid, lname in locais %}<option value="{{ lid }}">{{ lname }}</option>{% endfor %}
+        </select>
+        <div class="mini-help">O sistema tenta usar as Leituras Mensais já gravadas.</div>
+      </div>
+      <div class="col-md-3 bloco-local" style="display:none;">
+        <label class="form-label">Período base</label>
+        <input type="month" name="periodo" class="form-control" value="{{ periodo }}">
+      </div>
+      <div class="col-md-4 bloco-manual">
+        <label class="form-label">Descrição / Local</label>
+        <input type="text" name="local_nome_manual" class="form-control" placeholder="Ex.: ETA Umbeluzi, Escritório Matola">
+      </div>
+      <div class="col-md-3 bloco-manual">
+        <label class="form-label">Consumo diário médio</label>
+        <div class="input-group"><input type="number" step="0.01" name="daily_kwh" id="daily_kwh" class="form-control" placeholder="Ex.: 350"><span class="input-group-text">kWh/dia</span></div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Cobertura solar desejada</label>
+        <div class="input-group"><input type="number" step="0.01" name="cobertura_pct" id="cobertura_pct" class="form-control" value="{{ defaults.cobertura_pct }}"><span class="input-group-text">%</span></div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Crescimento de carga</label>
+        <div class="input-group"><input type="number" step="0.01" name="crescimento_carga_pct" class="form-control" value="{{ defaults.crescimento_carga_pct }}"><span class="input-group-text">%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="solar-panel p-3 p-lg-4 h-100">
+        <h4>2. Condições solares, perdas e módulos</h4>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label">PSH</label><input type="number" step="0.01" name="psh" id="psh" class="form-control" value="{{ defaults.psh }}"><div class="mini-help">Horas de sol pico/dia</div></div>
+          <div class="col-md-4"><label class="form-label">Derate base</label><input type="number" step="0.01" name="derate" id="derate" class="form-control" value="{{ defaults.derate }}"></div>
+          <div class="col-md-4"><label class="form-label">Tipo de sistema</label><select name="tipo_sistema" class="form-select"><option value="ongrid">On-grid</option><option value="hibrido">Híbrido</option><option value="offgrid">Off-grid</option></select></div>
+          <div class="col-md-4"><label class="form-label">Painel</label><div class="input-group"><input type="number" name="panel_wp" id="panel_wp" class="form-control" value="{{ defaults.panel_wp }}"><span class="input-group-text">Wp</span></div></div>
+          <div class="col-md-4"><label class="form-label">Área/painel</label><div class="input-group"><input type="number" step="0.01" name="panel_area" id="panel_area" class="form-control" value="{{ defaults.panel_area }}"><span class="input-group-text">m²</span></div></div>
+          <div class="col-md-4"><label class="form-label">Área disponível</label><div class="input-group"><input type="number" step="0.01" name="area_disponivel" id="area_disponivel" class="form-control" value="{{ defaults.area_disponivel }}"><span class="input-group-text">m²</span></div></div>
+          <div class="col-md-3"><label class="form-label">Sombra</label><div class="input-group"><input type="number" step="0.01" name="sombreamento_pct" id="sombreamento_pct" class="form-control" value="{{ defaults.sombreamento_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-3"><label class="form-label">Cabos</label><div class="input-group"><input type="number" step="0.01" name="perdas_cabos_pct" id="perdas_cabos_pct" class="form-control" value="{{ defaults.perdas_cabos_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-3"><label class="form-label">Sujidade</label><div class="input-group"><input type="number" step="0.01" name="perdas_sujidade_pct" id="perdas_sujidade_pct" class="form-control" value="{{ defaults.perdas_sujidade_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-3"><label class="form-label">Temperatura</label><div class="input-group"><input type="number" step="0.01" name="perdas_temp_pct" id="perdas_temp_pct" class="form-control" value="{{ defaults.perdas_temp_pct }}"><span class="input-group-text">%</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="solar-panel p-3 p-lg-4 h-100">
+        <h4>3. Inversor, baterias e finanças</h4>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label">Fator DC/AC</label><input type="number" step="0.01" name="inv_dcac" class="form-control" value="{{ defaults.inv_dcac }}"></div>
+          <div class="col-md-4"><label class="form-label">Pico / demanda</label><div class="input-group"><input type="number" step="0.01" name="pico_kw" class="form-control" value="{{ defaults.pico_kw }}"><span class="input-group-text">kW</span></div></div>
+          <div class="col-md-4"><label class="form-label">Reserva inversor</label><div class="input-group"><input type="number" step="0.01" name="reserva_inversor_pct" class="form-control" value="{{ defaults.reserva_inversor_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-4"><label class="form-label">Autonomia</label><div class="input-group"><input type="number" step="0.01" name="autonomy_days" class="form-control" value="{{ defaults.autonomy_days }}"><span class="input-group-text">dias</span></div></div>
+          <div class="col-md-4"><label class="form-label">DoD</label><input type="number" step="0.01" name="battery_dod" class="form-control" value="{{ defaults.battery_dod }}"></div>
+          <div class="col-md-4"><label class="form-label">Eficiência bat.</label><input type="number" step="0.01" name="battery_eff" class="form-control" value="{{ defaults.battery_eff }}"></div>
+          <div class="col-md-4"><label class="form-label">Tensão banco</label><div class="input-group"><input type="number" name="system_voltage" class="form-control" value="{{ defaults.system_voltage }}"><span class="input-group-text">V</span></div></div>
+          <div class="col-md-4"><label class="form-label">Módulo bateria</label><div class="input-group"><input type="number" step="0.01" name="battery_module_kwh" class="form-control" value="{{ defaults.battery_module_kwh }}"><span class="input-group-text">kWh</span></div></div>
+          <div class="col-md-4"><label class="form-label">Autoconsumo</label><div class="input-group"><input type="number" step="0.01" name="autoconsumo_pct" class="form-control" value="{{ defaults.autoconsumo_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-4"><label class="form-label">Tarifa</label><div class="input-group"><input type="number" step="0.01" name="tarifa_kwh" class="form-control" value="{{ defaults.tarifa_kwh }}"><span class="input-group-text">MT/kWh</span></div></div>
+          <div class="col-md-4"><label class="form-label">CAPEX</label><div class="input-group"><input type="number" step="0.01" name="capex_kwp" class="form-control" value="{{ defaults.capex_kwp }}"><span class="input-group-text">MT/kWp</span></div></div>
+          <div class="col-md-4"><label class="form-label">OPEX anual</label><div class="input-group"><input type="number" step="0.01" name="opex_pct" class="form-control" value="{{ defaults.opex_pct }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-4"><label class="form-label">Esc. tarifa</label><div class="input-group"><input type="number" step="0.01" name="tarifa_esc" class="form-control" value="{{ defaults.tarifa_esc }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-4"><label class="form-label">Taxa desconto</label><div class="input-group"><input type="number" step="0.01" name="desconto" class="form-control" value="{{ defaults.desconto }}"><span class="input-group-text">%</span></div></div>
+          <div class="col-md-4"><label class="form-label">Anos análise</label><input type="number" name="anos_analise" class="form-control" value="{{ defaults.anos_analise }}"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" name="perfil_sazonal_json" value='{{ perfil_sazonal|tojson }}'>
+  <div class="solar-panel p-3 p-lg-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <h4 class="mb-1">Pré-visualização rápida</h4>
+        <div class="mini-help">Estimativa local no navegador. O cálculo oficial é feito ao clicar em Calcular.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <span class="badge text-bg-primary p-2" id="pvPreview">0 kWp</span>
+        <span class="badge text-bg-success p-2" id="panelsPreview">0 painéis</span>
+        <span class="badge text-bg-secondary p-2" id="areaPreview">0 m²</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-primary btn-lg">Calcular dimensionamento expert</button>
+    <a href="{{ url_for('solar_projetos') }}" class="btn btn-outline-secondary btn-lg">Projetos salvos</a>
+  </div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+const modoManual = document.getElementById('modo_manual');
+const modoLocal  = document.getElementById('modo_local');
+const blocksLocal = document.querySelectorAll('.bloco-local');
+const blocksManual = document.querySelectorAll('.bloco-manual');
+function atualizaModo(){
+  const local = modoLocal.checked;
+  blocksLocal.forEach(e => e.style.display = local ? '' : 'none');
+  blocksManual.forEach(e => e.style.display = local ? 'none' : '');
+}
+function num(id, d=0){ const el=document.getElementById(id); if(!el) return d; const v=parseFloat(String(el.value||'').replace(',','.')); return isNaN(v)?d:v; }
+function preview(){
+  const daily=num('daily_kwh',0), cov=num('cobertura_pct',80)/100, psh=num('psh',5), der=num('derate',0.77);
+  const sh=num('sombreamento_pct',0)/100, pc=num('perdas_cabos_pct',2)/100, ps=num('perdas_sujidade_pct',3)/100, pt=num('perdas_temp_pct',8)/100;
+  const derateExpert=Math.max(.2, der*(1-sh)*(1-pc)*(1-ps)*(1-pt));
+  const wp=num('panel_wp',550), areaPanel=num('panel_area',2.2);
+  const kwp=(psh>0&&derateExpert>0)?(daily*cov)/(psh*derateExpert):0;
+  const n=wp>0?Math.ceil(kwp*1000/wp):0;
+  document.getElementById('pvPreview').textContent=(n*wp/1000).toFixed(2)+' kWp';
+  document.getElementById('panelsPreview').textContent=n+' painéis';
+  document.getElementById('areaPreview').textContent=(n*areaPanel).toFixed(1)+' m²';
+}
+modoManual.addEventListener('change', atualizaModo); modoLocal.addEventListener('change', atualizaModo);
+document.querySelectorAll('#solarForm input, #solarForm select').forEach(e=>e.addEventListener('input', preview));
+atualizaModo(); preview();
+</script>
+{% endblock %}

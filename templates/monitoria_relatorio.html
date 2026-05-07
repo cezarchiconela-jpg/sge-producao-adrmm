@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatório Técnico de Monitoria Operacional — SGE</title>
+  <style>
+    :root{--azul:#0b3c78;--azul2:#1f6fbe;--verde:#159957;--bg:#f4f9ff;--linha:#c9e0f6;--muted:#5f7897;--danger:#c82333;--warn:#b7791f}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#f8fbff,#eef8ff);color:#142b44}.topbar{height:7px;background:linear-gradient(90deg,var(--azul),var(--azul2),var(--verde))}.page{width:min(1500px,96vw);margin:22px auto 40px}.hero{background:linear-gradient(135deg,#073769,#155da4);color:white;border-radius:22px;padding:22px 26px;box-shadow:0 16px 35px rgba(11,60,120,.18);display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.hero h1{margin:0 0 8px;font-size:27px}.hero p{margin:0;color:#dbeeff}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.btn{border:1px solid #9bc8f4;border-radius:13px;padding:10px 14px;background:white;color:#0b3c78;font-weight:800;text-decoration:none;cursor:pointer}.btn.primary{background:#1f6fbe;color:white;border-color:#1f6fbe}.btn.dark{background:#253140;color:white;border-color:#253140}.panel{background:white;border:1px solid var(--linha);border-radius:20px;padding:18px;margin-top:16px;box-shadow:0 10px 24px rgba(11,60,120,.07)}.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.kpi{background:linear-gradient(180deg,#fff,#f9fcff);border:1px solid var(--linha);border-radius:18px;padding:15px}.kpi span{display:block;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase}.kpi b{display:block;font-size:22px;color:#0b3c78;margin-top:6px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{background:#eaf4ff;color:#0b3c78;text-align:left}.tbl th,.tbl td{border-bottom:1px solid #dbeaf8;padding:9px}.badge{display:inline-block;border-radius:999px;padding:5px 9px;font-weight:800;font-size:12px}.danger{background:#ffecec;color:#c82333;border:1px solid #ffb9b9}.warn{background:#fff5df;color:#9a6500;border:1px solid #ffd68a}.ok{background:#e9fff3;color:#0c7c42;border:1px solid #97e7bd}.muted{color:#5f7897}.recommend{display:grid;gap:10px}.rec{border-left:5px solid var(--verde);background:#f4fff9;border-radius:14px;padding:12px}.watermark{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:-1;opacity:.045;font-size:120px;font-weight:900;color:#0b3c78}.table-wrap{overflow:auto;max-height:380px;border:1px solid #dbeaf8;border-radius:14px}@media(max-width:1100px){.hero,.grid{grid-template-columns:1fr;display:block}.actions{justify-content:flex-start;margin-top:12px}.kpis{grid-template-columns:repeat(2,1fr)}}@media print{body{background:white}.topbar,.actions,.btn{display:none!important}.page{width:100%;margin:0}.hero{box-shadow:none;border-radius:0;background:white;color:#0b3c78;border-bottom:2px solid #0b3c78}.hero p{color:#333}.panel{box-shadow:none;margin-top:10px;page-break-inside:avoid}.kpis{grid-template-columns:repeat(3,1fr)}.table-wrap{max-height:none;overflow:visible}.tbl{font-size:10.5px}.watermark{opacity:.035}}
+  </style>
+</head>
+<body>
+<div class="topbar"></div><div class="watermark">SGE</div>
+<main class="page">
+  <section class="hero">
+    <div>
+      <h1>Relatório Técnico de Monitoria Operacional</h1>
+      <p><b>Período:</b> {{ inicio }} a {{ fim }}{% if local %} &nbsp; | &nbsp; <b>Local:</b> {{ local }}{% endif %}{% if equipamento %} &nbsp; | &nbsp; <b>Equipamento:</b> {{ equipamento }}{% endif %}</p>
+      <p style="margin-top:8px">Documento de apoio técnico para análise diária de medições, anomalias, consumo, FP, tensão, corrente e desempenho operacional.</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/monitoria?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Voltar</a>
+      <button class="btn primary" onclick="window.print()">Imprimir / PDF</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="kpis">
+      <div class="kpi"><span>Registos</span><b>{{ total_registos }}</b></div>
+      <div class="kpi"><span>Energia ativa</span><b>{{ '%.2f'|format(total_kwh or 0) }} kWh</b></div>
+      <div class="kpi"><span>Potência média</span><b>{{ '%.2f'|format(avg_kw or 0) }} kW</b></div>
+      <div class="kpi"><span>Ponta máxima</span><b>{{ '%.2f'|format(max_ponta or 0) }}</b></div>
+      <div class="kpi"><span>FP médio</span><b>{{ '%.3f'|format(avg_fp or 0) }}</b></div>
+      <div class="kpi"><span>kWh/m³</span><b>{{ '%.3f'|format(consumo_especifico or 0) }}</b></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h3 style="margin-top:0;color:#0b3c78">Diagnóstico automático</h3>
+      {% if alertas_total == 0 %}
+        <p><span class="badge ok">Sem alertas críticos</span></p>
+        <p class="muted">Não foram identificadas anomalias críticas no intervalo filtrado.</p>
+      {% else %}
+        <p><span class="badge danger">{{ alertas_total }} alerta(s) detectado(s)</span></p>
+        <div class="table-wrap">
+          <table class="tbl"><thead><tr><th>Nível</th><th>Tipo</th><th>Data/Hora</th><th>Equipamento</th><th>Valor</th><th>Ação recomendada</th></tr></thead><tbody>
+          {% for a in alertas %}<tr><td><span class="badge {% if a.nivel=='Crítico' %}danger{% else %}warn{% endif %}">{{ a.nivel }}</span></td><td>{{ a.tipo }}</td><td>{{ a.datahora }}</td><td>{{ a.equipamento or '-' }}</td><td><b>{{ a.valor }}</b></td><td>{{ a.acao }}</td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+      {% endif %}
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0;color:#0b3c78">Recomendações técnicas</h3>
+      <div class="recommend">
+        {% for r in recomenda %}<div class="rec">{{ r }}</div>{% endfor %}
+      </div>
+      {% if local_config %}
+      <hr style="border:none;border-top:1px solid #dbeaf8;margin:16px 0">
+      <p class="muted"><b>Configuração do local:</b><br>Potência contratada: {{ '%.2f'|format(local_config[1] or 0) }} kVA<br>Fator multiplicativo: {{ '%.4f'|format(local_config[2] or 1) }}<br>Potência instalada: {{ '%.2f'|format(local_config[3] or 0) }} kW</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;color:#0b3c78">Resumo por equipamento</h3>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr><th>Equipamento</th><th>Local</th><th>N.º</th><th>kWh</th><th>Média kW</th><th>Ponta máx.</th><th>FP médio</th><th>I máx.</th><th>V média</th><th>Água</th><th>kWh/m³</th></tr></thead>
+        <tbody>{% for e in resumo_equip %}<tr><td><b>{{ e[0] }}</b></td><td>{{ e[1] }}</td><td>{{ e[2] }}</td><td>{{ '%.2f'|format(e[3] or 0) }}</td><td>{{ '%.2f'|format(e[4] or 0) }}</td><td>{{ '%.2f'|format(e[5] or 0) }}</td><td>{{ '%.3f'|format(e[6] or 0) }}</td><td>{{ '%.2f'|format(e[7] or 0) }}</td><td>{{ '%.2f'|format(e[8] or 0) }}</td><td>{{ '%.2f'|format(e[9] or 0) }}</td><td>{{ '%.3f'|format(((e[3] or 0)/(e[9] or 1)) if (e[9] or 0)>0 else 0) }}</td></tr>{% else %}<tr><td colspan="11">Sem dados.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;color:#0b3c78">Resumo por local</h3>
+    <div class="table-wrap">
+      <table class="tbl"><thead><tr><th>Local</th><th>N.º</th><th>kWh</th><th>Média kW</th><th>Ponta máx.</th><th>FP médio</th><th>Água</th><th>kWh/m³</th></tr></thead><tbody>
+      {% for l in resumo_local %}<tr><td><b>{{ l[0] }}</b></td><td>{{ l[1] }}</td><td>{{ '%.2f'|format(l[2] or 0) }}</td><td>{{ '%.2f'|format(l[3] or 0) }}</td><td>{{ '%.2f'|format(l[4] or 0) }}</td><td>{{ '%.3f'|format(l[5] or 0) }}</td><td>{{ '%.2f'|format(l[6] or 0) }}</td><td>{{ '%.3f'|format(((l[2] or 0)/(l[6] or 1)) if (l[6] or 0)>0 else 0) }}</td></tr>{% else %}<tr><td colspan="8">Sem dados.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

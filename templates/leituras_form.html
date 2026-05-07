@@ -1,0 +1,35 @@
+
+{% raw %}{% extends "base.html" %}
+{% block content %}
+<h3>Nova leitura — {{ local['nome'] }}</h3>
+<form method="post" class="row g-3">
+  <div class="col-md-3">
+    <label class="form-label">Data</label>
+    <input name="data" type="date" class="form-control" value="{{ data_default }}" required>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">Hora</label>
+    <input name="hora" type="time" class="form-control" value="{{ hora_default }}" required>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Leitura Ativa (kWh)</label>
+    <input name="ea_leitura" type="number" step="0.001" class="form-control" required>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Leitura Reativa (kVArh)</label>
+    <input name="er_leitura" type="number" step="0.001" class="form-control" required>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Demanda lida (kVA máx. no mês)</label>
+    <input name="demanda_lida" type="number" step="0.001" class="form-control" required>
+  </div>
+  <div class="col-12">
+    <label class="form-label">Observações</label>
+    <textarea name="obs" class="form-control" rows="2"></textarea>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary">Registar</button>
+    <a class="btn btn-secondary" href="{{ url_for('leituras', local_id=local['id']) }}">Voltar</a>
+  </div>
+</form>
+{% endblock %}{% endraw %}

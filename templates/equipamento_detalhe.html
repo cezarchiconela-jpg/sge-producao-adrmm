@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ficha do Equipamento</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{background:#eef3f8;color:#18324b}
+    .shell{max-width:1460px;margin:auto}
+    .hero{background:linear-gradient(135deg,#0b3b75 0%,#136ca7 55%,#148a63 100%);color:#fff;border-radius:24px;box-shadow:0 18px 40px rgba(13,45,89,.14)}
+    .card-premium{border:0;border-radius:20px;box-shadow:0 10px 28px rgba(13,45,89,.08);background:#fff}
+    .meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+    .meta-item{padding:.95rem 1rem;border:1px solid #e9eef5;border-radius:16px;background:#fbfdff}
+    .meta-item .label{font-size:.8rem;text-transform:uppercase;color:#6b7d90;letter-spacing:.04em;margin-bottom:.2rem}
+    .meta-item .value{font-weight:700;color:#1f3954}
+    .thumb{width:110px;height:110px;object-fit:cover;border-radius:16px;border:1px solid #dfe6ef;background:#fff}
+    .badge-soft{display:inline-flex;align-items:center;border-radius:999px;padding:.38rem .72rem;font-size:.78rem;font-weight:700}
+    .crit-alta{background:#ffe2e0;color:#a12622}.crit-media{background:#fff1cb;color:#996f00}.crit-baixa{background:#daf5e9;color:#0f6a48}.crit-none{background:#e9eef4;color:#627385}
+    .state-on{background:#daf5e9;color:#0f6a48}.state-off{background:#e9eef4;color:#627385}
+    .section-title{font-size:1rem;font-weight:800;color:#23405f}
+    .spec-box{min-height:120px;white-space:pre-wrap}
+    @media (max-width: 768px){.meta-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="container-fluid px-3 px-lg-4 py-4">
+  <div class="shell">
+    {% set e = detalhe %}
+    <div class="hero p-4 mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <div class="text-uppercase small fw-semibold opacity-75 mb-1">Ficha técnica do ativo</div>
+          <h2 class="mb-1">{{ e.nome }}</h2>
+          <div class="opacity-75">Equipamento #{{ e.id }} · {{ e.local }} · {{ e.tag if e.tag != '—' else 'Sem TAG definida' }}</div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-light" href="/equipamentos/editar/{{ e.id }}">Editar</a>
+          {% if e.ativo %}
+            <a class="btn btn-outline-light" href="/equipamentos/desativar/{{ e.id }}">Desativar</a>
+          {% else %}
+            <a class="btn btn-outline-light" href="/equipamentos/ativar/{{ e.id }}">Reativar</a>
+          {% endif %}
+          <form method="post" action="/equipamentos/{{ e.id }}/arquivar" onsubmit="return confirm('Arquivar este equipamento e removê-lo da lista ativa?');" class="d-inline">
+            <button class="btn btn-outline-light">Arquivar</button>
+          </form>
+          <a class="btn btn-outline-light" href="/equipamentos">Voltar</a>
+        </div>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category in ['success','warning','danger','info','primary','secondary'] else 'info' }} shadow-sm mb-2">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6 col-xl-3"><div class="card card-premium h-100"><div class="card-body"><div class="text-muted small">Estado</div><div class="mt-2">{% if e.ativo %}<span class="badge-soft state-on">Ativo</span>{% else %}<span class="badge-soft state-off">Inativo</span>{% endif %}</div></div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="card card-premium h-100"><div class="card-body"><div class="text-muted small">Criticidade</div><div class="mt-2">{% if e.criticidade == 'Alta' %}<span class="badge-soft crit-alta">Alta</span>{% elif e.criticidade == 'Média' %}<span class="badge-soft crit-media">Média</span>{% elif e.criticidade == 'Baixa' %}<span class="badge-soft crit-baixa">Baixa</span>{% else %}<span class="badge-soft crit-none">Não definida</span>{% endif %}</div></div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="card card-premium h-100"><div class="card-body"><div class="text-muted small">Garantia</div><div class="fw-bold fs-5 mt-1">{{ e.garantia_fim }}</div></div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="card card-premium h-100"><div class="card-body"><div class="text-muted small">Atualizado em</div><div class="fw-bold fs-6 mt-1">{{ e.updated_at }}</div></div></div></div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-7">
+        <div class="card card-premium mb-3">
+          <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3 align-items-start">
+              <div>
+                <div class="section-title">Resumo empresarial</div>
+                <div class="text-muted">Identificação, parâmetros técnicos e rastreabilidade básica do ativo.</div>
+              </div>
+            </div>
+            <div class="meta-grid">
+              <div class="meta-item"><div class="label">Local</div><div class="value">{{ e.local }}</div></div>
+              <div class="meta-item"><div class="label">Categoria</div><div class="value">{{ e.categoria }}</div></div>
+              <div class="meta-item"><div class="label">TAG</div><div class="value">{{ e.tag }}</div></div>
+              <div class="meta-item"><div class="label">Número de série</div><div class="value">{{ e.numero_serie }}</div></div>
+              <div class="meta-item"><div class="label">Fabricante</div><div class="value">{{ e.fabricante }}</div></div>
+              <div class="meta-item"><div class="label">Modelo</div><div class="value">{{ e.modelo }}</div></div>
+              <div class="meta-item"><div class="label">Ano</div><div class="value">{{ e.ano }}</div></div>
+              <div class="meta-item"><div class="label">Quantidade</div><div class="value">{{ e.quantidade }}</div></div>
+              <div class="meta-item"><div class="label">Potência</div><div class="value">{{ e.potencia_kw }} kW</div></div>
+              <div class="meta-item"><div class="label">Tensão / Corrente</div><div class="value">{{ e.tensao_v }} V / {{ e.corrente_a }} A</div></div>
+              <div class="meta-item"><div class="label">Custo de aquisição</div><div class="value">{{ e.custo }}</div></div>
+              <div class="meta-item"><div class="label">Vida útil</div><div class="value">{{ e.vida_util }} anos</div></div>
+              <div class="meta-item"><div class="label">Fornecedor</div><div class="value">{{ e.fornecedor }}</div></div>
+              <div class="meta-item"><div class="label">Contrato / referência</div><div class="value">{{ e.contrato_num }}</div></div>
+              <div class="meta-item"><div class="label">Criado em</div><div class="value">{{ e.created_at }}</div></div>
+              <div class="meta-item"><div class="label">Atualizado em</div><div class="value">{{ e.updated_at }}</div></div>
+            </div>
+            <div class="mt-4">
+              <div class="section-title mb-2">Especificação técnica</div>
+              <div class="border rounded-4 p-3 bg-light-subtle spec-box">{{ e.especificacao }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-premium">
+          <div class="card-body p-4">
+            <div class="section-title mb-3">Documentos anexados</div>
+            {% if files %}
+              <div class="list-group list-group-flush">
+                {% for f in files %}
+                  <div class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3">
+                    <div>
+                      <div class="fw-semibold">{{ f[1] }}</div>
+                      <div class="text-muted small">{{ f[3] or 'ficheiro' }} · {{ f[4] or 0 }} bytes · {{ f[5] or '' }}</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                      <a class="btn btn-sm btn-outline-primary" href="/equipamentos/files/{{ f[2] or f[1] }}">Baixar</a>
+                      <a class="btn btn-sm btn-outline-danger" href="/equipamentos/{{ e.id }}/files/{{ f[0] }}/delete">Apagar</a>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-muted">Sem documentos carregados.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-xl-5">
+        <div class="card card-premium mb-3">
+          <div class="card-body p-4">
+            <div class="section-title mb-3">Carregamentos</div>
+            <form method="post" enctype="multipart/form-data" action="/equipamentos/{{ e.id }}/upload" class="mb-3">
+              <label class="form-label fw-semibold">Documento</label>
+              <div class="input-group"><input type="file" name="file" class="form-control"><button class="btn btn-primary">Upload</button></div>
+            </form>
+            <form method="post" enctype="multipart/form-data" action="/equipamentos/{{ e.id }}/upload_photos" class="mb-3">
+              <label class="form-label fw-semibold">Fotos</label>
+              <div class="input-group"><input type="file" name="photos[]" class="form-control" multiple><button class="btn btn-secondary">Upload fotos</button></div>
+            </form>
+            <form method="post" enctype="multipart/form-data" action="/equipamentos/{{ e.id }}/upload_zip">
+              <label class="form-label fw-semibold">ZIP de fotos</label>
+              <div class="input-group"><input type="file" name="zip" class="form-control"><button class="btn btn-outline-secondary">Upload ZIP</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card card-premium">
+          <div class="card-body p-4">
+            <div class="section-title mb-3">Galeria do equipamento</div>
+            {% if photos %}
+              <div class="d-flex flex-wrap gap-3">
+                {% for p in photos %}
+                  <div class="text-center">
+                    <img class="thumb d-block mb-2" src="/equipamentos/files/{{ p[1] }}" alt="foto {{ loop.index }}">
+                    <div class="d-flex gap-1 justify-content-center">
+                      <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/{{ e.id }}/photo/{{ p[0] }}/cover">Capa</a>
+                      <a class="btn btn-sm btn-outline-danger" href="/equipamentos/{{ e.id }}/photo/{{ p[0] }}/delete">Apagar</a>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-muted">Sem fotos carregadas.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leituras Diárias</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="sge-body"><div class="container-fluid px-3 px-lg-4 py-4">
+  <h2 class="mb-4">Leituras Diárias</h2>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}
+      <div class="mb-3">
+        {% for cat, msg in msgs %}
+          <div class="alert alert-{{ 'warning' if cat=='warning' else 'success' }} mb-2">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Filtros / Export -->
+  <form class="row g-2 align-items-end mb-4" method="get" action="{{ url_for('leituras_diarias_view') }}">
+    <div class="col-md-3">
+      <label class="form-label">Local</label>
+      <select name="local" class="form-select">
+        <option value="">— Todos —</option>
+        {% for id, nome in locais %}
+          <option value="{{id}}" {{ 'selected' if filtros.local_id==id else '' }}>{{nome}}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Medidor</label>
+      <input name="medidor" class="form-control" value="{{filtros.medidor or ''}}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">De</label>
+      <input type="date" name="data_ini" class="form-control" value="{{filtros.data_ini or ''}}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Até</label>
+      <input type="date" name="data_fim" class="form-control" value="{{filtros.data_fim or ''}}">
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-primary">Filtrar</button>
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('leituras_diarias_export', local=filtros.local_id or '', medidor=filtros.medidor or '', data_ini=filtros.data_ini or '', data_fim=filtros.data_fim or '') }}">
+        Exportar CSV
+      </a>
+    </div>
+  </form>
+
+  <!-- Form de novo registo -->
+  <div class="card mb-4">
+    <div class="card-header">Novo registo</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('leituras_diarias_add') }}" enctype="multipart/form-data" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Data</label>
+          <input type="date" name="data" class="form-control" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Hora</label>
+          <input type="time" name="hora" class="form-control" value="00:00">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Local</label>
+          <select name="local_id" class="form-select" required>
+            <option value="">— selecione —</option>
+            {% for id, nome in locais %}<option value="{{id}}">{{nome}}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Medidor (nome)</label>
+          <input name="medidor_nome" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Leitura atual</label>
+          <input type="number" step="0.001" name="leitura" class="form-control" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Nº dígitos</label>
+          <input type="number" name="num_digitos" class="form-control" min="4" max="9" placeholder="ex.: 6">
+        </div>
+        <div class="col-md-2 form-check mt-4 ms-2">
+          <input class="form-check-input" type="checkbox" name="rollover" id="r1">
+          <label class="form-check-label" for="r1">Virou (rollover)</label>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Foto (opcional)</label>
+          <input type="file" name="foto" class="form-control" accept="image/*">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações</label>
+          <textarea name="observacoes" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-success">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Data</th><th>Hora</th><th>Local</th><th>Medidor</th>
+          <th class="text-end">Leitura</th><th class="text-end">Consumo (kWh)</th>
+          <th>Status</th><th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr class="{% if r[7]=='anomalia' %}table-warning{% endif %}">
+            <td>{{ r[1] }}</td>
+            <td>{{ r[2] }}</td>
+            <td>
+              {{ r[3] }}
+              {% set nome_local = (locais|selectattr(0,'equalto', r[3])|map(attribute=1)|list)|first %}
+              {% if nome_local %} — {{ nome_local }}{% endif %}
+            </td>
+            <td>{{ r[4] }}</td>
+            <td class="text-end">{{ '%.3f'|format(r[5]) }}</td>
+            <td class="text-end">{{ r[6] is not none and ('%.3f'|format(r[6])) or '—' }}</td>
+            <td>{{ r[7] }}</td>
+            <td>{{ r[8] or '' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" class="text-center text-muted">Sem registos para os filtros aplicados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div></body>
+</html>

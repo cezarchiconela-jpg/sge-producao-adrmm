@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-3">
+  <h3>Importar Leituras Mensais (CSV)</h3>
+<div class="row g-3 my-2">
+  <div class="col-md-3"><label class="form-label">Potência contratada (kVA)</label><input id="potencia_contratada" class="form-control" value="{{ local.potencia_contratada if local and local.potencia_contratada is defined else '0.00' }}" readonly></div>
+  <div class="col-md-3"><label class="form-label">Fator multiplicativo</label><input id="fator_multiplicativo" class="form-control" value="{{ local.fator_mult if local and local.fator_mult is defined else '1.0000' }}" readonly></div>
+  <div class="col-md-3 align-self-end"><button id="btnCalcularFatura" type="button" class="btn btn-primary">Calcular Fatura</button></div>
+</div>
+
+  {% if msg %}<div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>{% endif %}
+  <form method="POST" enctype="multipart/form-data" class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Local</label>
+      <select name="local" class="form-select" required>
+        {% for l in locais %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Mês</label>
+      <input type="number" name="mes" class="form-control" min="1" max="12" value="{{ now().month if not request.form.mes else request.form.mes }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Ano</label>
+      <input type="number" name="ano" class="form-control" value="{{ now().year if not request.form.ano else request.form.ano }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Fator multiplicativo</label>
+      <input type="number" step="0.0001" name="fator_mult" class="form-control" value="1">
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">CSV (use o template)</label>
+      <input type="file" name="csv_file" accept=".csv" class="form-control" required>
+      <small class="text-muted">Cabeçalho esperado: data,hora,ativa,reativa,ponta,fp,potc,anterior,atual,diferenca,agua,esp,acum,valor — baixe o template na página de Leituras Mensais.</small>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary">Importar</button>
+      <a href="/leituras_mensal" class="btn btn-secondary">Voltar</a>
+    </div>
+  </form>
+  {% if report %}
+  <hr>
+  <div class="alert alert-info">
+    <strong>Resumo:</strong> Inseridos = {{ report.ins }}, Atualizados = {{ report.upd }}, Erros = {{ report.err }} ({{ report.local }} - {{ report.mes }}/{{ report.ano }})
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+<script src="{{ url_for('static', filename='mt_leituras_mensal.js') }}"></script>

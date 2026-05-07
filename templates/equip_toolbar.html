@@ -1,0 +1,78 @@
+{# addons/equip_toolbar.html — barra de ferramentas adicional, não substitui nada #}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="equip-toolbar-addon">
+  <div class="btn-group">
+    <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Exportar</button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="/equipamentos/export/csv?{{ request.query_string.decode() }}">CSV (filtro atual)</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/export/xlsx?{{ request.query_string.decode() }}">XLSX (filtro atual)</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/export/relatorio.pdf?{{ request.query_string.decode() }}">Relatório PDF (filtro atual)</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" data-eq-action="export_csv_sel">CSV (seleção)</a></li>
+      <li><a class="dropdown-item" href="#" data-eq-action="export_pdf_sel">PDF (seleção)</a></li>
+      <li><a class="dropdown-item" href="#" data-eq-action="export_json_sel">JSON (seleção)</a></li>
+    </ul>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Etiquetas</button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="/equipamentos/labels.options">—</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/labels.options">Opções...</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="#" data-eq-action="labels_sel">Gerar etiquetas (seleção)</a></li>
+    </ul>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">Importar</button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="/equipamentos/import">CSV</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/import/xlsx">XLSX</a> </li>
+      <li><a class="dropdown-item" href="/equipamentos/import/json">JSON</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item" href="/equipamentos/export/xlsx_template">Baixar modelo XLSX</a></li>
+    </ul>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-sm btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">Extras</button>
+    <ul class="dropdown-menu">
+      <li><a class="dropdown-item" href="/equipamentos/duplicados">Duplicados</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/dashboard">Dashboard</a></li>
+      <li><a class="dropdown-item" href="/equipamentos/filtros">Filtros</a></li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function(){
+  function selectedIds(){
+    var xs = Array.from(document.querySelectorAll("input[name='ids']:checked")).map(x=>x.value);
+    return xs.join(",");
+  }
+  function go(u){
+    if (!u) return;
+    window.location.href = u;
+  }
+  document.getElementById("equip-toolbar-addon")?.addEventListener("click", function(ev){
+    var a = ev.target.closest("[data-eq-action]");
+    if(!a) return;
+    ev.preventDefault();
+    var ids = selectedIds();
+    if(!ids){
+      alert("Selecione pelo menos um item (checkbox na lista).");
+      return;
+    }
+    var act = a.getAttribute("data-eq-action");
+    if (act === "labels_sel"){
+      go("/equipamentos/labels.pdf?ids="+encodeURIComponent(ids));
+    } else if (act === "export_csv_sel"){
+      go("/equipamentos/export/csv?ids="+encodeURIComponent(ids));
+    } else if (act === "export_pdf_sel"){
+      go("/equipamentos/export/pdf?ids="+encodeURIComponent(ids));
+    } else if (act === "export_json_sel"){
+      go("/equipamentos/export/json?ids="+encodeURIComponent(ids));
+    }
+  }, false);
+})();
+</script>

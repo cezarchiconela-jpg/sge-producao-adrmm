@@ -1,0 +1,4 @@
+
+#tabela { table-layout: fixed; width: 100%; }
+#tabela thead th, #tabela tbody td { padding:6px; vertical-align: middle; }
+#tabela input[type="text"], #tabela input[type="number"] { width:100%; box-sizing:border-box; height:30px; padding:4px 6px; }

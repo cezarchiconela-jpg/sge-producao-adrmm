@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Editar Local — SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
+</head>
+<body class="sge-page">
+<div class="sge-shell sge-wide">
+  <header class="sge-topbar">
+    <div class="sge-brand">
+      <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+      <div><h2>Editar local</h2><small>Atualização institucional premium do perfil do local</small></div>
+    </div>
+    <nav class="sge-nav">
+      <a href="{{ url_for('detalhes_local', local_id=local.id) }}">Detalhes</a>
+      <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
+    </nav>
+  </header>
+
+  <section class="sge-card pad">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}<div class="alert-stack mb-3">{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    <div class="sge-section-title">
+      <div>
+        <h3>{{ local.nome }}</h3>
+        <p>Revê identificação, governança, classificação e dados de contacto deste local.</p>
+      </div>
+    </div>
+    <form method="post" class="d-grid gap-4">
+      <div class="sge-card pad">
+        <h4 class="sge-panel-title">Perfil do local</h4>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ local.nome or '' }}" required></div>
+          <div class="field"><label>Código interno</label><input class="sge-input" name="codigo" value="{{ local.codigo or '' }}"></div>
+          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option>{% for item in ['ETA','CD','Furo','Reservatório','Estação','Escritório','Outro'] %}<option value="{{ item }}" {{ 'selected' if local.tipo_local==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Local pai / centro</label><select class="sge-select" name="parent_id"><option value="">Raiz principal</option>{% for opt in parent_options or [] %}<option value="{{ opt[0] }}" {{ 'selected' if local.parent_id|string==opt[0]|string else '' }}>{{ opt[1] }}</option>{% endfor %}</select><small class="text-muted">Defina a ligação hierárquica deste local dentro do sistema.</small></div>
+          <div class="field" style="grid-column: span 2"><label>Endereço / localização</label><input class="sge-input" name="endereco" value="{{ local.endereco or '' }}"></div>
+          <div class="field"><label>Estado</label><select class="sge-select" name="ativo"><option value="1" {{ 'selected' if local.ativo==1 else '' }}>Ativo</option><option value="0" {{ 'selected' if local.ativo!=1 else '' }}>Arquivado</option></select></div>
+          <div class="field"><label>Categoria operacional</label><input class="sge-input" name="categoria_operacional" value="{{ local.categoria_operacional or '' }}"></div>
+          <div class="field"><label>Estado técnico</label><select class="sge-select" name="estado_tecnico">{% for item in ['Normal','Atenção','Crítico'] %}<option value="{{ item }}" {{ 'selected' if local.estado_tecnico==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Prioridade</label><select class="sge-select" name="prioridade">{% for item in ['Baixa','Média','Alta'] %}<option value="{{ item }}" {{ 'selected' if local.prioridade==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
+        </div>
+      </div>
+      <div class="sge-card pad">
+        <h4 class="sge-panel-title">Responsáveis e comunicação</h4>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Responsável principal</label><input class="sge-input" name="contato_nome" value="{{ local.contato_nome or '' }}"></div>
+          <div class="field"><label>Telefone / contacto</label><input class="sge-input" name="contato_tel" value="{{ local.contato_tel or '' }}"></div>
+          <div class="field"><label>Email</label><input class="sge-input" name="email" value="{{ local.email or '' }}"></div>
+          <div class="field" style="grid-column:1 / span 2"><label>Responsável alternativo</label><input class="sge-input" name="responsavel_alt" value="{{ local.responsavel_alt or '' }}"></div>
+          <div class="field" style="grid-column:1 / -1"><label>Notas</label><textarea class="sge-textarea" name="notas">{{ local.notas or '' }}</textarea></div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="sge-btn sge-btn-primary" type="submit">Guardar alterações</button>
+        <a class="sge-btn sge-btn-outline" href="{{ url_for('detalhes_local', local_id=local.id) }}">Voltar aos detalhes</a>
+      </div>
+    </form>
+  </section>
+</div>
+</body>
+</html>

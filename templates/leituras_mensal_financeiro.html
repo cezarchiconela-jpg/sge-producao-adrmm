@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Resumo financeiro{% endblock %}
+{% block extra_head %}
+<style>
+  :root{--rf-blue:#073b78;--rf-blue2:#0f6fc6;--rf-soft:#f4faff;--rf-line:#d8e8f8;--rf-text:#103b63;--rf-green:#198754;--rf-amber:#f59f00;}
+  .rf-wrap{max-width:1280px;margin:0 auto;}
+  .rf-hero{background:linear-gradient(135deg,var(--rf-blue),var(--rf-blue2));color:#fff;border-radius:22px;padding:18px 20px;box-shadow:0 18px 45px rgba(6,46,92,.18)}
+  .rf-hero h2{font-weight:850;margin:0;font-size:1.35rem}.rf-hero p{opacity:.94;margin:.35rem 0 0;font-size:.94rem}
+  .rf-card{border:1px solid var(--rf-line);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(6,46,92,.055)}
+  .rf-kpi{border:1px solid var(--rf-line);border-radius:18px;background:#fff;padding:14px;height:100%;box-shadow:0 10px 28px rgba(6,46,92,.045)}
+  .rf-kpi .lbl{font-size:.72rem;text-transform:uppercase;color:#607d9d;font-weight:800;letter-spacing:.03em}.rf-kpi .val{font-size:1.22rem;font-weight:850;color:var(--rf-blue);line-height:1.1}.rf-kpi .sub{font-size:.78rem;color:#6f85a0;margin-top:3px}
+  .rf-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rf-line);background:#fff;border-radius:999px;padding:7px 11px;font-weight:700;color:var(--rf-text);font-size:.82rem}.rf-pill.ok{border-color:#cfead9;background:#f2fbf5;color:#146c43}.rf-pill.warn{border-color:#ffd8a8;background:#fff8ef;color:#8a5200}
+  .rf-table th{background:#eaf4ff;color:var(--rf-blue);font-weight:850}.rf-table td,.rf-table th{vertical-align:middle}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.rf-total{background:#0f2337!important;color:#fff!important}.rf-note{font-size:.86rem;color:#607d9d}.rf-big-total{font-size:1.45rem;font-weight:900;color:var(--rf-blue)}
+  @media(max-width:768px){.rf-hero{padding:16px}.rf-hero h2{font-size:1.12rem}.rf-kpi .val{font-size:1.05rem}.rf-actions .btn{width:100%;}.rf-big-total{font-size:1.2rem}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rf-wrap py-3">
+  <section class="rf-hero mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h2>Resumo financeiro - {{ local }} ({{ mes }}/{{ ano }})</h2>
+        <p>Resumo calculado com a mesma lógica auditada da fatura EDM: energia por diferença de leituras, reativa excedente por tg φ = 0,75, ponta pela maior ponta do mês e IVA sobre a base configurada.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap rf-actions">
+        <a class="btn btn-light btn-sm" href="/leituras_mensal?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Voltar à planilha</a>
+        <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/fatura_edm?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Abrir fatura EDM</a>
+        <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Auditoria</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="row g-2 mb-3">
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">Energia ativa</div><div class="val">{{ resumo.kwh_ativa|fmt_mil(2) }}</div><div class="sub">kWh faturáveis</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">Reativa excedente</div><div class="val">{{ resumo.kvarh_excedente|fmt_mil(2) }}</div><div class="sub">kVArh a faturar</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">Ponta faturável</div><div class="val">{{ resumo.demanda_ponta_kw|fmt_mil(2) }}</div><div class="sub">kW</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">FP médio</div><div class="val">{{ resumo.fp_medio|fmt_mil(3) }}</div><div class="sub">leituras válidas</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">Água elevada</div><div class="val">{{ resumo.agua_total|fmt_mil(2) }}</div><div class="sub">m³ no mês</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="rf-kpi"><div class="lbl">Total com IVA</div><div class="val">{{ resumo.valor_total|fmt_mil(2) }}</div><div class="sub">MT</div></div></div>
+  </section>
+
+  <section class="rf-card p-3 mb-3">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <span class="rf-pill ok">Pot. contratada: {{ pot_contratada|fmt_mil(2) }} kVA</span>
+      <span class="rf-pill">Ponta máx. considerada: {{ resumo.kw_ponta_lida|fmt_mil(2) }} kW</span>
+      <span class="rf-pill">Limite reativa: {{ resumo.limite_reativa|fmt_mil(2) }} kVArh</span>
+      {% if resumo.consumo_especifico is not none %}<span class="rf-pill">Consumo específico: {{ resumo.consumo_especifico|fmt_mil(3) }} kWh/m³</span>{% endif %}
+      {% if resumo.avisos %}<span class="rf-pill warn">{{ resumo.avisos|length }} aviso(s) de cálculo</span>{% endif %}
+    </div>
+    <div class="rf-note">
+      Base ativa: {{ resumo.leitura_final_ativa|fmt_mil(2) }} - {{ resumo.leitura_base_ativa|fmt_mil(2) }} = {{ resumo.kwh_ativa|fmt_mil(2) }} kWh.
+      Base reativa: {{ resumo.leitura_final_reativa|fmt_mil(2) }} - {{ resumo.leitura_base_reativa|fmt_mil(2) }} = {{ resumo.kvarh_reativa|fmt_mil(2) }} kVArh.
+    </div>
+  </section>
+
+  <section class="row g-3">
+    <div class="col-lg-7">
+      <div class="rf-card p-3 h-100">
+        <h5 class="mb-3" style="color:var(--rf-blue);font-weight:850">Composição da fatura</h5>
+        <div class="table-responsive">
+          <table class="table table-sm rf-table align-middle">
+            <thead><tr><th>Componente</th><th class="num">Quantidade</th><th class="num">Tarifa</th><th class="num">Valor (MT)</th></tr></thead>
+            <tbody>
+              <tr><td>Energia ativa</td><td class="num">{{ resumo.kwh_ativa|fmt_mil(2) }} kWh</td><td class="num">{{ tarifa_ativa|fmt_mil(4) }}</td><td class="num">{{ resumo.valor_ativa|fmt_mil(2) }}</td></tr>
+              <tr><td>Reativa excedente<br><small class="text-muted">Max(reativa consumida - 0,75 × ativa, 0)</small></td><td class="num">{{ resumo.kvarh_excedente|fmt_mil(2) }} kVArh</td><td class="num">{{ tarifa_reativa|fmt_mil(4) }}</td><td class="num">{{ resumo.valor_reativa|fmt_mil(2) }}</td></tr>
+              <tr><td>Demanda de ponta<br><small class="text-muted">20% × potência contratada + 80% × ponta máxima corrigida</small></td><td class="num">{{ resumo.demanda_ponta_kw|fmt_mil(2) }} kW</td><td class="num">{{ tarifa_ponta|fmt_mil(4) }}</td><td class="num">{{ resumo.valor_ponta|fmt_mil(2) }}</td></tr>
+              <tr class="table-secondary"><th colspan="3">Subtotal energia</th><th class="num">{{ resumo.subtotal_energia|fmt_mil(2) }}</th></tr>
+              <tr><td>Taxa fixa</td><td colspan="2"></td><td class="num">{{ taxa_fixa|fmt_mil(2) }}</td></tr>
+              <tr><td>Taxa rádio</td><td colspan="2"></td><td class="num">{{ taxa_radio|fmt_mil(2) }}</td></tr>
+              <tr><td>Taxa lixo</td><td colspan="2"></td><td class="num">{{ taxa_lixo|fmt_mil(2) }}</td></tr>
+              <tr class="table-secondary"><th colspan="3">Subtotal taxas</th><th class="num">{{ resumo.subtotal_taxas|fmt_mil(2) }}</th></tr>
+              <tr><td>Subtotal antes do IVA</td><td colspan="2"></td><td class="num">{{ resumo.subtotal|fmt_mil(2) }}</td></tr>
+              <tr><td>Base IVA ({{ resumo.base_iva_percent|fmt_mil(0) }}%)</td><td colspan="2"></td><td class="num">{{ resumo.base_iva|fmt_mil(2) }}</td></tr>
+              <tr><td>IVA {{ resumo.iva_percent|fmt_mil(0) }}%</td><td colspan="2"></td><td class="num">{{ resumo.valor_iva|fmt_mil(2) }}</td></tr>
+              <tr class="rf-total"><th colspan="3">Total a pagar</th><th class="num">{{ resumo.valor_total|fmt_mil(2) }}</th></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="rf-card p-3 h-100">
+        <h5 class="mb-3" style="color:var(--rf-blue);font-weight:850">Síntese executiva</h5>
+        <div class="rf-big-total mb-2">{{ resumo.valor_total|fmt_mil(2) }} MT</div>
+        <div class="rf-note mb-3"><strong>Por extenso:</strong><br>{{ resumo.total_extenso }}</div>
+        {% if resumo.avisos %}
+          <div class="alert alert-warning py-2"><strong>Avisos:</strong><br>{{ resumo.avisos|join(' ') }}</div>
+        {% else %}
+          <div class="alert alert-success py-2">Sem avisos críticos de cálculo para este período.</div>
+        {% endif %}
+        <div class="rf-note">Este resumo financeiro foi harmonizado com a fatura EDM do módulo. Deixou de usar somatórios antigos de leituras acumuladas e passou a usar as quantidades físicas auditadas do mês.</div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

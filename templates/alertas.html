@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Centro de Alertas e Acções Correctivas</title>
+  <style>
+    :root{--azul:#0b3d91;--azul2:#0f5fb8;--verde:#159447;--line:#e5e7eb;--txt:#0f172a;--muted:#64748b;--bg:#f4f7fb;--red:#b91c1c;--amber:#b45309;--cyan:#075985}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--txt)}a{text-decoration:none;color:var(--azul)}
+    .wrap{max-width:none;width:calc(100vw - 28px);margin:0 auto;padding:18px 14px 30px}.hero{background:linear-gradient(135deg,#07306f,#0b5cbd 58%,#159447);color:#fff;border-radius:24px;padding:24px;box-shadow:0 18px 45px rgba(11,61,145,.22);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.12)}.hero h1{margin:0;font-size:2rem}.hero p{margin:8px 0 0;max-width:1000px;line-height:1.55;color:#eaf2ff}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{border:0;border-radius:14px;padding:10px 14px;font-weight:900;cursor:pointer;background:var(--azul);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px}.btn.secondary{background:#fff;color:var(--azul)}.btn.green{background:var(--verde)}.btn.gray{background:#e5e7eb;color:#111827}.btn.red{background:#b91c1c}.btn.small{padding:7px 10px;border-radius:11px;font-size:.84rem}
+    .filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 120px;gap:10px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:14px;margin:14px 0;box-shadow:0 10px 26px rgba(15,23,42,.06)}label{font-size:.76rem;font-weight:900;color:#475569;text-transform:uppercase;display:block;margin-bottom:5px}select,input,textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:9px;background:#fff}textarea{min-height:58px;resize:vertical}.kpis{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin:14px 0}.kpi{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 26px rgba(15,23,42,.05);min-height:92px}.kpi small{color:var(--muted);font-weight:900;text-transform:uppercase}.kpi b{display:block;font-size:1.55rem;margin-top:8px;color:var(--azul)}.kpi.critical b{color:var(--red)}.kpi.warn b{color:var(--amber)}.kpi.ok b{color:var(--verde)}
+    .grid{display:grid;grid-template-columns:1.4fr .8fr;gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:0 10px 28px rgba(15,23,42,.06);margin-bottom:14px}.card h2{margin:0 0 12px;font-size:1.08rem;color:#0b3d91}.status,.nivel,.sla,.estado{font-weight:900;border-radius:999px;padding:6px 10px;display:inline-flex;font-size:.82rem;white-space:nowrap}.status.Crítico,.nivel.Crítico{background:#fee2e2;color:#991b1b}.status.Atenção,.nivel.Atenção{background:#fef3c7;color:#92400e}.status.Informativo,.nivel.Informativo{background:#e0f2fe;color:#075985}.status.Normal{background:#dcfce7;color:#166534}.estado{background:#f1f5f9;color:#334155}.estado.Resolvido{background:#dcfce7;color:#166534}.estado.Em{background:#fef3c7;color:#92400e}.estado.Ignorado{background:#e5e7eb;color:#374151}.sla.Vencido{background:#fee2e2;color:#991b1b}.sla.A{background:#fef3c7;color:#92400e}.sla.No{background:#dcfce7;color:#166534}.sla.Fechado{background:#e5e7eb;color:#374151}.tabs{display:flex;gap:8px;flex-wrap:wrap}.pill{background:#f8fafc;border:1px solid #e5e7eb;border-radius:999px;padding:8px 10px;font-weight:800;color:#334155}.pill b{color:#0b3d91}.two{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.muted{color:#64748b}.mini{font-size:.82rem}.source{font-weight:900;color:#0b3d91}.tipo{font-weight:900;color:#0f172a}.progress{height:10px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar{height:100%;background:linear-gradient(90deg,#b91c1c,#b45309,#159447);width:0}.recommend{display:grid;gap:8px}.recommend div{border-left:4px solid var(--azul);background:#f8fafc;border-radius:12px;padding:10px}.recommend .crit{border-color:#b91c1c}.recommend .warn{border-color:#b45309}.recommend .ok{border-color:#159447}
+    .table-wrap{overflow:auto;border-radius:18px;border:1px solid var(--line)}table{width:100%;border-collapse:collapse;min-width:1380px}th,td{padding:10px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:1}tr:hover{background:#fbfdff}.checkcol{width:34px}.score{font-weight:900;color:#0b3d91}.row-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:320px}.row-actions textarea,.row-actions button{grid-column:1/3}.bulk{display:grid;grid-template-columns:auto 160px 160px 1fr 130px;gap:8px;align-items:end;background:#f8fafc;border:1px dashed #cbd5e1;padding:12px;border-radius:16px;margin-bottom:10px}.empty{text-align:center;padding:30px;color:#64748b}.chartline{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.chartline span{display:block;height:100%;background:linear-gradient(90deg,#0b3d91,#159447)}
+    @media(max-width:1180px){.filters{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:repeat(2,1fr)}.grid,.two,.three{grid-template-columns:1fr}.bulk{grid-template-columns:1fr}.wrap{width:100vw;padding:12px}}
+    @media(max-width:650px){.filters{grid-template-columns:1fr}.kpis{grid-template-columns:1fr}.hero h1{font-size:1.35rem}.btn{width:100%}}
+    @media print{body{background:#fff}.filters,.actions,.row-actions,.no-print,.bulk,.checkcol{display:none!important}.wrap{max-width:100%;padding:0}.hero{box-shadow:none;border-radius:0;color:#0f172a;background:#fff;border-bottom:3px solid #0b3d91}.hero p{color:#334155}.card,.kpi{box-shadow:none}.kpis{grid-template-columns:repeat(4,1fr)}table{font-size:9px;min-width:0}th{position:static}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Centro de Alertas e Acções Correctivas</h1>
+    <p>Consolida riscos dos módulos de Motores, Monitoria Operacional, Leituras Mensais e Fatura EDM. Agora inclui prioridade, prazo de resolução, SLA, responsável, acção tomada e relatório executivo.</p>
+    <div class="actions no-print">
+      <a class="btn secondary" href="/">Dashboard</a>
+      <a class="btn secondary" href="/monitoria">Monitoria</a>
+      <a class="btn secondary" href="/motores">Motores</a>
+      <a class="btn secondary" href="/leituras_mensal">Leituras Mensais</a>
+      <a class="btn green" href="/alertas/relatorio?local_id={{local_id}}&ini={{data_ini}}&fim={{data_fim}}&origem={{origem_filtro}}&nivel={{nivel_filtro}}&estado={{estado_filtro}}&categoria={{categoria_filtro}}&sla={{sla_filtro}}">Relatório executivo</a>
+      <a class="btn secondary" href="/alertas/kanban?local_id={{local_id}}&ini={{data_ini}}&fim={{data_fim}}&origem={{origem_filtro}}&nivel={{nivel_filtro}}&categoria={{categoria_filtro}}&sla={{sla_filtro}}">Kanban</a>
+      <a class="btn secondary" href="/alertas/historico">Histórico</a>
+      <a class="btn green" href="/alertas/export/csv?local_id={{local_id}}&ini={{data_ini}}&fim={{data_fim}}&origem={{origem_filtro}}&nivel={{nivel_filtro}}&estado={{estado_filtro}}&categoria={{categoria_filtro}}&sla={{sla_filtro}}">Exportar CSV</a>
+      <button class="btn gray" onclick="window.print()">Imprimir / PDF</button>
+    </div>
+  </section>
+
+  <div class="card no-print">
+    <h2>Registar alerta manual</h2>
+    <form method="post" action="/alertas/manual" class="three">
+      <input type="hidden" name="next" value="{{request.full_path}}">
+      <div><label>Nível</label><select name="nivel"><option>Informativo</option><option selected>Atenção</option><option>Crítico</option></select></div>
+      <div><label>Local</label><input name="local" placeholder="Ex.: ETA Umbeluzi"></div>
+      <div><label>Equipamento</label><input name="equipamento" placeholder="Ex.: Bomba 2 / QGBT"></div>
+      <div><label>Tipo de alerta</label><input name="tipo" placeholder="Ex.: Ruído anormal, fuga, manutenção pendente"></div>
+      <div><label>Responsável</label><input name="responsavel" placeholder="Nome do técnico/equipa"></div>
+      <div><label>Prazo</label><input type="date" name="prazo"></div>
+      <div><label>Impacto estimado MT</label><input name="custo_estimado" placeholder="0,00"></div>
+      <div><label>Causa provável</label><input name="causa" placeholder="Descrição curta da causa provável"></div>
+      <div><label>Impacto técnico</label><input name="impacto" placeholder="Impacto na energia, operação ou segurança"></div>
+      <div style="grid-column:1/-1"><label>Acção recomendada</label><textarea name="acao" placeholder="O que deve ser feito para tratar este alerta"></textarea></div>
+      <button class="btn green" style="grid-column:1/-1">Criar alerta manual</button>
+    </form>
+  </div>
+
+  <form class="filters no-print" method="get">
+    <div><label>Local</label><select name="local_id"><option value="">Todos os locais</option>{% for l in locais %}<option value="{{l['id'] if l['id'] is defined else l[0]}}" {% if local_id|string==(l['id'] if l['id'] is defined else l[0])|string %}selected{% endif %}>{{l['nome'] if l['nome'] is defined else l[1]}}</option>{% endfor %}</select></div>
+    <div><label>Origem</label><select name="origem"><option value="">Todas</option>{% for o,c in origem_counts.items() %}<option value="{{o}}" {% if origem_filtro==o %}selected{% endif %}>{{o}} ({{c}})</option>{% endfor %}</select></div>
+    <div><label>Categoria</label><select name="categoria"><option value="">Todas</option>{% for o,c in categoria_counts.items() %}<option value="{{o}}" {% if categoria_filtro==o %}selected{% endif %}>{{o}} ({{c}})</option>{% endfor %}</select></div>
+    <div><label>Nível</label><select name="nivel"><option value="">Todos</option><option {% if nivel_filtro=='Crítico' %}selected{% endif %}>Crítico</option><option {% if nivel_filtro=='Atenção' %}selected{% endif %}>Atenção</option><option {% if nivel_filtro=='Informativo' %}selected{% endif %}>Informativo</option></select></div>
+    <div><label>Estado</label><select name="estado"><option value="">Todos</option><option {% if estado_filtro=='Novo' %}selected{% endif %}>Novo</option><option {% if estado_filtro=='Em análise' %}selected{% endif %}>Em análise</option><option {% if estado_filtro=='Resolvido' %}selected{% endif %}>Resolvido</option><option {% if estado_filtro=='Ignorado' %}selected{% endif %}>Ignorado</option></select></div>
+    <div><label>SLA</label><select name="sla"><option value="">Todos</option>{% for o,c in sla_counts.items() %}<option value="{{o}}" {% if sla_filtro==o %}selected{% endif %}>{{o}} ({{c}})</option>{% endfor %}</select></div>
+    <div><label>Início</label><input type="date" name="ini" value="{{data_ini}}"></div>
+    <div><label>Fim</label><input type="date" name="fim" value="{{data_fim}}"></div>
+    <button class="btn">Carregar</button>
+  </form>
+
+  <div class="kpis">
+    <div class="kpi {% if estado_geral=='Crítico' %}critical{% elif estado_geral=='Atenção' %}warn{% else %}ok{% endif %}"><small>Estado geral</small><b>{{estado_geral}}</b></div>
+    <div class="kpi"><small>Total</small><b>{{resumo.total}}</b></div>
+    <div class="kpi critical"><small>Críticos</small><b>{{resumo.criticos}}</b></div>
+    <div class="kpi warn"><small>Atenção</small><b>{{resumo.atencao}}</b></div>
+    <div class="kpi critical"><small>Vencidos</small><b>{{resumo.vencidos}}</b></div>
+    <div class="kpi warn"><small>A vencer</small><b>{{resumo.a_vencer}}</b></div>
+    <div class="kpi ok"><small>Resolvidos</small><b>{{resumo.resolvidos}}</b></div>
+    <div class="kpi"><small>Taxa resolução</small><b>{{resumo.taxa_resolucao}}%</b></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Resumo executivo do período</h2>
+      <div class="two">
+        <div><span class="status {{estado_geral}}">{{estado_geral}}</span><p class="muted">Período: <b>{{data_ini}}</b> até <b>{{data_fim}}</b>. Pendentes: <b>{{resumo.pendentes}}</b>. Impacto financeiro registado: <b>{{"{:,.2f}".format(resumo.impacto_mt).replace(',', 'X').replace('.', ',').replace('X', '.')}} MT</b>.</p></div>
+        <div><label>Progresso de resolução</label><div class="progress"><div class="bar" style="width:{{resumo.taxa_resolucao}}%"></div></div><p class="mini muted">Resolver primeiro: vencidos, críticos e alertas a vencer.</p></div>
+      </div>
+      <div class="tabs" style="margin-top:10px">
+        {% for o,c in origem_counts.items() %}<span class="pill">{{o}}: <b>{{c}}</b></span>{% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Plano de acção prioritário</h2>
+      <div class="recommend">
+        {% if resumo.vencidos > 0 %}<div class="crit"><b>1. Regularizar alertas vencidos.</b><br><span class="muted">Há {{resumo.vencidos}} alerta(s) fora do prazo de tratamento.</span></div>{% endif %}
+        {% if resumo.criticos > 0 %}<div class="crit"><b>2. Tratar críticos.</b><br><span class="muted">Conferir FP muito baixo, tensão grave, sobrecarga, leituras decrescentes e falhas de dados.</span></div>{% endif %}
+        {% if resumo.a_vencer > 0 %}<div class="warn"><b>3. Fechar pendências a vencer.</b><br><span class="muted">Priorizar alertas com prazo nos próximos dias.</span></div>{% endif %}
+        <div class="ok"><b>4. Registar acção tomada.</b><br><span class="muted">Cada alerta tratado deve ter responsável, prazo e observação para criar histórico auditável.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Distribuição por categoria</h2>
+      {% for cat,c in categoria_counts.items() %}
+        <div style="margin:8px 0"><div class="mini"><b>{{cat}}</b> <span class="muted">({{c}})</span></div><div class="chartline"><span style="width:{% if resumo.total %}{{(c/resumo.total*100)|round(0)}}{% else %}0{% endif %}%"></span></div></div>
+      {% else %}<p class="muted">Sem dados suficientes.</p>{% endfor %}
+    </div>
+    <div class="card">
+      <h2>Locais com mais alertas</h2>
+      {% for loc,c in ranking_locais %}
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid #edf2f7;padding:7px 0"><b>{{loc}}</b><span class="pill">{{c}}</span></div>
+      {% else %}<p class="muted">Sem alertas no período.</p>{% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Alertas consolidados</h2>
+    <form class="bulk no-print" method="post" action="/alertas/acao_lote" id="bulkForm">
+      <input type="hidden" name="next" value="{{request.full_path}}">
+      <div><label>Seleccionar</label><button type="button" class="btn small gray" onclick="toggleChecks()">Marcar/Desmarcar</button></div>
+      <div><label>Estado lote</label><select name="estado_lote"><option>Em análise</option><option>Resolvido</option><option>Ignorado</option><option>Novo</option></select></div>
+      <div><label>Responsável</label><input name="responsavel_lote" placeholder="Nome"></div>
+      <div><label>Observação lote</label><input name="observacao_lote" placeholder="Ex.: Validado em campo / encaminhado à manutenção"></div>
+      <button class="btn green">Aplicar aos seleccionados</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="checkcol no-print"></th><th>Nível</th><th>Score</th><th>SLA / Prazo</th><th>Estado</th><th>Origem</th><th>Categoria</th><th>Local / Equipamento</th><th>Alerta</th><th>Causa provável</th><th>Impacto</th><th>Acção recomendada</th><th>Última ref.</th><th class="no-print">Gestão</th></tr></thead>
+        <tbody>
+        {% for e in eventos %}
+          <tr>
+            <td class="checkcol no-print"><input type="checkbox" name="alerta_ids" value="{{e.id}}" form="bulkForm" class="chk"></td>
+            <td><span class="nivel {{e.nivel}}">{{e.nivel}}</span></td>
+            <td><span class="score">{{e.score}}</span></td>
+            <td><span class="sla {{e.sla.split()[0]}}">{{e.sla}}</span><br><span class="mini muted">{{e.prazo}}</span></td>
+            <td><span class="estado {{e.estado.split()[0]}}">{{e.estado}}</span>{% if e.responsavel %}<br><span class="mini muted">Resp.: {{e.responsavel}}</span>{% endif %}</td>
+            <td><span class="source">{{e.origem}}</span></td>
+            <td>{{e.categoria}}</td>
+            <td><b>{{e.local}}</b><br><span class="muted">{{e.equipamento}}</span></td>
+            <td><span class="tipo">{{e.tipo}}</span>{% if e.link %}<br><a class="mini" href="{{e.link}}">Abrir origem</a>{% endif %}</td>
+            <td>{{e.causa}}</td>
+            <td>{{e.impacto}}{% if e.impacto_mt and e.impacto_mt>0 %}<br><b>{{"{:,.2f}".format(e.impacto_mt).replace(',', 'X').replace('.', ',').replace('X', '.')}} MT</b>{% endif %}</td>
+            <td>{{e.acao}}{% if e.acao_tomada %}<br><b class="mini">Acção tomada:</b> <span class="mini muted">{{e.acao_tomada}}</span>{% endif %}{% if e.evidencia is defined and e.evidencia %}<br><b class="mini">Evidência:</b> <span class="mini muted">{{e.evidencia}}</span>{% endif %}{% if e.observacao %}<br><b class="mini">Obs.:</b> <span class="mini muted">{{e.observacao}}</span>{% endif %}</td>
+            <td>{{e.ultima}}</td>
+            <td class="no-print">
+              <form class="row-actions" method="post" action="/alertas/acao">
+                <input type="hidden" name="alerta_id" value="{{e.id}}">
+                <input type="hidden" name="next" value="{{request.full_path}}">
+                <select name="estado"><option {% if e.estado=='Novo' %}selected{% endif %}>Novo</option><option {% if e.estado=='Em análise' %}selected{% endif %}>Em análise</option><option {% if e.estado=='Resolvido' %}selected{% endif %}>Resolvido</option><option {% if e.estado=='Ignorado' %}selected{% endif %}>Ignorado</option></select>
+                <input type="date" name="prazo" value="{{e.prazo}}">
+                <input name="responsavel" placeholder="Responsável" value="{{e.responsavel}}">
+                <input name="acao_tomada" placeholder="Acção tomada" value="{{e.acao_tomada}}">
+                <input name="evidencia" placeholder="Evidência / referência" value="{{e.evidencia if e.evidencia is defined else ''}}">
+                <input name="custo_estimado" placeholder="Impacto MT" value="{{e.impacto_mt if e.impacto_mt else ''}}">
+                <textarea name="observacao" placeholder="Observação / evidência / nota técnica">{{e.observacao}}</textarea>
+                <input type="hidden" name="snapshot_nivel" value="{{e.nivel}}"><input type="hidden" name="snapshot_origem" value="{{e.origem}}"><input type="hidden" name="snapshot_categoria" value="{{e.categoria}}"><input type="hidden" name="snapshot_local" value="{{e.local}}"><input type="hidden" name="snapshot_equipamento" value="{{e.equipamento}}"><input type="hidden" name="snapshot_tipo" value="{{e.tipo}}"><input type="hidden" name="snapshot_causa" value="{{e.causa}}"><input type="hidden" name="snapshot_impacto" value="{{e.impacto}}"><input type="hidden" name="snapshot_acao" value="{{e.acao}}"><input type="hidden" name="snapshot_ultima" value="{{e.ultima}}"><input type="hidden" name="snapshot_link" value="{{e.link}}">
+                <button class="btn green">Guardar estado</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="14" class="empty">Sem alertas para os filtros seleccionados. O sistema está normal ou ainda não existem dados suficientes neste período.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+function toggleChecks(){document.querySelectorAll('.chk').forEach(c=>c.checked=!c.checked)}
+</script>
+</body>
+</html>

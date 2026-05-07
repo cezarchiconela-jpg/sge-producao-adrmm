@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SGE · Sistema de Gestão de Energia{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='theme_sge.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='leituras.css') }}">
+  {% block extra_head %}{% endblock %}
+<style data-sge-nav-fix>.sge-topbar,.navbar.sge-topbar{position:sticky;top:0;z-index:2500;overflow:visible}.dropdown-menu.sge-dropdown{z-index:3000!important}.sge-shell{position:relative;z-index:1}</style>
+</head>
+<body class="sge-body sge-fullscreen">
+<nav class="navbar navbar-expand-xl navbar-dark sge-topbar">
+  <div class="container-fluid sge-navbar-inner">
+    <a class="navbar-brand sge-brand" href="{{ url_for('index') }}">
+      <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM" class="sge-brand-logo">
+      <span class="sge-brand-stack">
+        <strong>SGE · Sistema de Gestão de Energia</strong>
+        <small>ADRMM · Controlo energético, activos, facturação e decisão</small>
+      </span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sgeNav" aria-controls="sgeNav" aria-expanded="false" aria-label="Alternar navegação">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="sgeNav">
+      <ul class="navbar-nav ms-auto sge-nav-pills mt-3 mt-xl-0 align-items-xl-center">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}"><i class="bi bi-house-door me-1"></i>Início</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('listar_locais') }}"><i class="bi bi-buildings me-1"></i>Centros</a></li>
+        <li class="nav-item"><a class="nav-link" href="/equipamentos"><i class="bi bi-hdd-network me-1"></i>Activos</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navOperacao" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-lightning-charge me-1"></i>Operação</a>
+          <ul class="dropdown-menu dropdown-menu-end sge-dropdown" aria-labelledby="navOperacao">
+            <li><a class="dropdown-item" href="/monitoria"><i class="bi bi-activity me-2"></i>Monitoria Operacional</a></li>
+            <li><a class="dropdown-item" href="/leituras_mensal"><i class="bi bi-receipt-cutoff me-2"></i>Facturação MT</a></li>
+            <li><a class="dropdown-item" href="/leituras_mensal/arquivo"><i class="bi bi-archive me-2"></i>Arquivo de Leituras</a></li>
+            <li><a class="dropdown-item" href="/leituras_mensal/faturas"><i class="bi bi-file-earmark-text me-2"></i>Arquivo de Facturas</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navAnalise" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-graph-up-arrow me-1"></i>Análise</a>
+          <ul class="dropdown-menu dropdown-menu-end sge-dropdown" aria-labelledby="navAnalise">
+            <li><a class="dropdown-item" href="/dashboard"><i class="bi bi-speedometer2 me-2"></i>Dashboard Executivo</a></li>
+            <li><a class="dropdown-item" href="/motores"><i class="bi bi-gear-wide-connected me-2"></i>Motores e Manutenção</a></li>
+            <li><a class="dropdown-item" href="/alertas"><i class="bi bi-bell me-2"></i>Alertas Correctivos</a></li>
+          </ul>
+        </li>
+        <li class="nav-item"><a class="nav-link" href="/solar"><i class="bi bi-sun me-1"></i>Energia Solar</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<main class="container-fluid sge-shell">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="sge-flash-area">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='sge_ui.js') }}"></script>
+<script>
+  (function(){
+    const path = window.location.pathname || '/';
+    document.querySelectorAll('.sge-topbar .nav-link, .sge-topbar .dropdown-item').forEach(link => {
+      const href = link.getAttribute('href') || '';
+      if (!href || href === '#') return;
+      if (href === '/' ? path === '/' : path.startsWith(href)) {
+        link.classList.add('active');
+        const dropdown = link.closest('.dropdown');
+        if (dropdown) dropdown.querySelector('.dropdown-toggle')?.classList.add('active');
+      }
+    });
+  })();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

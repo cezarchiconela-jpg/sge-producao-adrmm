@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Plano de Manutenção de Motores - SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--azul:#0b3d91;--azul2:#0f63c7;--verde:#159957;--bg:#f4f7fb;--txt:#162033;--muted:#64748b;--line:#e5e7eb;--red:#b91c1c;--amber:#b45309;--green:#15803d;--card:#fff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Segoe UI,Arial,sans-serif;color:var(--txt)}.wrap{max-width:1500px;margin:auto;padding:22px}.hero{border-radius:26px;padding:24px;background:linear-gradient(135deg,#082c68,#0f63c7 62%,#159957);color:#fff;box-shadow:0 18px 44px rgba(11,61,145,.18)}.hero h1{margin:8px 0 4px;font-size:clamp(1.6rem,3vw,2.8rem)}.hero p{max-width:920px;line-height:1.5;opacity:.94}.badge{display:inline-flex;background:rgba(255,255,255,.16);padding:8px 12px;border-radius:999px;font-weight:900}.top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.actions{display:flex;gap:9px;flex-wrap:wrap}.btn{border:0;border-radius:13px;padding:10px 14px;text-decoration:none;font-weight:900;display:inline-flex;align-items:center;gap:7px;cursor:pointer}.btn-white{background:#fff;color:#0b3d91}.btn-soft{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28)}.btn-blue{background:#0b3d91;color:#fff}.btn-line{background:#fff;color:#0b3d91;border:1px solid var(--line)}
+    .filters{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;margin:18px 0;box-shadow:0 10px 30px rgba(15,23,42,.06)}label{font-size:.78rem;color:var(--muted);font-weight:900;text-transform:uppercase}select,input{width:100%;padding:10px 11px;border:1px solid #dbe3ef;border-radius:12px;background:#fff}.filter-actions{display:flex;align-items:end;gap:8px}.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:18px 0}.kpi{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:0 10px 28px rgba(15,23,42,.055)}.kpi small{color:var(--muted);font-weight:900;text-transform:uppercase}.kpi b{display:block;font-size:1.55rem;margin-top:7px;color:#0b3d91}.kpi.red b{color:var(--red)}.kpi.green b{color:var(--green)}
+    .panel{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 12px 35px rgba(15,23,42,.06);overflow:hidden;margin:18px 0}.panel-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.panel-head h2{margin:0;font-size:1.18rem;color:#0b3d91}.table-wrap{overflow:auto;max-height:70vh}table{width:100%;border-collapse:collapse;min-width:1150px}th,td{padding:11px 12px;border-bottom:1px solid #edf1f7;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;font-size:.78rem;text-transform:uppercase;letter-spacing:.02em;position:sticky;top:0}.pill{display:inline-block;border-radius:999px;padding:5px 9px;font-weight:900;font-size:.78rem}.Alta{background:#fee2e2;color:#991b1b}.Média{background:#fef3c7;color:#92400e}.Baixa{background:#dcfce7;color:#166534}.Crítico{background:#fee2e2;color:#991b1b}.Atenção{background:#fef3c7;color:#92400e}.Normal{background:#dcfce7;color:#166534}.Sem-dados{background:#e2e8f0;color:#334155}.mini{color:var(--muted);font-size:.86rem}.score{height:11px;background:#e5e7eb;border-radius:999px;overflow:hidden;min-width:120px}.score i{display:block;height:100%;background:linear-gradient(90deg,#159957,#f59e0b,#b91c1c)}.rec{margin:4px 0}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:white;border:1px solid var(--line);border-radius:22px;padding:16px}.card h3{margin:0 0 8px;color:#0b3d91}
+    @media(max-width:1100px){.filters{grid-template-columns:repeat(2,1fr)}.kpis,.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){.wrap{padding:12px}.filters,.kpis,.cards{grid-template-columns:1fr}.actions,.btn{width:100%;justify-content:center}.hero{padding:18px}}@media print{.filters,.actions{display:none}.wrap{padding:0}.hero,.panel,.kpi,.card{box-shadow:none}body{background:white;font-size:11px}.table-wrap{overflow:visible;max-height:none}table{min-width:0;font-size:10px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="top">
+      <div>
+        <span class="badge">🛠️ Plano técnico de manutenção</span>
+        <h1>Plano de Manutenção e Prioridades dos Motores</h1>
+        <p>Consolida medições, horas de funcionamento e diagnóstico electromecânico para indicar prioridades de intervenção, prazos recomendados e acções técnicas para reduzir falhas, perdas energéticas e paragens inesperadas.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-white" href="/motores">Voltar aos motores</a>
+        <a class="btn btn-soft" href="/motores/export/diagnostico_csv?local_id={{ local_id }}&equipamento_id={{ equip_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Exportar CSV</a>
+        <button class="btn btn-soft" onclick="print()">Imprimir / PDF</button>
+      </div>
+    </div>
+  </section>
+
+  <form class="filters" method="get" action="/motores/manutencao">
+    <div><label>Local</label><select name="local_id"><option value="">Todos</option>{% for l in locais %}<option value="{{l[0]}}" {% if local_id|string == l[0]|string %}selected{% endif %}>{{l[1]}}</option>{% endfor %}</select></div>
+    <div><label>Equipamento</label><select name="equipamento_id"><option value="">Todos</option>{% for e in equipamentos_select %}<option value="{{e[0]}}" {% if equip_id|string == e[0]|string %}selected{% endif %}>{{e[1]}}</option>{% endfor %}</select></div>
+    <div><label>Data inicial</label><input type="date" name="ini" value="{{data_ini}}"></div>
+    <div><label>Data final</label><input type="date" name="fim" value="{{data_fim}}"></div>
+    <div class="filter-actions"><button class="btn btn-blue" type="submit">Carregar</button></div>
+    <div class="filter-actions"><a class="btn btn-line" href="/motores/manutencao">Limpar</a></div>
+  </form>
+
+  <section class="kpis">
+    <div class="kpi"><small>Equipamentos analisados</small><b>{{ resumo.equipamentos }}</b></div>
+    <div class="kpi red"><small>Prioridade alta</small><b>{{ planos|selectattr('prioridade','equalto','Alta')|list|length }}</b></div>
+    <div class="kpi"><small>Prioridade média</small><b>{{ planos|selectattr('prioridade','equalto','Média')|list|length }}</b></div>
+    <div class="kpi green"><small>Prioridade baixa</small><b>{{ planos|selectattr('prioridade','equalto','Baixa')|list|length }}</b></div>
+    <div class="kpi"><small>Gerado em</small><b style="font-size:1.05rem">{{ gerado_em }}</b></div>
+  </section>
+
+  <section class="cards">
+    <div class="card"><h3>Critério de prioridade</h3><p class="mini">A pontuação considera estado crítico, quantidade de alertas, FP baixo, corrente anormal, baixo carregamento e sobrecarga estimada.</p></div>
+    <div class="card"><h3>Uso recomendado</h3><p class="mini">Use este painel semanalmente ou no fecho mensal para planear inspeções, medições de confirmação e acções correctivas.</p></div>
+    <div class="card"><h3>Integração</h3><p class="mini">Os dados vêm de Equipamentos, Monitoria Operacional, medições de motores e horas de funcionamento.</p></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Plano de intervenção recomendado</h2><span class="mini">Período: {{data_ini}} a {{data_fim}}</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Prioridade</th><th>Score</th><th>Equipamento</th><th>Estado</th><th>Indicadores</th><th>Prazo</th><th>Acções recomendadas</th><th>Links</th></tr></thead>
+      <tbody>
+      {% for p in planos %}
+        {% set a = p.a %}
+        <tr>
+          <td><span class="pill {{p.prioridade}}">{{p.prioridade}}</span></td>
+          <td><b>{{p.score}}</b>/100<div class="score"><i style="width:{{p.score}}%"></i></div></td>
+          <td><b>{{a.equipamento.nome}}</b><div class="mini">{{a.equipamento.local_nome or '—'}} · Tag: {{a.equipamento.tag or '—'}}</div></td>
+          <td><span class="pill {{a.status.replace(' ', '-')}}">{{a.status}}</span></td>
+          <td>
+            <div class="mini">FP: {% if a.avg_fp is not none %}{{ '%.3f'|format(a.avg_fp) }}{% else %}—{% endif %}</div>
+            <div class="mini">Carga: {% if a.carga_pct is not none %}{{ '%.1f'|format(a.carga_pct) }}%{% else %}—{% endif %}</div>
+            <div class="mini">Corr. máx.: {{ '%.1f'|format(a.corr_max) }} A</div>
+            <div class="mini">Horas: {{ '%.1f'|format(a.horas) }} h · Arranques: {{a.arranques}}</div>
+          </td>
+          <td><b>{{p.prazo}}</b></td>
+          <td>
+            {% if p.recomendacoes %}{% for r in p.recomendacoes[:3] %}<div class="rec"><b>{{r[0]}}</b><div class="mini">{{r[1]}} — {{r[2]}}</div></div>{% endfor %}{% else %}<span class="mini">Manter inspeção de rotina.</span>{% endif %}
+          </td>
+          <td><a class="btn btn-line" style="padding:7px 10px;font-size:.78rem" href="/motores/detalhe/{{a.id}}?ini={{data_ini}}&fim={{data_fim}}">Ficha</a><br><br><a class="btn btn-line" style="padding:7px 10px;font-size:.78rem" href="/motores/detalhe/{{a.id}}/imprimir?ini={{data_ini}}&fim={{data_fim}}">PDF</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="mini">Sem dados para gerar plano de manutenção.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+</body>
+</html>

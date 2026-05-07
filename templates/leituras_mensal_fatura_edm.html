@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Fatura de Energia - {{ local }} ({{ periodo }})</title>
+  <style>
+    :root{--blue:#073b78;--blue2:#0f6fc6;--line:#cfddeb;--soft:#f4faff;--text:#102b43;}
+    *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;color:var(--text);font-size:11px;margin:0;background:#f1f7fd;padding:10px}.page{position:relative;max-width:1120px;margin:0 auto;background:#fff;min-height:calc(100vh - 20px);padding:14px 18px 12px;border-radius:12px;box-shadow:0 10px 28px rgba(7,59,120,.12);overflow:hidden}.watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:0;pointer-events:none}.watermark img{width:50%;max-width:560px;opacity:.075}.content{position:relative;z-index:1}.no-print{max-width:1120px;margin:0 auto 8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}.btn-secondary{background:#6c757d;color:#fff}.btn-primary{background:#0f6fc6;color:#fff}.btn-outline{background:#fff;color:#073b78;border:1px solid #073b78}.invoice-header{display:grid;grid-template-columns:1.25fr .95fr;gap:12px;align-items:start;border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:8px}.brand{display:flex;gap:10px;align-items:center}.brand img{width:58px;height:58px;object-fit:contain}.brand h1{margin:0;color:var(--blue);font-size:19px;letter-spacing:-.02em}.brand .subtitle{font-size:10.5px;color:#55708d;margin-top:1px}.meta{text-align:right;line-height:1.35;font-size:10.8px}.meta b{color:var(--blue)}.doc-title{display:inline-block;background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border-radius:999px;padding:4px 9px;font-weight:800;margin-bottom:4px;font-size:10px}.audit-box{border:1px solid var(--line);background:rgba(244,250,255,.88);border-radius:8px;padding:6px 8px;margin:7px 0 8px;font-size:9.6px;line-height:1.25}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.panel{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:rgba(255,255,255,.95)}.panel h3{margin:0;background:#eaf4ff;color:var(--blue);font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--line)}table{width:100%;border-collapse:collapse}th,td{padding:5px 6px;border-bottom:1px solid #e5edf6;vertical-align:top}th{background:#f8fbff;color:var(--blue);font-weight:800}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.total-row th,.total-row td{background:#eef4fb;font-weight:800}.grand-total th,.grand-total td{background:#0f2337;color:#fff;font-weight:900;font-size:12px}.small{font-size:9px;color:#4e6982;line-height:1.2}.extenso{border:1px solid var(--line);background:#f8fbff;padding:7px;border-radius:8px;margin-top:7px;font-weight:600;font-size:10px}.indicators{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.signature{text-align:right;font-size:9.5px;color:#304e6c;line-height:1.35;padding-top:8px}.footer{border-top:1px solid var(--line);margin-top:9px;padding-top:5px;font-size:8.8px;color:#607d9d;text-align:center}.print-note{font-size:9.5px;color:#607d9d;margin-top:4px}.saved-note{font-size:9.5px;color:#0f6fc6;font-weight:700;margin-top:3px}
+    @media(max-width:800px){body{padding:8px}.page{padding:12px;border-radius:10px}.invoice-header,.grid,.indicators{grid-template-columns:1fr}.meta{text-align:left}.brand img{width:52px;height:52px}.brand h1{font-size:18px}.btn{width:100%;text-align:center}.watermark img{width:82%}}
+    @page{size:A4 portrait;margin:7mm}
+    @media print{body{background:#fff;padding:0;font-size:9.4px}.no-print{display:none!important}.page{max-width:none;width:100%;min-height:auto;height:auto;border-radius:0;box-shadow:none;padding:5mm 5mm 4mm;page-break-after:avoid;break-after:avoid}.watermark img{opacity:.08;width:54%}.invoice-header{grid-template-columns:1.35fr .9fr;gap:7mm;margin-bottom:4mm;padding-bottom:3mm}.brand img{width:42px;height:42px}.brand h1{font-size:15.5px}.doc-title{font-size:8.5px;padding:3px 7px}.brand .subtitle,.meta{font-size:8.8px}.audit-box{font-size:7.7px;margin:3mm 0;padding:3mm}.grid{gap:4mm}.panel h3{font-size:10.2px;padding:3px 5px}th,td{padding:3px 4px}.small{font-size:7.4px}.extenso{font-size:8.4px;padding:4px;margin-top:4px}.indicators{margin-top:4mm;gap:4mm}.signature{font-size:8px;padding-top:3mm}.footer{font-size:7.5px;margin-top:3mm;padding-top:2mm}.panel,.invoice-header,.audit-box,.indicators{break-inside:avoid;page-break-inside:avoid}.grand-total th,.grand-total td{font-size:10.5px}}
+  </style>
+</head>
+<body>
+<div class="no-print">
+  <button class="btn btn-secondary" onclick="window.close()">Fechar</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn btn-outline" href="/leituras_mensal/faturas?local={{ local }}">Arquivo de facturas</a>
+    <a class="btn btn-primary" href="/leituras_mensal/fatura_edm_pdf?local={{ local|urlencode }}&mes={{ periodo[:2] }}&ano={{ periodo[3:] }}">Descarregar PDF 1 página</a>
+    <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+<div class="page">
+  <div class="watermark"><img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM"></div>
+  <div class="content">
+    <header class="invoice-header">
+      <div class="brand">
+        <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+        <div>
+          <div class="doc-title">Modelo interno de faturação energética</div>
+          <h1>Fatura de Energia - EDM</h1>
+          <div class="subtitle">Sistema de Gestão de Energia - Monitorização, análise e controlo energético</div>
+          <div><strong>Local:</strong> {{ local }}</div>
+          <div><strong>Período:</strong> {{ periodo }}</div>
+          {% if invoice_id %}<div class="saved-note">Arquivada no SGE · Registo #{{ invoice_id }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="meta">
+        <div><b>Potência contratada:</b> {{ pot_contratada|fmt_mil(2) }} kVA</div>
+        <div><b>Tarifa ativa:</b> {{ tarifa_ativa|fmt_mil(4) }} MT/kWh</div>
+        <div><b>Tarifa reativa:</b> {{ tarifa_reativa|fmt_mil(4) }} MT/kVArh</div>
+        <div><b>Tarifa ponta:</b> {{ tarifa_ponta|fmt_mil(4) }} MT/kW</div>
+        <div class="print-note">Emitido pelo SGE em modo de conferência interna.</div>
+      </div>
+    </header>
+
+    <div class="audit-box">
+      <strong>Base de cálculo:</strong>
+      Ativa = {{ leitura_final_ativa|fmt_mil(2) }} - {{ leitura_base_ativa|fmt_mil(2) }} = {{ kwh_ativa|fmt_mil(2) }} kWh.
+      Reativa = {{ leitura_final_reativa|fmt_mil(2) }} - {{ leitura_base_reativa|fmt_mil(2) }} = {{ kvarh_reativa|fmt_mil(2) }} kVArh.
+      Excedente = máx(Reativa - 0,75 × Ativa, 0) = {{ kvarh_excedente|fmt_mil(2) }} kVArh.
+      {% if avisos_fatura %}<br><strong>Aviso:</strong> {{ avisos_fatura|join(' ') }}{% endif %}
+    </div>
+
+    <main class="grid">
+      <section class="panel">
+        <h3>Resumo de energia</h3>
+        <table>
+          <thead><tr><th>Componente</th><th class="num">Quantidade</th><th class="num">Tarifa</th><th class="num">Valor (MT)</th></tr></thead>
+          <tbody>
+            <tr><td>Energia ativa</td><td class="num">{{ kwh_ativa|fmt_mil(2) }} kWh</td><td class="num">{{ tarifa_ativa|fmt_mil(4) }}</td><td class="num">{{ valor_ativa|fmt_mil(2) }}</td></tr>
+            <tr><td>Reativa excedente<br><span class="small">Limite: {{ limite_reativa|fmt_mil(2) }} kVArh</span></td><td class="num">{{ kvarh_excedente|fmt_mil(2) }} kVArh</td><td class="num">{{ tarifa_reativa|fmt_mil(4) }}</td><td class="num">{{ valor_reativa|fmt_mil(2) }}</td></tr>
+            <tr><td>Demanda de ponta<br><span class="small">20% P. contratada + 80% ponta máx.; ponta máx.: {{ kw_ponta_lida|fmt_mil(2) }} kW</span></td><td class="num">{{ demanda_ponta_kw|fmt_mil(2) }} kW</td><td class="num">{{ tarifa_ponta|fmt_mil(4) }}</td><td class="num">{{ valor_ponta|fmt_mil(2) }}</td></tr>
+          </tbody>
+          <tfoot><tr class="total-row"><th colspan="3">Subtotal energia</th><th class="num">{{ subtotal_energia|fmt_mil(2) }}</th></tr></tfoot>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h3>Taxas, IVA e total</h3>
+        <table>
+          <tbody>
+            <tr><td>Taxa fixa</td><td class="num">{{ taxa_fixa|fmt_mil(2) }}</td></tr>
+            <tr><td>Taxa rádio</td><td class="num">{{ taxa_radio|fmt_mil(2) }}</td></tr>
+            <tr><td>Taxa lixo</td><td class="num">{{ taxa_lixo|fmt_mil(2) }}</td></tr>
+            <tr class="total-row"><th>Subtotal taxas</th><th class="num">{{ subtotal_taxas|fmt_mil(2) }}</th></tr>
+            <tr><td>Subtotal</td><td class="num">{{ subtotal|fmt_mil(2) }}</td></tr>
+            <tr><td>Base IVA ({{ base_iva_percent|fmt_mil(0) }}%)</td><td class="num">{{ base_iva|fmt_mil(2) }}</td></tr>
+            <tr><td>IVA {{ iva_percent|fmt_mil(0) }}%</td><td class="num">{{ valor_iva|fmt_mil(2) }}</td></tr>
+            <tr class="grand-total"><th>Total a pagar</th><th class="num">{{ total|fmt_mil(2) }}</th></tr>
+          </tbody>
+        </table>
+        <div class="extenso"><strong>Valor por extenso:</strong><br>{{ total_extenso or (total|mzn_extenso) }}</div>
+      </section>
+    </main>
+
+    <section class="indicators">
+      <div class="panel"><h3>Indicadores</h3><table><tbody><tr><td>Água total medida</td><td class="num"><strong>{{ agua_total|fmt_mil(2) }} m³</strong></td></tr><tr><td>Consumo específico médio</td><td class="num">{% if consumo_especifico_medio is not none %}<strong>{{ consumo_especifico_medio|fmt_mil(3) }} kWh/m³</strong>{% else %}<strong>-</strong>{% endif %}</td></tr></tbody></table></div>
+      <div class="signature">Documento gerado pelo SGE / Equipa de Eficiência Energética.<br><strong>Águas da Região Metropolitana de Maputo, S.A.</strong><br><br>_____________________________<br>Conferência técnica</div>
+    </section>
+    <div class="footer">Documento interno de apoio à conferência da fatura EDM. Os valores devem ser validados com a fatura oficial e os parâmetros tarifários vigentes.</div>
+  </div>
+</div>
+</body>
+</html>

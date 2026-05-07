@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Individual do Motor - SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--azul:#0b3d91;--verde:#159957;--line:#dbe3ef;--muted:#64748b;--red:#b91c1c;--amber:#b45309;--green:#15803d}
+    *{box-sizing:border-box}body{margin:0;background:#eef3f9;font-family:Segoe UI,Arial,sans-serif;color:#162033}.page{width:297mm;min-height:210mm;margin:12px auto;background:white;padding:12mm;position:relative;box-shadow:0 12px 32px rgba(0,0,0,.12);overflow:hidden}.wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:72px;font-weight:900;color:rgba(11,61,145,.035);transform:rotate(-25deg);pointer-events:none}.content{position:relative;z-index:1}.head{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid var(--azul);padding-bottom:10px}.brand{display:flex;gap:12px;align-items:center}.logo{width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg,var(--azul),var(--verde));display:flex;align-items:center;justify-content:center;color:white;font-size:26px;font-weight:900}.title h1{margin:0;color:var(--azul);font-size:25px}.title p{margin:4px 0 0;color:var(--muted);font-size:12px}.meta{text-align:right;font-size:12px;color:#334155}.grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-top:12px}.card{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff}.card h2{font-size:14px;margin:0 0 8px;color:var(--azul)}.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}.kpi{border:1px solid var(--line);border-radius:13px;padding:8px}.kpi small{display:block;color:var(--muted);font-weight:800;text-transform:uppercase;font-size:9px}.kpi b{font-size:16px;color:var(--azul)}.pair{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:5px 0;font-size:11px}.pair span:first-child{color:var(--muted);font-weight:700}.status{display:inline-block;border-radius:999px;padding:5px 9px;font-weight:900;font-size:11px}.Crítico{background:#fee2e2;color:#991b1b}.Atenção{background:#fef3c7;color:#92400e}.Normal{background:#dcfce7;color:#166534}.Sem-dados{background:#e2e8f0;color:#334155}.wide{grid-column:span 2}.full{grid-column:1/-1}.alert{border-left:4px solid var(--red);background:#fff7f7;border-radius:10px;padding:7px 9px;margin:5px 0;font-size:11px}.ok{border-left-color:var(--green);background:#f0fdf4}.rec{border-left:4px solid var(--azul);background:#f8fbff;border-radius:10px;padding:7px 9px;margin:5px 0;font-size:11px}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border-bottom:1px solid #edf1f7;padding:5px;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:9px}.footer{margin-top:10px;border-top:1px solid var(--line);padding-top:6px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}.actions{width:297mm;margin:10px auto;display:flex;gap:10px;justify-content:flex-end}.btn{border:0;border-radius:12px;padding:10px 14px;font-weight:900;text-decoration:none;background:var(--azul);color:white;cursor:pointer}.btn-line{background:white;color:var(--azul);border:1px solid var(--line)}
+    @page{size:A4 landscape;margin:6mm}@media print{body{background:white}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:7mm}.actions{display:none}.title h1{font-size:21px}.kpi b{font-size:14px}.card{padding:7px}.grid{gap:7px}.kpis{gap:6px}table{font-size:9px}th{font-size:8px}.wm{font-size:58px}}
+  </style>
+</head>
+<body>
+<div class="actions"><button class="btn" onclick="print()">Imprimir / Guardar PDF</button><a class="btn btn-line" href="/motores/detalhe/{{ equipamento.id }}?ini={{ data_ini }}&fim={{ data_fim }}">Voltar</a></div>
+<section class="page">
+  <div class="wm">SGE · MOTORES</div>
+  <div class="content">
+    <header class="head">
+      <div class="brand"><div class="logo">SGE</div><div class="title"><h1>Relatório Individual do Motor</h1><p>Diagnóstico electromecânico, risco operacional e plano de acção</p></div></div>
+      <div class="meta"><b>{{ equipamento.nome }}</b><br>Local: {{ equipamento.local_nome or '—' }}<br>Período: {{ data_ini }} a {{ data_fim }}<br>Gerado: {{ gerado_em }}</div>
+    </header>
+
+    <section class="kpis">
+      <div class="kpi"><small>Estado</small><b><span class="status {{ analise.status.replace(' ', '-') }}">{{ analise.status }}</span></b></div>
+      <div class="kpi"><small>Energia</small><b>{{ '{:,.1f}'.format(analise.kwh).replace(',', 'X').replace('.', ',').replace('X','.') }}</b></div>
+      <div class="kpi"><small>FP médio</small><b>{% if analise.avg_fp is not none %}{{ '%.3f'|format(analise.avg_fp) }}{% else %}—{% endif %}</b></div>
+      <div class="kpi"><small>Carga</small><b>{% if analise.carga_pct is not none %}{{ '%.1f'|format(analise.carga_pct) }}%{% else %}—{% endif %}</b></div>
+      <div class="kpi"><small>Corr. máxima</small><b>{{ '%.1f'|format(analise.corr_max) }} A</b></div>
+      <div class="kpi"><small>Horas</small><b>{{ '%.1f'|format(analise.horas) }} h</b></div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Identificação técnica</h2>
+        <div class="pair"><span>Tag</span><b>{{ equipamento.tag or '—' }}</b></div>
+        <div class="pair"><span>Categoria</span><b>{{ equipamento.categoria or 'Motor/Bomba' }}</b></div>
+        <div class="pair"><span>Fabricante</span><b>{{ equipamento.fabricante or '—' }}</b></div>
+        <div class="pair"><span>Modelo</span><b>{{ equipamento.modelo or '—' }}</b></div>
+        <div class="pair"><span>Criticidade</span><b>{{ equipamento.criticidade or '—' }}</b></div>
+      </div>
+      <div class="card">
+        <h2>Parâmetros eléctricos</h2>
+        <div class="pair"><span>Potência nominal</span><b>{{ equipamento.potencia_nominal_kw or equipamento.potencia_kw or '—' }} kW</b></div>
+        <div class="pair"><span>Tensão nominal</span><b>{{ equipamento.tensao_nominal or equipamento.tensao_v or '—' }} V</b></div>
+        <div class="pair"><span>Corrente nominal</span><b>{{ equipamento.corrente_nominal or equipamento.corrente_a or '—' }} A</b></div>
+        <div class="pair"><span>FP nominal / limite</span><b>{{ equipamento.fp_nominal or '—' }} / {{ equipamento.limite_fp or '0.80' }}</b></div>
+        <div class="pair"><span>Eficiência</span><b>{{ equipamento.eficiencia_nominal or '—' }}</b></div>
+      </div>
+      <div class="card">
+        <h2>Correção de FP</h2>
+        {% if kvar_sugerido is not none %}<div class="kpi"><small>Banco estimado para FP 0,92</small><b>{{ '%.1f'|format(kvar_sugerido) }} kVAr</b></div><p style="font-size:10px;color:#64748b">Confirmar com medição por fase e perfil de carga antes de aquisição.</p>{% else %}<p style="font-size:11px;color:#64748b">Sem dados suficientes ou FP já adequado para o alvo usado.</p>{% endif %}
+      </div>
+
+      <div class="card wide">
+        <h2>Diagnóstico automático</h2>
+        {% if analise.alertas %}{% for al in analise.alertas[:5] %}<div class="alert"><b>{{ al[0] }} — {{ al[1] }}</b><br>{{ al[2] }}</div>{% endfor %}{% else %}<div class="alert ok"><b>Sem alertas críticos.</b><br>Manter rotina de monitoria e inspeção preventiva.</div>{% endif %}
+      </div>
+      <div class="card">
+        <h2>Indicadores de operação</h2>
+        <div class="pair"><span>Medições</span><b>{{ analise.n }}</b></div>
+        <div class="pair"><span>Fontes</span><b>{{ analise.fontes }}</b></div>
+        <div class="pair"><span>Última medição</span><b>{{ analise.last_ts or '—' }}</b></div>
+        <div class="pair"><span>Tensão mínima/máxima</span><b>{% if analise.tensao_min is not none %}{{ '%.0f'|format(analise.tensao_min) }}–{{ '%.0f'|format(analise.tensao_max) }} V{% else %}—{% endif %}</b></div>
+        <div class="pair"><span>Arranques</span><b>{{ analise.arranques }}</b></div>
+      </div>
+
+      <div class="card full">
+        <h2>Plano de acção recomendado</h2>
+        {% for r in recomendacoes[:6] %}<div class="rec"><b>{{ r[0] }}</b> · {{ r[1] }}<br>{{ r[2] }}</div>{% endfor %}
+      </div>
+
+      <div class="card full">
+        <h2>Últimas medições do período</h2>
+        <table><thead><tr><th>Data/hora</th><th>Tensão</th><th>Corrente</th><th>FP</th><th>Hz</th><th>kW</th><th>kVAr</th><th>kVA</th><th>kWh</th><th>Observações</th></tr></thead><tbody>
+          {% for m in medicoes[:8] %}<tr><td>{{m.datahora}}</td><td>{{m.tensao_v or '—'}}</td><td>{{m.corrente_a or '—'}}</td><td>{{m.fator_potencia or '—'}}</td><td>{{m.frequencia_hz or '—'}}</td><td>{{m.pot_ativa_kw or '—'}}</td><td>{{m.pot_reativa_kvar or '—'}}</td><td>{{m.pot_aparente_kva or '—'}}</td><td>{{m.energia_kwh or '—'}}</td><td>{{m.observacoes or ''}}</td></tr>{% else %}<tr><td colspan="10">Sem medições específicas neste período.</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </section>
+    <footer class="footer"><span>SGE — Sistema de Gestão de Energia</span><span>Documento gerado automaticamente para apoio à decisão técnica.</span></footer>
+  </div>
+</section>
+</body>
+</html>

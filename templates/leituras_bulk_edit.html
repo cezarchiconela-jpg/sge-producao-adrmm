@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body">
+      <h3 class="mb-2">Edição em Lote de Leituras</h3>
+      <p class="text-muted">Ferramenta administrativa para aplicar alterações controladas em várias leituras operacionais.</p>
+      <form method="post" action="{{ url_for('leituras_bulk_apply') }}" class="row g-3">
+        <div class="col-md-12">
+          <label class="form-label">IDs das leituras</label>
+          <input name="ids" class="form-control" placeholder="Ex.: 1,2,3,4" required>
+          <small class="text-muted">Separe os IDs por vírgula.</small>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Operação</label>
+          <select name="op" class="form-select" required>
+            <option value="set_local">Alterar local</option>
+            <option value="set_equipamento">Alterar equipamento</option>
+            <option value="set_obs">Actualizar observações</option>
+            <option value="delete">Eliminar leituras selecionadas</option>
+          </select>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Valor</label>
+          <input name="value" class="form-control" placeholder="Novo valor, quando aplicável">
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-primary">Aplicar</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('leituras_list') }}">Voltar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

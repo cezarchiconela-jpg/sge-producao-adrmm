@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novo Equipamento</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{background:#eef3f8;color:#18324b}
+    .shell{max-width:1240px;margin:auto}
+    .hero{background:linear-gradient(135deg,#0b3b75 0%,#136ca7 55%,#148a63 100%);color:#fff;border-radius:24px;box-shadow:0 18px 40px rgba(13,45,89,.14)}
+    .card-premium{border:0;border-radius:20px;box-shadow:0 10px 28px rgba(13,45,89,.08);background:#fff}
+    .section-box{border:1px solid #e7edf4;border-radius:18px;padding:1.15rem;background:#fbfdff;height:100%}
+    .section-title{font-size:1rem;font-weight:800;color:#23405f;margin-bottom:.2rem}
+    .section-sub{font-size:.85rem;color:#6b7d90;margin-bottom:1rem}
+    .form-label{font-weight:700;color:#2d4865;font-size:.9rem}
+  </style>
+</head>
+<body>
+<div class="container py-4">
+  <div class="shell">
+    <div class="hero p-4 mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <div class="text-uppercase small fw-semibold opacity-75 mb-1">Cadastro de ativo</div>
+          <h2 class="mb-1">Novo Equipamento</h2>
+          <div class="opacity-75">Formulário limpo, empresarial e orientado ao essencial.</div>
+        </div>
+        <a class="btn btn-light" href="/equipamentos">Voltar à lista</a>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category in ['success','warning','danger','info','primary','secondary'] else 'info' }} shadow-sm mb-2">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% set d = form if form is defined and form else {} %}
+    <div class="card card-premium">
+      <div class="card-body p-4 p-lg-4">
+        <form method="post" class="row g-3">
+          <div class="col-lg-6">
+            <div class="section-box">
+              <div class="section-title">Identificação do ativo</div>
+              <div class="section-sub">Dados principais para reconhecimento rápido do equipamento.</div>
+              <div class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">Nome do equipamento</label>
+                  <input class="form-control" name="nome" value="{{ d.get('nome','') }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Local</label>
+                  <select class="form-select" name="local_id" required>
+                    <option value="">(Selecione)</option>
+                    {% for l in locais %}
+                      <option value="{{ l[0] }}" {% if d.get('local_id','')|string == l[0]|string %}selected{% endif %}>{{ l[1] }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">TAG</label>
+                  <input class="form-control" name="tag" value="{{ d.get('tag','') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Categoria</label>
+                  <input class="form-control" name="categoria" value="{{ d.get('categoria','') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Nº Série</label>
+                  <input class="form-control" name="numero_serie" value="{{ d.get('numero_serie','') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Fabricante</label>
+                  <input class="form-control" name="fabricante" value="{{ d.get('fabricante','') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Modelo</label>
+                  <input class="form-control" name="modelo" value="{{ d.get('modelo','') }}">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Especificação técnica</label>
+                  <textarea class="form-control" name="especificacao" rows="4">{{ d.get('especificacao','') }}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="section-box mb-3">
+              <div class="section-title">Dados técnicos e operacionais</div>
+              <div class="section-sub">Informação usada em análise, inventário e acompanhamento.</div>
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label">Ano</label><input class="form-control" name="ano_instalacao" value="{{ d.get('ano_instalacao','') }}" placeholder="AAAA"></div>
+                <div class="col-md-4"><label class="form-label">Quantidade</label><input class="form-control" name="quantidade" value="{{ d.get('quantidade',1) }}" type="number" min="1"></div>
+                <div class="col-md-4"><label class="form-label">Criticidade</label><select class="form-select" name="criticidade"><option value="">(Selecionar)</option>{% for opt in ['Baixa','Média','Alta'] %}<option value="{{ opt }}" {% if d.get('criticidade','') == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                <div class="col-md-4"><label class="form-label">Potência (kW)</label><input class="form-control" name="potencia_kw" value="{{ d.get('potencia_kw','') }}"></div>
+                <div class="col-md-4"><label class="form-label">Tensão (V)</label><input class="form-control" name="tensao_v" value="{{ d.get('tensao_v','') }}"></div>
+                <div class="col-md-4"><label class="form-label">Corrente (A)</label><input class="form-control" name="corrente_a" value="{{ d.get('corrente_a','') }}"></div>
+              </div>
+            </div>
+
+            <div class="section-box">
+              <div class="section-title">Aquisição e controlo</div>
+              <div class="section-sub">Elementos patrimoniais e de relacionamento com fornecedor.</div>
+              <div class="row g-3">
+                <div class="col-md-6"><label class="form-label">Custo de aquisição</label><input class="form-control" name="custo_aquisicao" value="{{ d.get('custo_aquisicao', d.get('custo','')) }}"></div>
+                <div class="col-md-6"><label class="form-label">Vida útil (anos)</label><input class="form-control" name="vida_util_anos" value="{{ d.get('vida_util_anos', d.get('vida_util','')) }}"></div>
+                <div class="col-md-6"><label class="form-label">Fornecedor</label><input class="form-control" name="fornecedor" value="{{ d.get('fornecedor','') }}"></div>
+                <div class="col-md-6"><label class="form-label">Contrato / Referência</label><input class="form-control" name="contrato_num" value="{{ d.get('contrato_num','') }}"></div>
+                <div class="col-md-6"><label class="form-label">Garantia até</label><input class="form-control" type="date" name="garantia_fim" value="{{ d.get('garantia_fim','') }}"></div>
+                <div class="col-md-6 d-flex align-items-end">
+                  {% set ativo_val = d.get('ativo',1) %}
+                  <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" name="ativo" value="1" id="ativoChk" {% if ativo_val in ['1',1,True,'on'] %}checked{% endif %}>
+                    <label class="form-check-label ms-2" for="ativoChk">Equipamento ativo</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex flex-wrap gap-2 pt-2">
+            <button class="btn btn-primary px-4">Salvar equipamento</button>
+            <a class="btn btn-outline-secondary" href="/equipamentos">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

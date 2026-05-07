@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Importar Locais — SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
+</head>
+<body class="sge-page">
+<div class="sge-shell sge-wide">
+  <header class="sge-topbar">
+    <div class="sge-brand">
+      <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+      <div><h2>Importação premium de locais</h2><small>Atualização em massa do cadastro institucional</small></div>
+    </div>
+    <nav class="sge-nav">
+      <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
+      <a href="{{ url_for('export_locais_template_csv') }}">Template</a>
+    </nav>
+  </header>
+  <section class="sge-grid-2">
+    <article class="sge-card pad">
+      <h3 class="sge-panel-title">Carregar ficheiro CSV</h3>
+      <p class="sge-mini">Use o template oficial do módulo Locais. O sistema faz atualização por nome do local e também ajusta a configuração base.</p>
+      <form method="post" enctype="multipart/form-data" class="d-grid gap-3 mt-3">
+        <input class="sge-input" type="file" name="arquivo" accept=".csv" required>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="sge-btn sge-btn-primary" type="submit">Importar locais</button>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_template_csv') }}">Baixar template CSV</a>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais') }}">Voltar</a>
+        </div>
+      </form>
+    </article>
+    <article class="sge-card pad">
+      <h3 class="sge-panel-title">Colunas suportadas</h3>
+      <div class="chips-wrap">{% for c in colunas %}<span class="badge-soft badge-blue">{{ c }}</span>{% endfor %}</div>
+      <div class="sge-note-box mt-3">Boas práticas: manter nomes consistentes, preencher potência contratada/instalada e validar emails/contactos antes da importação.</div>
+    </article>
+  </section>
+</div>
+</body>
+</html>

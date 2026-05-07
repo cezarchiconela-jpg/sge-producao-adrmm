@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Faturação – Seleção de Local</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; color: #111; }
+    h1 { margin-bottom: 4px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    label { display:block; font-weight:600; margin:12px 0 8px; }
+    select, input {
+      width: 100%; padding: 10px 12px; border:1px solid #cfd3d7; border-radius:8px; font-size:14px;
+    }
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:16px; }
+    .row { margin-bottom: 16px; }
+    .card { border:1px solid #e6e8eb; border-radius:12px; padding:16px; background:#fafafa; }
+    .muted { color:#777; font-size:12px; }
+    .status { margin-top:8px; font-size:13px; color:#444; }
+    .ok { color:#0a7d2d; }
+    .err { color:#b00020; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Faturação</h1>
+  <div class="sub">Selecione o <strong>Local</strong> para carregar dados contratuais automaticamente.</div>
+
+  <div class="row">
+    <label for="local_id">Local</label>
+    <select id="local_id">
+      <option value="">— selecione —</option>
+      {% for id, nome, pc_kva, pi_kw, fm in locais %}
+        <option value="{{ id }}">{{ nome }}</option>
+      {% endfor %}
+    </select>
+    <div id="status" class="status muted">Aguardando seleção…</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <label for="potencia_contratada_kva">Potência Contratada (kVA)</label>
+      <input id="potencia_contratada_kva" type="number" step="0.01" readonly>
+      <div class="muted">Valor registado para o local (contrato EDM).</div>
+    </div>
+    <div class="card">
+      <label for="potencia_instalada_kw">Potência Instalada (kW)</label>
+      <input id="potencia_instalada_kw" type="number" step="0.01" readonly>
+      <div class="muted">Soma das potências dos equipamentos ligados ao ponto.</div>
+    </div>
+    <div class="card">
+      <label for="fator_multiplicativo">Fator Multiplicativo (CT/TP)</label>
+      <input id="fator_multiplicativo" type="number" step="0.0001" readonly>
+      <div class="muted">Rácio de transformação do medidor (ex.: CT × TP).</div>
+    </div>
+    <div class="card">
+      <label for="nome_local">Nome do Local</label>
+      <input id="nome_local" type="text" readonly>
+      <div class="muted">Confirmar identificação do local selecionado.</div>
+    </div>
+  </div>
+
+  <script>
+    const selLocal = document.getElementById('local_id');
+    const statusEl = document.getElementById('status');
+
+    const f_nome = document.getElementById('nome_local');
+    const f_pc   = document.getElementById('potencia_contratada_kva');
+    const f_pi   = document.getElementById('potencia_instalada_kw');
+    const f_fm   = document.getElementById('fator_multiplicativo');
+
+    selLocal.addEventListener('change', async (e) => {
+      const id = e.target.value;
+      if (!id) {
+        f_nome.value = ''; f_pc.value=''; f_pi.value=''; f_fm.value='';
+        statusEl.textContent = 'Aguardando seleção…';
+        statusEl.className = 'status muted';
+        return;
+      }
+      statusEl.textContent = 'A carregar…';
+      statusEl.className = 'status muted';
+      try {
+        const resp = await fetch(`/api/local/${id}`);
+        const js = await resp.json();
+        if (!js.ok) throw new Error(js.error || 'Erro ao obter dados');
+        const d = js.data;
+        f_nome.value = d.nome ?? '';
+        f_pc.value   = d.potencia_contratada_kva ?? '';
+        f_pi.value   = d.potencia_instalada_kw ?? '';
+        f_fm.value   = d.fator_multiplicativo ?? '';
+        statusEl.textContent = 'Dados carregados.';
+        statusEl.className = 'status ok';
+      } catch (err) {
+        statusEl.textContent = 'Falha ao carregar dados do local.';
+        statusEl.className = 'status err';
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

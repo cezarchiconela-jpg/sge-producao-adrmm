@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Dimensionamento Solar - SGE</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    .section-title { margin-top: 1.5rem; font-weight: 600; }
+    .small-label { font-size: 0.82rem; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Dimensionamento de Sistema Solar</h3>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Voltar</a>
+  </div>
+  <p class="text-muted">Preencha os dados abaixo ou escolha um local do SGE para calcular o sistema fotovoltaico.</p>
+
+  <form method="post" action="{{ url_for('solar_calcular') }}" class="row g-3">
+    <!-- MODO -->
+    <div class="col-12">
+      <label class="form-label">Modo de cálculo</label>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="modo" id="modo_manual" value="manual" checked>
+        <label class="form-check-label" for="modo_manual">Manual</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="modo" id="modo_local" value="local">
+        <label class="form-check-label" for="modo_local">Usar consumo de um local</label>
+      </div>
+    </div>
+
+    <!-- SE MODO LOCAL -->
+    <div class="col-md-4" id="bloco_local" style="display:none;">
+      <label class="form-label">Local</label>
+      <select name="local_id" class="form-select">
+        <option value="">-- selecione --</option>
+        {% for lid, lname in locais %}
+          <option value="{{ lid }}">{{ lname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3" id="bloco_periodo" style="display:none;">
+      <label class="form-label">Período (AAAA-MM)</label>
+      <input type="month" name="periodo" class="form-control" value="{{ periodo }}">
+    </div>
+
+    <!-- SE MODO MANUAL -->
+    <div class="col-md-3" id="bloco_manual_nome">
+      <label class="form-label">Descrição / Local (texto)</label>
+      <input type="text" name="local_nome_manual" class="form-control" placeholder="Ex.: Escritório Matola">
+    </div>
+    <div class="col-md-3" id="bloco_manual_carga">
+      <label class="form-label">Consumo diário (kWh/dia)</label>
+      <input type="number" step="0.01" name="daily_kwh" class="form-control" placeholder="ex.: 35">
+    </div>
+
+    <h6 class="section-title">Condições solares e do sistema</h6>
+    <div class="col-md-2">
+      <label class="form-label small-label">PSH (h/dia)</label>
+      <input type="number" step="0.01" name="psh" class="form-control" value="{{ defaults.psh }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Derate (0-1)</label>
+      <input type="number" step="0.01" name="derate" class="form-control" value="{{ defaults.derate }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Painel (Wp)</label>
+      <input type="number" name="panel_wp" class="form-control" value="{{ defaults.panel_wp }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Área painel (m²)</label>
+      <input type="number" step="0.01" name="panel_area" class="form-control" value="{{ defaults.panel_area }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Fator mult. leituras</label>
+      <input type="number" step="0.01" name="fator_mult" class="form-control" value="1.0">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Tipo de sistema</label>
+      <select name="tipo_sistema" class="form-select">
+        <option value="ongrid">On-grid</option>
+        <option value="offgrid">Off-grid</option>
+      </select>
+    </div>
+
+    <h6 class="section-title">Baterias (usado se for off-grid)</h6>
+    <div class="col-md-2">
+      <label class="form-label small-label">Autonomia (dias)</label>
+      <input type="number" step="0.01" name="autonomy_days" class="form-control" value="{{ defaults.autonomy_days }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">DoD (0-1)</label>
+      <input type="number" step="0.01" name="battery_dod" class="form-control" value="{{ defaults.battery_dod }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Eficiência bat. (0-1)</label>
+      <input type="number" step="0.01" name="battery_eff" class="form-control" value="{{ defaults.battery_eff }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Tensão banco (V)</label>
+      <input type="number" name="system_voltage" class="form-control" value="{{ defaults.system_voltage }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Módulo bat. (kWh)</label>
+      <input type="number" step="0.01" name="battery_module_kwh" class="form-control" value="{{ defaults.battery_module_kwh }}">
+    </div>
+
+    <h6 class="section-title">Económico / Financeiro</h6>
+    <div class="col-md-2">
+      <label class="form-label small-label">Tarifa (MT/kWh)</label>
+      <input type="number" step="0.01" name="tarifa_kwh" class="form-control" value="{{ defaults.tarifa_kwh }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">CAPEX (MT/kWp)</label>
+      <input type="number" step="0.01" name="capex_kwp" class="form-control" value="{{ defaults.capex_kwp }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">OPEX (%/ano)</label>
+      <input type="number" step="0.01" name="opex_pct" class="form-control" value="{{ defaults.opex_pct }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Esc. tarifa (%/ano)</label>
+      <input type="number" step="0.01" name="tarifa_esc" class="form-control" value="{{ defaults.tarifa_esc }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Desconto (%/ano)</label>
+      <input type="number" step="0.01" name="desconto" class="form-control" value="{{ defaults.desconto }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small-label">Anos análise</label>
+      <input type="number" name="anos_analise" class="form-control" value="{{ defaults.anos_analise }}">
+    </div>
+
+    <!-- perfil sazonal escondido -->
+    <input type="hidden" name="perfil_sazonal_json" value="{{ perfil_sazonal|tojson }}">
+
+    <div class="col-12 mt-3">
+      <button class="btn btn-primary">Calcular</button>
+      <a href="{{ url_for('solar_projetos') }}" class="btn btn-outline-secondary">Projetos salvos</a>
+    </div>
+  </form>
+
+  <script>
+    // alternar modo
+    const modoManual = document.getElementById('modo_manual');
+    const modoLocal  = document.getElementById('modo_local');
+    const blocoLocal = document.getElementById('bloco_local');
+    const blocoPeriodo = document.getElementById('bloco_periodo');
+    const blocoManualNome = document.getElementById('bloco_manual_nome');
+    const blocoManualCarga = document.getElementById('bloco_manual_carga');
+
+    function atualizaModo() {
+      if (modoLocal.checked) {
+        blocoLocal.style.display = '';
+        blocoPeriodo.style.display = '';
+        blocoManualNome.style.display = 'none';
+        blocoManualCarga.style.display = 'none';
+      } else {
+        blocoLocal.style.display = 'none';
+        blocoPeriodo.style.display = 'none';
+        blocoManualNome.style.display = '';
+        blocoManualCarga.style.display = '';
+      }
+    }
+    modoManual.addEventListener('change', atualizaModo);
+    modoLocal.addEventListener('change', atualizaModo);
+  </script>
+</body>
+</html>

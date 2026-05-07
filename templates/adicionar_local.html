@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Novo Local — SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
+</head>
+<body class="sge-page">
+<div class="sge-shell sge-wide">
+  <header class="sge-topbar">
+    <div class="sge-brand">
+      <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+      <div><h2>Novo local</h2><small>Cadastro institucional enriquecido do módulo Locais</small></div>
+    </div>
+    <nav class="sge-nav">
+      <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
+      <a href="{{ url_for('index') }}">Início</a>
+    </nav>
+  </header>
+
+  <section class="sge-card pad">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}<div class="alert-stack mb-3">{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    <div class="sge-section-title">
+      <div>
+        <h3>Criar novo local</h3>
+        <p>Registe identificação, governação, tipologia operacional e contactos para começar o local já em padrão premium.</p>
+      </div>
+    </div>
+    <form method="post" class="d-grid gap-4">
+      <div class="sge-card pad">
+        <h4 class="sge-panel-title">Identificação</h4>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ (form.nome if form else '') or '' }}" required></div>
+          <div class="field"><label>Código interno</label><input class="sge-input" name="codigo" value="{{ (form.codigo if form else '') or '' }}"></div>
+          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option><option>ETA</option><option>CD</option><option>Furo</option><option>Reservatório</option><option>Estação</option><option>Escritório</option><option>Outro</option></select></div>
+          <div class="field"><label>Local pai / centro</label><select class="sge-select" name="parent_id"><option value="">Raiz principal</option>{% for opt in parent_options or [] %}<option value="{{ opt[0] }}" {{ 'selected' if (form.parent_id if form else request.args.get('parent_id'))|string==opt[0]|string else '' }}>{{ opt[1] }}</option>{% endfor %}</select><small class="text-muted">Use este campo quando o local pertence a um centro ou a outro local já existente.</small></div>
+          <div class="field" style="grid-column: span 2"><label>Endereço / localização</label><input class="sge-input" name="endereco" value="{{ (form.endereco if form else '') or '' }}"></div>
+          <div class="field"><label>Estado inicial</label><select class="sge-select" name="ativo"><option value="1">Ativo</option><option value="0">Arquivado</option></select></div>
+        </div>
+      </div>
+      <div class="sge-card pad">
+        <h4 class="sge-panel-title">Governação e operação</h4>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Categoria operacional</label><input class="sge-input" name="categoria_operacional" value="{{ (form.categoria_operacional if form else '') or '' }}" placeholder="Produção, Distribuição, Apoio..."></div>
+          <div class="field"><label>Estado técnico</label><select class="sge-select" name="estado_tecnico"><option>Normal</option><option>Atenção</option><option>Crítico</option></select></div>
+          <div class="field"><label>Prioridade</label><select class="sge-select" name="prioridade"><option>Baixa</option><option selected>Média</option><option>Alta</option></select></div>
+        </div>
+      </div>
+      <div class="sge-card pad">
+        <h4 class="sge-panel-title">Responsáveis e observações</h4>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Responsável principal</label><input class="sge-input" name="contato_nome" value="{{ (form.contato_nome if form else '') or '' }}"></div>
+          <div class="field"><label>Telefone / contacto</label><input class="sge-input" name="contato_tel" value="{{ (form.contato_tel if form else '') or '' }}"></div>
+          <div class="field"><label>Email</label><input class="sge-input" name="email" value="{{ (form.email if form else '') or '' }}"></div>
+          <div class="field" style="grid-column:1 / span 2"><label>Responsável alternativo</label><input class="sge-input" name="responsavel_alt" value="{{ (form.responsavel_alt if form else '') or '' }}"></div>
+          <div class="field" style="grid-column:1 / -1"><label>Notas</label><textarea class="sge-textarea" name="notas">{{ (form.notas if form else '') or '' }}</textarea></div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="sge-btn sge-btn-primary" type="submit">Guardar local</button>
+        <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais') }}">Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+</body>
+</html>

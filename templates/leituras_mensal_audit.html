@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Auditoria de leituras{% endblock %}
+{% block extra_head %}
+<style>
+  :root{--au-blue:#073b78;--au-blue2:#0f6fc6;--au-soft:#f4faff;--au-line:#d8e8f8;--au-text:#103b63;--au-green:#198754;}
+  .au-wrap{max-width:1280px;margin:0 auto}.au-hero{background:linear-gradient(135deg,var(--au-blue),var(--au-blue2));color:#fff;border-radius:22px;padding:18px 20px;box-shadow:0 18px 45px rgba(6,46,92,.18)}
+  .au-hero h2{font-weight:850;margin:0;font-size:1.35rem}.au-hero p{opacity:.94;margin:.35rem 0 0;font-size:.94rem}.au-card{border:1px solid var(--au-line);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(6,46,92,.055)}
+  .au-kpi{border:1px solid var(--au-line);border-radius:18px;background:#fff;padding:14px;height:100%;box-shadow:0 10px 28px rgba(6,46,92,.045)}.au-kpi .lbl{font-size:.72rem;text-transform:uppercase;color:#607d9d;font-weight:800}.au-kpi .val{font-size:1.18rem;font-weight:850;color:var(--au-blue)}.au-kpi .sub{font-size:.78rem;color:#6f85a0}
+  .badge-soft{border:1px solid var(--au-line);background:#fff;border-radius:999px;padding:7px 11px;font-weight:700;color:var(--au-text);font-size:.82rem}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.au-table th{background:#eaf4ff;color:var(--au-blue)}.nivel-critico{border-left:5px solid #dc3545}.nivel-alerta{border-left:5px solid #f59f00}.nivel-aviso{border-left:5px solid #0dcaf0}
+  @media(max-width:768px){.au-hero h2{font-size:1.12rem}.au-actions .btn{width:100%;}.au-kpi .val{font-size:1.05rem}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="au-wrap py-3">
+  <section class="au-hero mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h2>Auditoria de leituras mensais - {{ local }} ({{ mes }}/{{ ano }})</h2>
+        <p>Validação operacional das leituras gravadas, coerência entre meses, anomalias críticas, alterações registadas e pontos que podem afectar a fatura.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap au-actions">
+        <a class="btn btn-light btn-sm" href="/leituras_mensal?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Voltar à planilha</a>
+        <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/financeiro?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Resumo financeiro</a>
+        <a class="btn btn-outline-light btn-sm" href="/leituras_mensal/fatura_edm?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Fatura EDM</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="row g-2 mb-3">
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">Dias preenchidos</div><div class="val">{{ resumo.dias_preenchidos }}/{{ resumo.total_linhas }}</div><div class="sub">linhas com dados</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">Anomalias</div><div class="val">{{ resumo.anomalias }}</div><div class="sub">itens a verificar</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">Energia ativa</div><div class="val">{{ resumo.kwh_ativa|fmt_mil(2) }}</div><div class="sub">kWh faturáveis</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">Reativa excedente</div><div class="val">{{ resumo.kvarh_excedente|fmt_mil(2) }}</div><div class="sub">kVArh</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">Ponta máxima</div><div class="val">{{ resumo.ponta_max|fmt_mil(2) }}</div><div class="sub">kW corrigidos</div></div></div>
+    <div class="col-xl-2 col-md-4 col-6"><div class="au-kpi"><div class="lbl">FP médio</div><div class="val">{{ resumo.fp_medio|fmt_mil(3) }}</div><div class="sub">leituras válidas</div></div></div>
+  </section>
+
+  <section class="au-card p-3 mb-3">
+    <h5 style="color:var(--au-blue);font-weight:850">Validação automática</h5>
+    {% if anomalies %}
+      <div class="row g-2">
+        {% for a in anomalies %}
+          <div class="col-lg-6"><div class="p-3 rounded border nivel-{{ a.nivel }} h-100"><div class="fw-bold">{{ a.tipo }} - {{ a.data }}</div><div class="small text-muted">{{ a.detalhe }}</div></div></div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-success mb-0">Não foram detectadas anomalias críticas nas leituras gravadas deste período.</div>
+    {% endif %}
+    {% if resumo.avisos_fatura %}
+      <div class="alert alert-warning mt-3 mb-0"><strong>Avisos da base de faturação:</strong> {{ resumo.avisos_fatura|join(' ') }}</div>
+    {% endif %}
+  </section>
+
+  <section class="row g-3">
+    <div class="col-lg-7">
+      <div class="au-card p-3 h-100">
+        <h5 style="color:var(--au-blue);font-weight:850">Base de cálculo auditada</h5>
+        <div class="table-responsive">
+          <table class="table table-sm au-table">
+            <tbody>
+              <tr><th>Ativa - leitura base</th><td class="num">{{ qfat.leitura_base_ativa|fmt_mil(2) }}</td></tr>
+              <tr><th>Ativa - leitura final</th><td class="num">{{ qfat.leitura_final_ativa|fmt_mil(2) }}</td></tr>
+              <tr><th>Energia ativa do mês</th><td class="num">{{ qfat.kwh_ativa|fmt_mil(2) }} kWh</td></tr>
+              <tr><th>Reativa - leitura base</th><td class="num">{{ qfat.leitura_base_reativa|fmt_mil(2) }}</td></tr>
+              <tr><th>Reativa - leitura final</th><td class="num">{{ qfat.leitura_final_reativa|fmt_mil(2) }}</td></tr>
+              <tr><th>Reativa consumida</th><td class="num">{{ qfat.kvarh_reativa|fmt_mil(2) }} kVArh</td></tr>
+              <tr><th>Limite permitido de reativa</th><td class="num">{{ qfat.limite_reativa|fmt_mil(2) }} kVArh</td></tr>
+              <tr><th>Reativa excedente</th><td class="num">{{ qfat.kvarh_excedente|fmt_mil(2) }} kVArh</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="au-card p-3 h-100">
+        <h5 style="color:var(--au-blue);font-weight:850">Histórico de alterações</h5>
+        <div class="table-responsive" style="max-height:420px;overflow:auto">
+          <table class="table table-sm au-table align-middle">
+            <thead><tr><th>Data/Hora</th><th>Dia</th><th>Campo</th><th>Antes</th><th>Depois</th><th>Ação</th><th>Actor</th></tr></thead>
+            <tbody>
+              {% for row in logs %}
+                <tr><td>{{ row[0] }}</td><td>{{ row[6] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td></tr>
+              {% else %}
+                <tr><td colspan="7" class="text-muted">Sem registos de alteração para este período.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

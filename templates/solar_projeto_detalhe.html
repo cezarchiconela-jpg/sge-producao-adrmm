@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Projeto Solar{% endblock %}
+{% block content %}
+<style>
+  .kpi{border:1px solid rgba(15,23,42,.08);border-radius:18px;background:#fff;padding:1rem;box-shadow:0 8px 22px rgba(15,23,42,.05);height:100%}
+  .kpi small{color:#64748b;font-weight:700;text-transform:uppercase;font-size:.72rem}.kpi strong{font-size:1.25rem;color:#0b3b66}
+  .panel{border:1px solid rgba(15,23,42,.1);border-radius:18px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.05)}
+  @media print{.no-print{display:none!important}.panel,.kpi{box-shadow:none}}
+</style>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">{{ r.nome_projeto or ('Projeto Solar #' ~ pid) }}</h2>
+    <div class="text-muted">{{ r.local_nome or '—' }}{% if r.periodo %} · {{ r.periodo }}{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap no-print">
+    <a href="{{ url_for('solar_projetos') }}" class="btn btn-outline-secondary">Voltar</a>
+    <a href="{{ url_for('solar_export_csv', pid=pid) }}" class="btn btn-outline-primary">Exportar CSV</a>
+    <button onclick="window.print()" class="btn btn-primary">Imprimir / PDF</button>
+  </div>
+</div>
+{% if r %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="kpi"><small>Potência FV</small><br><strong>{{ (r.kwp_real or 0)|float|round(2) }} kWp</strong><div class="text-muted">{{ r.n_paineis or 0 }} painéis</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Inversor</small><br><strong>{{ (r.inversor_kw or 0)|float|round(2) }} kW</strong><div class="text-muted">Área {{ (r.area_total or 0)|float|round(1) }} m²</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Economia anual</small><br><strong>{{ (r.economia_anual or ((r.economia_mensal or 0)*12))|float|round(0) }} MT</strong><div class="text-muted">Payback: {% if r.payback_anos %}{{ r.payback_anos|float|round(2) }} anos{% else %}n/d{% endif %}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>NPV / CO₂</small><br><strong>{{ (r.npv or 0)|float|round(0) }} MT</strong><div class="text-muted">{{ (r.co2_t_ano or 0)|float|round(2) }} t/ano</div></div></div>
+</div>
+<div class="panel p-3 p-lg-4 mb-4">
+  <h4 class="fw-bold text-primary-emphasis">Resumo técnico-financeiro</h4>
+  <div class="row g-3">
+    <div class="col-md-3"><strong>Consumo diário</strong><br>{{ (r.daily_kwh or 0)|float|round(2) }} kWh/dia</div>
+    <div class="col-md-3"><strong>Produção anual</strong><br>{{ (r.producao_anual or 0)|float|round(0) }} kWh</div>
+    <div class="col-md-3"><strong>Cobertura real</strong><br>{{ (r.cobertura_real_pct or 0)|float|round(1) }}%</div>
+    <div class="col-md-3"><strong>LCOE</strong><br>{% if r.lcoe %}{{ r.lcoe|float|round(2) }} MT/kWh{% else %}n/d{% endif %}</div>
+    <div class="col-md-3"><strong>CAPEX</strong><br>{{ (r.capex_total or 0)|float|round(0) }} MT</div>
+    <div class="col-md-3"><strong>OPEX anual</strong><br>{{ (r.opex_anual or 0)|float|round(0) }} MT</div>
+    <div class="col-md-3"><strong>IRR</strong><br>{% if r.irr %}{{ (r.irr*100)|float|round(1) }}%{% else %}n/d{% endif %}</div>
+    <div class="col-md-3"><strong>Método consumo</strong><br>{{ r.consumo_metodo or '—' }}</div>
+  </div>
+</div>
+{% if r.obs %}<div class="alert alert-secondary"><strong>Observações:</strong> {{ r.obs }}</div>{% endif %}
+<div class="panel p-3 p-lg-4">
+  <h4 class="fw-bold text-primary-emphasis">Produção mensal armazenada</h4>
+  {% if r.producao_mensal %}
+  {% set meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+  <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Mês</th><th>kWh</th></tr></thead><tbody>{% for val in r.producao_mensal %}<tr><td>{{ meses[loop.index0] }}</td><td>{{ val }}</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p class="text-muted">Este projeto não tem série de produção gravada.</p>{% endif %}
+</div>
+{% else %}<div class="alert alert-warning">Projeto não encontrado.</div>{% endif %}
+{% endblock %}

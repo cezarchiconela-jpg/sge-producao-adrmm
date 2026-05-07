@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Configuração do Local — SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
+</head>
+<body class="sge-page">
+<div class="sge-shell sge-wide">
+  <header class="sge-topbar">
+    <div class="sge-brand">
+      <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+      <div><h2>Configuração do local</h2><small>{{ local.nome }} · parâmetros técnicos, tarifários e prontidão</small></div>
+    </div>
+    <nav class="sge-nav">
+      <a href="{{ url_for('detalhes_local', local_id=local.id) }}">Detalhes</a>
+      <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
+    </nav>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<div class="alert-stack mb-3">{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  {% endwith %}
+
+  <section class="sge-grid-6 mb-3">
+    <article class="sge-card pad sge-stat"><h3>Equipamentos</h3><div class="value">{{ overview.equipamentos_count }}</div><div class="meta">{{ overview.equipamentos_qtd_total }} unidades totais</div></article>
+    <article class="sge-card pad sge-stat"><h3>Linhas mensais</h3><div class="value">{{ overview.leituras_mensais_count }}</div><div class="meta">registos em leituras mensais</div></article>
+    <article class="sge-card pad sge-stat"><h3>Última leitura</h3><div class="value" style="font-size:1.2rem">{{ overview.ultima_leitura or '—' }}</div><div class="meta">último dia registado</div></article>
+    <article class="sge-card pad sge-stat"><h3>Dias com dados</h3><div class="value">{{ overview.leituras_dias_com_dados }}</div><div class="meta">dias operacionais com conteúdo</div></article>
+    <article class="sge-card pad sge-stat"><h3>Prontidão</h3><div class="value">{{ overview.prontidao }}</div><div class="meta">{{ overview.prontidao_score }} / 100</div></article>
+    <article class="sge-card pad sge-stat"><h3>Perfil técnico</h3><div class="value" style="font-size:1.3rem">{{ local.estado_tecnico or 'Normal' }}</div><div class="meta">estado técnico do local</div></article>
+  </section>
+
+  <form method="post" class="d-grid gap-4">
+    <section class="sge-card pad">
+      <div class="sge-section-title"><div><h3>Parâmetros elétricos principais</h3><p>Estes valores alimentam leituras mensais, faturação estimada e indicadores do local.</p></div></div>
+      <div class="sge-form-grid-3">
+        <div class="field"><label>Fator multiplicativo</label><input class="sge-input" name="fator_mult" type="number" step="0.0001" value="{{ '%.4f'|format(cfg.fator_mult) }}"></div>
+        <div class="field"><label>Potência contratada (kW)</label><input class="sge-input" name="pot_contratada" type="number" step="0.01" value="{{ '%.2f'|format(cfg.pot_contratada) }}"></div>
+        <div class="field"><label>Potência instalada (kW)</label><input class="sge-input" name="pot_instalada" type="number" step="0.01" value="{{ '%.2f'|format(cfg.pot_instalada) }}"></div>
+      </div>
+    </section>
+
+    <section class="sge-grid-2">
+      <section class="sge-card pad">
+        <div class="sge-section-title"><div><h3>Tarifário EDM / parâmetros financeiros</h3><p>Define taxas e tarifas padrão usadas pelo sistema ao calcular custos e pré-faturas.</p></div></div>
+        <div class="sge-form-grid-3">
+          <div class="field"><label>Tarifa ativa</label><input class="sge-input" name="tarifa_ativa" type="number" step="0.001" value="{{ '%.3f'|format(cfg.tarifa_ativa) }}"></div>
+          <div class="field"><label>Tarifa reativa</label><input class="sge-input" name="tarifa_reativa" type="number" step="0.001" value="{{ '%.3f'|format(cfg.tarifa_reativa) }}"></div>
+          <div class="field"><label>Tarifa ponta</label><input class="sge-input" name="tarifa_ponta" type="number" step="0.001" value="{{ '%.3f'|format(cfg.tarifa_ponta) }}"></div>
+          <div class="field"><label>Tarifa perdas</label><input class="sge-input" name="tarifa_perdas" type="number" step="0.001" value="{{ '%.3f'|format(cfg.tarifa_perdas) }}"></div>
+          <div class="field"><label>Taxa fixa</label><input class="sge-input" name="taxa_fixa" type="number" step="0.01" value="{{ '%.2f'|format(cfg.taxa_fixa) }}"></div>
+          <div class="field"><label>Taxa rádio</label><input class="sge-input" name="taxa_radio" type="number" step="0.01" value="{{ '%.2f'|format(cfg.taxa_radio) }}"></div>
+          <div class="field"><label>Taxa lixo</label><input class="sge-input" name="taxa_lixo" type="number" step="0.01" value="{{ '%.2f'|format(cfg.taxa_lixo) }}"></div>
+          <div class="field"><label>IVA (%)</label><input class="sge-input" name="iva" type="number" step="0.01" value="{{ '%.2f'|format(cfg.iva) }}"></div>
+        </div>
+      </section>
+      <section class="sge-card pad">
+        <h3 class="sge-panel-title">Leitura executiva da configuração</h3>
+        <div class="kpi-list">
+          <div class="kpi-item"><strong>{{ '%.2f'|format(cfg.taxa_fixa + cfg.taxa_radio + cfg.taxa_lixo) }}</strong><span>Base fixa mensal (MZN)</span></div>
+          <div class="kpi-item"><strong>{{ '%.2f'|format(cfg.iva) }}%</strong><span>IVA configurado</span></div>
+          <div class="kpi-item"><strong>{{ '%.3f'|format(cfg.tarifa_ativa) }}</strong><span>Tarifa base ativa</span></div>
+          <div class="kpi-item"><strong>{{ '%.3f'|format(cfg.tarifa_ponta) }}</strong><span>Tarifa de ponta</span></div>
+        </div>
+        <ul class="sge-checklist compact mt-3">
+          <li class="{{ 'ok' if cfg.fator_mult != 1 else '' }}">Rever fator multiplicativo quando existir medição com transformação</li>
+          <li class="{{ 'ok' if cfg.pot_contratada > 0 else '' }}">Definir potência contratada para estimativa e controlo</li>
+          <li class="{{ 'ok' if cfg.pot_instalada > 0 else '' }}">Definir potência instalada para relatórios energéticos</li>
+          <li class="{{ 'ok' if cfg.tarifa_ativa > 0 and cfg.tarifa_ponta > 0 else '' }}">Validar tarifário EDM completo</li>
+          <li class="{{ 'ok' if overview.leituras_mensais_count > 0 else '' }}">Abrir leituras mensais para começar histórico do local</li>
+        </ul>
+        <div class="sge-note-box mt-3">A configuração premium do local serve de base para faturação, leituras mensais, indicadores e relatórios executivos.</div>
+      </section>
+    </section>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="sge-btn sge-btn-primary" type="submit">Guardar configuração</button>
+      <a class="sge-btn sge-btn-outline" href="{{ url_for('detalhes_local', local_id=local.id) }}">Voltar aos detalhes</a>
+      <a class="sge-btn sge-btn-outline" href="{{ url_for('leituras_mensal', local=local.nome) }}">Abrir leituras mensais</a>
+    </div>
+  </form>
+</div>
+</body>
+</html>

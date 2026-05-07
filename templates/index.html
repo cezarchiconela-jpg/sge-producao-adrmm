@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Centro de Comando{% endblock %}
+{% block content %}
+<section class="sge-home-compact">
+  <div>
+    <div class="sge-page-eyebrow"><i class="bi bi-droplet-half"></i> ADRMM · Plataforma de gestão energética</div>
+    <h1>Centro de Comando do SGE</h1>
+    <p>Seleccione a área de trabalho. A página inicial foi simplificada para acesso rápido aos módulos essenciais.</p>
+  </div>
+  <div class="sge-home-compact-actions">
+    <a class="btn btn-light" href="/dashboard"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+    <a class="btn btn-outline-light" href="/leituras_mensal"><i class="bi bi-receipt-cutoff me-2"></i>Facturação MT</a>
+    <a class="btn btn-outline-light" href="/alertas"><i class="bi bi-bell me-2"></i>Alertas</a>
+  </div>
+</section>
+
+<section class="sge-home-layout">
+  <div class="sge-home-main">
+    <div class="sge-workspace-head compact">
+      <div>
+        <h2>Módulos principais</h2>
+        <p>Organizados por função operacional, técnica e executiva.</p>
+      </div>
+    </div>
+
+    <div class="sge-group-title"><i class="bi bi-database-check me-2"></i>Base técnica e operação</div>
+    <div class="sge-command-grid sge-command-grid-compact">
+      <a class="sge-command-card" href="/locais">
+        <span class="sge-command-icon"><i class="bi bi-buildings"></i></span>
+        <div><h3>Centros e Locais</h3><p>Instalações, tarifas, potência contratada e factor multiplicativo.</p></div>
+      </a>
+      <a class="sge-command-card" href="/equipamentos">
+        <span class="sge-command-icon"><i class="bi bi-hdd-network"></i></span>
+        <div><h3>Activos Técnicos</h3><p>Equipamentos, motores, bombas, quadros, fotos e histórico técnico.</p></div>
+      </a>
+      <a class="sge-command-card" href="/monitoria">
+        <span class="sge-command-icon"><i class="bi bi-activity"></i></span>
+        <div><h3>Monitoria Operacional</h3><p>Medições diárias, gráficos, relatórios e acompanhamento por equipamento.</p></div>
+      </a>
+      <a class="sge-command-card sge-command-card-primary" href="/leituras_mensal">
+        <span class="sge-command-icon"><i class="bi bi-receipt-cutoff"></i></span>
+        <div><h3>Facturação MT</h3><p>Leituras mensais, fatura estimada EDM, consumo específico e fecho mensal.</p></div>
+      </a>
+    </div>
+
+    <div class="sge-group-title mt-3"><i class="bi bi-graph-up-arrow me-2"></i>Análise, decisão e sustentabilidade</div>
+    <div class="sge-command-grid sge-command-grid-compact">
+      <a class="sge-command-card" href="/dashboard">
+        <span class="sge-command-icon"><i class="bi bi-speedometer2"></i></span>
+        <div><h3>Dashboard Executivo</h3><p>Indicadores consolidados, custos, qualidade de dados e acções prioritárias.</p></div>
+      </a>
+      <a class="sge-command-card" href="/motores">
+        <span class="sge-command-icon"><i class="bi bi-gear-wide-connected"></i></span>
+        <div><h3>Motores e Manutenção</h3><p>Desempenho electromecânico, diagnóstico, manutenção e relatórios.</p></div>
+      </a>
+      <a class="sge-command-card" href="/alertas">
+        <span class="sge-command-icon"><i class="bi bi-bell"></i></span>
+        <div><h3>Alertas Correctivos</h3><p>Anomalias, prioridades, responsáveis, prazos, Kanban e histórico.</p></div>
+      </a>
+      <a class="sge-command-card" href="/solar">
+        <span class="sge-command-icon"><i class="bi bi-sun"></i></span>
+        <div><h3>Energia Solar</h3><p>Fotovoltaico, lâmpadas solares, portfólio, comparador e propostas.</p></div>
+      </a>
+    </div>
+  </div>
+
+  <aside class="sge-home-side">
+    <h3>Acesso rápido</h3>
+    <a href="/leituras_mensal/arquivo"><i class="bi bi-archive"></i><span>Arquivo de leituras</span></a>
+    <a href="/leituras_mensal/faturas"><i class="bi bi-file-earmark-text"></i><span>Arquivo de facturas</span></a>
+    <a href="/dashboard/acoes"><i class="bi bi-list-check"></i><span>Acções prioritárias</span></a>
+    <a href="/motores/manutencao"><i class="bi bi-tools"></i><span>Manutenção de motores</span></a>
+    <a href="/solar/decisao"><i class="bi bi-graph-up-arrow"></i><span>Decisão solar</span></a>
+  </aside>
+</section>
+{% endblock %}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Fatura Calculada - EDM</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="container mt-4">
+  <div class="no-print mb-3">
+    <a href="/calcular_fatura" class="btn btn-primary">Calcular Nova Fatura</a>
+    <a href="/faturas" class="btn btn-secondary">Histórico</a>
+    <a href="/" class="btn btn-outline-secondary">Início</a>
+    {% if fatura_id %}
+      <a href="/faturas/{{ fatura_id }}/pdf" class="btn btn-dark">Download PDF</a>
+    {% endif %}
+    <button onclick="window.print()" class="btn btn-outline-dark">Imprimir / Salvar em PDF</button>
+  </div>
+
+  <h2>Resumo da Fatura Calculada</h2>
+  <table class="table table-bordered">
+    <tr><th>Local</th><td>{{ local }}</td></tr>
+    <tr><th>Período</th><td>{{ periodo }}</td></tr>
+    <tr><th>Energia Ativa Consumida (kWh)</th><td>{{ ativa|round(2) }}</td></tr>
+    <tr><th>Energia Reativa Consumida (kVArh)</th><td>{{ reativa|round(2) }}</td></tr>
+    <tr><th>Energia Reativa Faturável (kVArh)</th><td>{{ (reativa_faturavel)|round(2) }}</td></tr>
+    <tr><th>Perdas em Vazio (kWh)</th><td>{{ perdas|round(2) }}</td></tr>
+    <tr><th>Demanda Máxima (kW)</th><td>{{ demanda_max|default(0)|round(2) }}</td></tr>
+    <tr><th>Potência Contratada (kW)</th><td>{{ pot_contratada|default(0)|round(2) }}</td></tr>
+    <tr><th>Demanda Faturável (kW)</th><td>{{ demanda_faturavel|default(0)|round(2) }}</td></tr>
+
+    <tr><th>Valor Energia Ativa (MT)</th><td>{{ valor_ativa|round(2) }}</td></tr>
+    <tr><th>Valor Energia Reativa (MT)</th><td>{{ valor_reativa|round(2) }}</td></tr>
+    <tr><th>Valor Perdas (MT)</th><td>{{ valor_perdas|round(2) }}</td></tr>
+    <tr><th>Valor Ponta/Demanda (MT)</th><td>{{ valor_ponta|round(2) }}</td></tr>
+    <tr><th>Taxa Fixa (MT)</th><td>{{ taxa_fixa|default(0)|round(2) }}</td></tr>
+    <tr><th>Taxa Rádio (MT)</th><td>{{ taxa_radio|default(0)|round(2) }}</td></tr>
+    <tr><th>Taxa Lixo (MT)</th><td>{{ taxa_lixo|default(0)|round(2) }}</td></tr>
+
+    <tr class="table-light"><th>Subtotal (MT)</th><td>{{ subtotal|round(2) }}</td></tr>
+    <tr><th>IVA (MT)</th><td>{{ valor_iva|round(2) }}</td></tr>
+    <tr class="table-success"><th><b>Total a Pagar (MT)</b></th><td><b>{{ total|round(2) }}</b></td></tr>
+  </table>
+
+  {% if obs %}
+    <div class="mt-3">
+      <b>Observações:</b> {{ obs }}
+    </div>
+  {% endif %}
+</body>
+</html>

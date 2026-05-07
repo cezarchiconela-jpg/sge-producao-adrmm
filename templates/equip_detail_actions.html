@@ -1,0 +1,12 @@
+{# addons/equip_detail_actions.html — painel não-invasivo de ações #}
+{% set _id = (eq[0] if eq is sequence else (eq.id if eq else None)) %}
+<div class="card mt-3" id="equip-detail-addon">
+  <div class="card-header">Ações rápidas (add-on)</div>
+  <div class="card-body d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/export/detalhe/{{ _id }}.pdf">Ficha PDF</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/{{ _id }}/label">Etiqueta A7</a>
+    <a class="btn btn-sm btn-outline-success" href="/equipamentos/ativar/{{ _id }}">Ativar</a>
+    <a class="btn btn-sm btn-outline-warning" href="/equipamentos/desativar/{{ _id }}">Desativar</a>
+    <a class="btn btn-sm btn-outline-danger" href="/equipamentos/remover/{{ _id }}">Remover</a>
+  </div>
+</div>

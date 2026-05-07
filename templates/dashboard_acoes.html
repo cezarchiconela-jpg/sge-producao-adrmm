@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · Ações Prioritárias{% endblock %}
+{% block extra_head %}
+<style>
+  .hero{background:linear-gradient(135deg,#0b4f8f,#0f7db8 60%,#16a085);border-radius:28px;color:#fff;padding:26px;box-shadow:0 16px 40px rgba(11,79,143,.22)}
+  .hero h1{font-weight:900;letter-spacing:-.03em;margin:0}.muted{color:#667085}.panel{background:#fff;border:1px solid #e7eef8;border-radius:24px;padding:20px;box-shadow:0 12px 32px rgba(2,32,71,.06)}
+  .score{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#16a085 calc(var(--score)*1%),#e7eef8 0);position:relative;margin:auto}.score:after{content:"";position:absolute;width:96px;height:96px;background:white;border-radius:50%}.score b{position:relative;z-index:2;font-size:2rem;color:#103b63}.pill{border-radius:999px;padding:.35rem .7rem;font-weight:800;font-size:.78rem;display:inline-block}.crit{background:#fff1f2;color:#be123c}.warn{background:#fff7e6;color:#b45309}.info{background:#eff6ff;color:#1d4ed8}.ok{background:#e8fff6;color:#047857}
+  .acao{border:1px solid #e7eef8;border-radius:20px;padding:16px;background:#fff;margin-bottom:12px}.acao h4{font-weight:900;color:#103b63;margin:0 0 .25rem}.acao .meta{font-size:.82rem;color:#667085}.acao.critico{border-left:7px solid #e11d48}.acao.atencao{border-left:7px solid #f59e0b}.acao.informativo{border-left:7px solid #2563eb}.kpi{background:#f8fbff;border:1px solid #e7eef8;border-radius:18px;padding:14px;height:100%}.kpi .label{text-transform:uppercase;font-size:.72rem;font-weight:900;color:#667085;letter-spacing:.06em}.kpi .value{font-weight:900;font-size:1.35rem;color:#0f172a}.tbl{width:100%;border-collapse:collapse}.tbl th{background:#103b63;color:#fff;font-size:.75rem;text-transform:uppercase;padding:9px}.tbl td{border-bottom:1px solid #e7eef8;padding:9px}
+  @media(max-width:768px){.hero,.panel{border-radius:18px}.tbl{font-size:.82rem}.tbl th:nth-child(4),.tbl td:nth-child(4){display:none}}
+  @media print{.no-print,.navbar,.sidebar,.btn{display:none!important}.hero,.panel{box-shadow:none!important}.hero{background:white;color:#0f172a;border:1px solid #ddd}body{background:white!important}}
+</style>
+{% endblock %}
+{% block content %}
+{% macro n(v,dec=2) -%}{{ ("{:,.%df}" % dec).format((v or 0)|float).replace(',', 'X').replace('.', ',').replace('X', '.') }}{%- endmacro %}
+<section class="hero mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
+    <div>
+      <div class="fw-bold text-uppercase" style="letter-spacing:.12em;opacity:.85">Dashboard · plano de ação</div>
+      <h1>Ações Prioritárias do SGE</h1>
+      <p class="mb-0">Lista executiva gerada a partir dos dados de energia, fatura estimada, FP, reativa, cobertura de leituras, ponta e estado dos locais.</p>
+    </div>
+    <div class="no-print d-flex gap-2 flex-wrap">
+      <a class="btn btn-light" href="/dashboard?mes={{ mes }}&ano={{ ano }}{% if local_id %}&local_id={{ local_id }}{% endif %}">Dashboard</a>
+      <a class="btn btn-warning" href="/dashboard/relatorio?mes={{ mes }}&ano={{ ano }}{% if local_id %}&local_id={{ local_id }}{% endif %}">Relatório</a>
+      <button class="btn btn-outline-light" onclick="window.print()">Imprimir / PDF</button>
+    </div>
+  </div>
+</section>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="panel text-center"><div class="score" style="--score:{{ kpis.score_executivo|default(0) }}"><b>{{ kpis.score_executivo|default(0) }}</b></div><div class="mt-2 fw-bold text-muted">Score executivo / 100</div></div></div>
+  <div class="col-md-9"><div class="panel h-100"><div class="row g-3">
+    <div class="col-md-3"><div class="kpi"><div class="label">Estado geral</div><div class="value">{{ kpis.estado_geral }}</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Energia</div><div class="value">{{ n(kpis.energia_total,1) }}</div><div class="muted small">kWh</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Fatura estimada</div><div class="value">{{ n(kpis.fatura_total,2) }}</div><div class="muted small">MT</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Ações</div><div class="value">{{ acoes|length }}</div><div class="muted small">priorizadas</div></div></div>
+  </div><hr><p class="mb-0 muted">Interpretação: score acima de 82 indica controlo aceitável; entre 60 e 82 exige atenção; abaixo de 60 indica necessidade de intervenção técnica e validação dos dados antes de tomada de decisão financeira.</p></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="panel">
+      <h3 class="fw-bold text-primary mb-3">Plano de ação recomendado</h3>
+      {% for a in acoes %}
+      <div class="acao {% if a.nivel=='Crítico' %}critico{% elif a.nivel=='Atenção' %}atencao{% else %}informativo{% endif %}">
+        <div class="d-flex justify-content-between gap-2 flex-wrap">
+          <h4>{{ loop.index }}. {{ a.titulo }}</h4>
+          <span class="pill {% if a.nivel=='Crítico' %}crit{% elif a.nivel=='Atenção' %}warn{% else %}info{% endif %}">{{ a.nivel }}</span>
+        </div>
+        <div class="meta mb-2">Origem: <strong>{{ a.origem }}</strong> · Local: <strong>{{ a.local }}</strong></div>
+        <p class="mb-1"><strong>Impacto:</strong> {{ a.impacto }}</p>
+        <p class="mb-2"><strong>Acção recomendada:</strong> {{ a.acao }}</p>
+        <a class="btn btn-sm btn-outline-primary rounded-pill no-print" href="{{ a.link }}">Abrir origem</a>
+      </div>
+      {% else %}
+      <p class="muted">Sem ações críticas para o período.</p>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel mb-4">
+      <h3 class="fw-bold text-primary mb-3">Locais a acompanhar</h3>
+      <table class="tbl">
+        <thead><tr><th>Local</th><th>Estado</th><th>Energia</th><th>Fatura</th></tr></thead>
+        <tbody>
+        {% for c in cards[:10] %}
+          <tr><td><strong>{{ c.local }}</strong></td><td>{{ c.status }}</td><td>{{ n(c.energia_mes,1) }}</td><td>{{ n(c.fatura_estimativa,2) }}</td></tr>
+        {% else %}<tr><td colspan="4" class="text-center muted">Sem dados.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h3 class="fw-bold text-primary mb-3">Encaminhamento rápido</h3>
+      <div class="d-grid gap-2 no-print">
+        <a class="btn btn-outline-danger" href="/alertas">Centro de Alertas</a>
+        <a class="btn btn-outline-secondary" href="/motores/manutencao">Manutenção de Motores</a>
+        <a class="btn btn-outline-primary" href="/leituras_mensal/arquivo">Arquivo de Leituras</a>
+        <a class="btn btn-outline-success" href="/solar/decisao">Painel de Decisão Solar</a>
+      </div>
+      <p class="muted mt-3 mb-0">Use esta página como checklist de reunião operacional mensal. Depois de executar uma ação, registe-a no módulo Alertas para manter histórico.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

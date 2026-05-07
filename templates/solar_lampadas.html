@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lâmpadas Solares Expert - SGE</title>
+  <style>
+    :root{--azul:#0b4f8a;--azul2:#0f72b8;--verde:#1f8a5b;--bg:#f4f7fb;--card:#fff;--txt:#172033;--mut:#64748b;--line:#dbe5f0;--warn:#f59e0b;--crit:#dc2626}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:Segoe UI,Arial,sans-serif;color:var(--txt)}
+    .wrap{max-width:1440px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.title h1{margin:0;font-size:25px;color:var(--azul)}.title p{margin:5px 0 0;color:var(--mut)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:#fff;color:var(--azul);padding:10px 13px;border-radius:12px;text-decoration:none;font-weight:700;cursor:pointer}.btn.primary{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;border:none}.btn.green{background:var(--verde);color:#fff;border:none}.btn.dark{background:#172033;color:#fff;border:none}.btn.small{padding:7px 10px;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}
+    .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.06);padding:16px;margin-bottom:16px}.card h2{font-size:17px;margin:0 0 12px;color:var(--azul)}
+    .formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;font-size:12px;color:#334155;font-weight:800;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#fbfdff;color:#0f172a}.field small{color:var(--mut)}.span2{grid-column:span 2}.span4{grid-column:span 4}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{background:#f8fbff;border:1px solid var(--line);border-radius:16px;padding:12px}.kpi b{display:block;color:var(--azul);font-size:19px}.kpi span{font-size:12px;color:var(--mut);font-weight:700}.kpi.green b{color:var(--verde)}.kpi.warn b{color:var(--warn)}
+    table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #edf2f7;text-align:left;font-size:13px}th{color:#475569;background:#f8fafc}.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:800}.ok{background:#dcfce7;color:#166534}.bad{background:#fee2e2;color:#991b1b}.info{background:#dbeafe;color:#1e40af}.warn{background:#fef3c7;color:#92400e}.mut{color:var(--mut)}
+    .resultBox{background:linear-gradient(135deg,#eef7ff,#ecfdf5);border:1px solid #cfe8ff;border-radius:20px;padding:14px;margin-bottom:16px}.formula{font-family:Consolas,monospace;background:#0f172a;color:#e2e8f0;border-radius:12px;padding:12px;overflow:auto}.sticky{position:sticky;top:12px}.printOnly{display:none}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}.formgrid{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.sticky{position:static}}
+    @media(max-width:640px){.wrap{padding:10px}.formgrid{grid-template-columns:1fr}.span2,.span4{grid-column:span 1}.kpis{grid-template-columns:1fr}.actions{width:100%}.btn{width:100%}}
+    @media print{body{background:#fff}.actions,.noPrint,form{display:none!important}.wrap{max-width:100%;padding:0}.card,.resultBox{box-shadow:none;border-color:#ddd;break-inside:avoid}.printOnly{display:block}.grid{display:block}.sticky{position:static} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="title">
+      <h1>Energia Solar · Lâmpadas Solares Expert</h1>
+      <p>Dimensionamento técnico de iluminação solar autónoma, postes, baterias, painéis, custos e relatório.</p>
+    </div>
+    <div class="actions noPrint">
+      <a class="btn" href="{{ url_for('solar_home') }}">Centro Solar</a>
+      <a class="btn" href="{{ url_for('solar_form') }}">Fotovoltaico</a>
+      <a class="btn" href="{{ url_for('solar_lampadas_projetos') }}">Projetos</a>
+      <a class="btn" href="{{ url_for('solar_lampadas_catalogo_list') }}">Catálogo</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <form method="post" action="{{ url_for('solar_lampadas_calcular') }}">
+        <div class="card">
+          <h2>1. Dados do projecto e implantação</h2>
+          <div class="formgrid">
+            <div class="field span2"><label>Nome do projecto</label><input name="nome_projeto" value="{{ resultado.nome_projeto if resultado else '' }}" placeholder="Ex.: Iluminação solar do pátio / estrada"></div>
+            <div class="field"><label>Classe / aplicação</label><select name="classe" id="classe">
+              {% set cls = resultado.classe if resultado else '' %}
+              <option value="">Personalizado</option><option value="vias_pedonais" {% if cls=='vias_pedonais' %}selected{% endif %}>Vias pedonais</option><option value="parques" {% if cls=='parques' %}selected{% endif %}>Parques / jardins</option><option value="rua_local" {% if cls=='rua_local' %}selected{% endif %}>Rua local</option><option value="rua_coletora" {% if cls=='rua_coletora' %}selected{% endif %}>Rua coletora</option><option value="estacionamento" {% if cls=='estacionamento' %}selected{% endif %}>Estacionamento / pátio</option><option value="armazem_ext" {% if cls=='armazem_ext' %}selected{% endif %}>Recinto industrial</option><option value="seguranca" {% if cls=='seguranca' %}selected{% endif %}>Segurança perimetral</option>
+            </select></div>
+            <div class="field"><label>Modo de implantação</label><select name="modo_implantacao" id="modo"><option value="area" {% if resultado and resultado.modo_implantacao=='area' %}selected{% endif %}>Por área</option><option value="via" {% if resultado and resultado.modo_implantacao=='via' %}selected{% endif %}>Via/estrada</option><option value="manual" {% if resultado and resultado.modo_implantacao=='manual' %}selected{% endif %}>Quantidade manual</option></select></div>
+            <div class="field"><label>Área total (m²)</label><input type="number" step="0.1" name="area_m2" value="{{ resultado.area_m2 if resultado else 200 }}"></div>
+            <div class="field"><label>Comprimento via (m)</label><input type="number" step="0.1" name="comprimento_via_m" value="{{ resultado.comprimento_via_m if resultado else 100 }}"></div>
+            <div class="field"><label>Largura via/área (m)</label><input type="number" step="0.1" name="largura_via_m" value="{{ resultado.largura_via_m if resultado else 6 }}"></div>
+            <div class="field"><label>Quantidade manual</label><input type="number" step="1" name="qtd_manual" value="{{ resultado.qtd_postes if resultado and resultado.modo_implantacao=='manual' else 0 }}"></div>
+            <div class="field"><label>Fileira dupla?</label><select name="dupla_fileira"><option value="0">Não</option><option value="1" {% if resultado and resultado.dupla_fileira %}selected{% endif %}>Sim</option></select></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>2. Parâmetros luminotécnicos e solares</h2>
+          <div class="formgrid">
+            <div class="field"><label>Iluminância desejada (lux)</label><input type="number" step="0.1" name="iluminancia_lux" value="{{ resultado.iluminancia_lux if resultado else 10 }}"><small>Ex.: 7–15 lux pedonal, 12–20 lux ruas/pátios.</small></div>
+            <div class="field"><label>Altura do poste (m)</label><input type="number" step="0.1" name="altura_poste" value="{{ resultado.altura_poste if resultado else (altura_qs if altura_qs is not none else 5) }}"></div>
+            <div class="field"><label>Eficiência luminária (lm/W)</label><input type="number" step="1" name="lm_por_w" value="{{ resultado.lm_por_w if resultado else 150 }}"></div>
+            <div class="field"><label>Factor segurança fluxo</label><input type="number" step="0.05" name="fator_seg" value="{{ resultado.fator_seg if resultado else 1.20 }}"></div>
+            <div class="field"><label>PSH / horas sol pico</label><input type="number" step="0.1" name="horas_carga" value="{{ resultado.horas_carga if resultado else 5 }}"></div>
+            <div class="field"><label>Autonomia por noite (h)</label><input type="number" step="0.5" name="autonomia_h" value="{{ resultado.autonomia_h if resultado else 12 }}"></div>
+            <div class="field"><label>Autonomia sem sol (dias)</label><input type="number" step="0.5" name="autonomia_dias" value="{{ resultado.autonomia_dias if resultado else 2 }}"></div>
+            <div class="field"><label>Tensão bateria (V)</label><input type="number" step="1" name="bateria_v" value="{{ resultado.bateria_v if resultado else 12 }}"></div>
+            <div class="field"><label>Factor utilização</label><input type="number" step="0.05" name="fator_util" value="{{ resultado.fator_util if resultado else 0.80 }}"></div>
+            <div class="field"><label>Factor manutenção</label><input type="number" step="0.05" name="fator_man" value="{{ resultado.fator_man if resultado else 0.90 }}"></div>
+            <div class="field"><label>DoD bateria</label><input type="number" step="0.05" name="dod" value="{{ 0.80 }}"></div>
+            <div class="field"><label>Eficiência controlador</label><input type="number" step="0.05" name="eficiencia_controlador" value="{{ 0.92 }}"></div>
+            <div class="field"><label>Dimerização 0–6h (%)</label><input type="number" step="1" name="dim_0_6" value="{{ resultado.dim_0_6 if resultado else 100 }}"></div>
+            <div class="field"><label>Dimerização 6–12h (%)</label><input type="number" step="1" name="dim_6_12" value="{{ resultado.dim_6_12 if resultado else 50 }}"></div>
+            <div class="field"><label>Dimerização extra (%)</label><input type="number" step="1" name="dim_extra" value="{{ resultado.dim_extra if resultado else 30 }}"></div>
+            <div class="field"><label>Margem painel</label><input type="number" step="0.05" name="margem_painel" value="{{ 1.25 }}"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>3. Custos e análise económica</h2>
+          <div class="formgrid">
+            <div class="field"><label>Custo luminária (MT)</label><input type="number" step="0.01" name="custo_luminaria" value="{{ resultado.custo_luminaria if resultado else 15000 }}"></div>
+            <div class="field"><label>Custo painel (MT/Wp)</label><input type="number" step="0.01" name="custo_painel_w" value="{{ resultado.custo_painel_w if resultado else 30 }}"></div>
+            <div class="field"><label>Custo bateria (MT/Wh)</label><input type="number" step="0.01" name="custo_bateria_wh" value="{{ resultado.custo_bateria_wh if resultado else 12 }}"></div>
+            <div class="field"><label>Custo poste (MT)</label><input type="number" step="0.01" name="custo_poste" value="{{ resultado.custo_poste if resultado else 18000 }}"></div>
+            <div class="field"><label>Instalação/unidade (MT)</label><input type="number" step="0.01" name="custo_instalacao" value="{{ resultado.custo_instalacao if resultado else 8000 }}"></div>
+            <div class="field"><label>OPEX anual (%)</label><input type="number" step="0.1" name="opex_pct" value="{{ 2.0 }}"></div>
+            <div class="field"><label>Tarifa evitada (MT/kWh)</label><input type="number" step="0.01" name="tarifa_kwh" value="{{ resultado.tarifa_kwh if resultado else 8.0 }}"></div>
+            <div class="field" style="display:flex;align-items:end"><button class="btn primary" style="width:100%" type="submit">Calcular dimensionamento expert</button></div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div>
+      <div class="sticky">
+      {% if resultado %}
+        <div class="resultBox">
+          <h2 style="margin-top:0;color:var(--azul)">Resultado técnico</h2>
+          <div class="kpis">
+            <div class="kpi"><span>Postes</span><b>{{ resultado.qtd_postes }}</b></div>
+            <div class="kpi"><span>Espaçamento</span><b>{{ '%.1f'|format(resultado.espacamento_m) }} m</b></div>
+            <div class="kpi green"><span>Painel/poste</span><b>{{ '%.0f'|format(resultado.painel_wp) }} Wp</b></div>
+            <div class="kpi green"><span>Bateria/poste</span><b>{{ '%.0f'|format(resultado.bateria_wh_bruto) }} Wh</b></div>
+            <div class="kpi"><span>Fluxo/poste</span><b>{{ '%.0f'|format(resultado.fluxo_projeto_lm) }} lm</b></div>
+            <div class="kpi"><span>Potência LED</span><b>{{ '%.1f'|format(resultado.potencia_led_w) }} W</b></div>
+            <div class="kpi warn"><span>CAPEX total</span><b>{{ '{:,.2f}'.format(resultado.capex_estimado).replace(',', 'X').replace('.', ',').replace('X', '.') }} MT</b></div>
+            <div class="kpi"><span>Payback</span><b>{{ '%.1f'|format(resultado.payback_anos) }} anos</b></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Base de cálculo</h2>
+          <div class="formula">Fluxo = (Lux × Área por luminária) ÷ (FU × FM) × FS<br>Energia/noite = Potência LED × perfil de dimerização<br>Painel = Energia ÷ (PSH × eficiência controlador) × margem<br>Bateria = Energia × dias autonomia ÷ (DoD × eficiência)</div>
+        </div>
+        {% if resultado.alertas %}<div class="card"><h2>Alertas técnicos</h2>{% for a in resultado.alertas %}<p><span class="badge warn">Atenção</span> {{ a }}</p>{% endfor %}</div>{% endif %}
+        <div class="card noPrint">
+          <h2>Guardar projecto</h2>
+          <form method="post" action="{{ url_for('solar_lampadas_salvar') }}">
+            <input type="hidden" name="r_json" value='{{ resultado|tojson }}'>
+            <div class="field"><label>Nome</label><input name="nome_projeto" value="{{ resultado.nome_projeto or 'Projeto de iluminação solar' }}"></div><br>
+            <div class="field"><label>Observações</label><textarea name="obs" rows="3"></textarea></div><br>
+            <button class="btn green" type="submit">Guardar simulação</button>
+            <button class="btn" type="button" onclick="window.print()">Imprimir / PDF</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="card"><h2>Como usar</h2><p class="mut">Preencha os dados da área ou via, seleccione a aplicação, defina autonomia, dimerização, custos e clique em calcular. O sistema devolve postes, espaçamento, painel, bateria, controlador, CAPEX e recomendações.</p></div>
+      {% endif %}
+      <div class="card">
+        <h2>Catálogo recomendado</h2>
+        <div style="overflow:auto;max-height:360px">
+        <table><thead><tr><th>Modelo</th><th>W</th><th>Fluxo</th><th>Bateria</th><th>Score</th></tr></thead><tbody>
+          {% if sugestoes %}{% for s in sugestoes[:8] %}<tr><td>{{ s.item.modelo }}</td><td>{{ s.item.potencia_w }}</td><td>{{ '%.0f'|format(s.item.fluxo_lm) }} lm</td><td>{{ '%.0f'|format(s.item.bateria_wh) }} Wh</td><td><span class="badge {{ 'ok' if s.score>=75 else 'warn' }}">{{ s.score }}%</span></td></tr>{% endfor %}
+          {% else %}{% for c in catalogo[:8] %}<tr><td>{{ c.modelo }}</td><td>{{ c.potencia_w }}</td><td>{{ c.fluxo_lm }} lm</td><td>{{ c.bateria_wh }} Wh</td><td><span class="badge info">catálogo</span></td></tr>{% endfor %}{% endif %}
+        </tbody></table></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const presets={vias_pedonais:{lux:7.5,h:4},parques:{lux:15,h:5},rua_local:{lux:12,h:6},rua_coletora:{lux:20,h:8},estacionamento:{lux:12,h:6},armazem_ext:{lux:20,h:8},seguranca:{lux:10,h:5}};
+document.getElementById('classe')?.addEventListener('change',e=>{const p=presets[e.target.value]; if(!p)return; const lux=document.querySelector('[name=iluminancia_lux]'); const h=document.querySelector('[name=altura_poste]'); if(lux)lux.value=p.lux; if(h)h.value=p.h;});
+</script>
+</body>
+</html>

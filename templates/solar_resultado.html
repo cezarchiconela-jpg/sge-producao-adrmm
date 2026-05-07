@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Resultado Solar Expert{% endblock %}
+{% block content %}
+<style>
+  .solar-hero{background:linear-gradient(135deg,#06345f,#0b6b83 55%,#0b8a55);color:#fff;border-radius:22px;padding:1.25rem;box-shadow:0 14px 34px rgba(6,52,95,.18)}
+  .kpi{border:1px solid rgba(15,23,42,.08);border-radius:18px;background:#fff;padding:1rem;box-shadow:0 8px 22px rgba(15,23,42,.05);height:100%}
+  .kpi small{color:#64748b;font-weight:700;text-transform:uppercase;font-size:.72rem}.kpi strong{font-size:1.3rem;color:#0b3b66}
+  .panel{border:1px solid rgba(15,23,42,.1);border-radius:18px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.05)}
+  .bar{height:12px;border-radius:999px;background:#e2e8f0;overflow:hidden}.bar span{display:block;height:100%;background:linear-gradient(90deg,#0b6b83,#0b8a55)}
+  @media print{.no-print{display:none!important}.solar-hero{box-shadow:none}.panel,.kpi{box-shadow:none}}
+</style>
+<section class="solar-hero mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
+    <div>
+      <h2 class="fw-bold mb-1">Resultado do Dimensionamento Solar Expert</h2>
+      <div class="opacity-75">{{ r.local_nome or 'Sem local' }}{% if r.periodo %} · {{ r.periodo }}{% endif %} · {{ r.tipo_sistema|upper }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 no-print">
+      <a href="{{ url_for('solar_form') }}" class="btn btn-light">Novo cálculo</a>
+      <a href="{{ url_for('solar_home') }}" class="btn btn-outline-light">Centro Solar</a>
+      <button onclick="window.print()" class="btn btn-outline-light">Imprimir / PDF</button>
+    </div>
+  </div>
+</section>
+
+{% if r.alertas %}
+  {% for nivel,titulo,msg in r.alertas %}
+    <div class="alert alert-{{ nivel }}"><strong>{{ titulo }}:</strong> {{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="kpi"><small>Potência FV instalada</small><br><strong>{{ r.kwp_real|round(2) }} kWp</strong><div class="text-muted">Necessária: {{ r.kwp_necessario|round(2) }} kWp</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Painéis</small><br><strong>{{ r.n_paineis }}</strong><div class="text-muted">Área: {{ r.area_total|round(1) }} m²</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Inversor recomendado</small><br><strong>{{ r.inversor_kw|round(2) }} kW</strong><div class="text-muted">DC/AC: {{ r.inv_dcac }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Produção anual</small><br><strong>{{ r.producao_anual|round(0) }} kWh</strong><div class="text-muted">Energia útil: {{ r.energia_util_anual|round(0) }} kWh</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Economia anual</small><br><strong>{{ r.economia_anual|round(0) }} MT</strong><div class="text-muted">{{ r.economia_mensal|round(0) }} MT/mês</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>CAPEX estimado</small><br><strong>{{ r.capex_total|round(0) }} MT</strong><div class="text-muted">OPEX: {{ r.opex_anual|round(0) }} MT/ano</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>Payback</small><br><strong>{% if r.payback_anos %}{{ r.payback_anos|round(2) }} anos{% else %}n/d{% endif %}</strong><div class="text-muted">NPV: {{ r.npv|round(0) }} MT</div></div></div>
+  <div class="col-md-3"><div class="kpi"><small>LCOE / IRR</small><br><strong>{% if r.lcoe %}{{ r.lcoe|round(2) }} MT/kWh{% else %}n/d{% endif %}</strong><div class="text-muted">IRR: {% if r.irr %}{{ (r.irr*100)|round(1) }}%{% else %}n/d{% endif %}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-7">
+    <div class="panel p-3 p-lg-4 h-100">
+      <h4 class="fw-bold text-primary-emphasis">Produção mensal estimada</h4>
+      {% set meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Mês</th><th>kWh</th><th style="width:55%">Perfil</th></tr></thead>
+          <tbody>
+            {% set maxp = r.producao_mensal|max if r.producao_mensal else 1 %}
+            {% for val in r.producao_mensal %}
+            <tr><td>{{ meses[loop.index0] }}</td><td>{{ val|round(0) }}</td><td><div class="bar"><span style="width:{{ (val/maxp*100)|round(0) }}%"></span></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel p-3 p-lg-4 h-100">
+      <h4 class="fw-bold text-primary-emphasis">Base técnica auditável</h4>
+      <table class="table table-sm">
+        <tr><th>Consumo base</th><td>{{ r.daily_kwh_base|round(2) }} kWh/dia · {{ r.total_mes_base_kwh|round(0) }} kWh/mês</td></tr>
+        <tr><th>Consumo corrigido</th><td>{{ r.daily_kwh|round(2) }} kWh/dia · crescimento {{ r.crescimento_carga_pct }}%</td></tr>
+        <tr><th>Método de consumo</th><td>{{ r.consumo_metodo }}</td></tr>
+        <tr><th>PSH / derate final</th><td>{{ r.psh }} h/dia · {{ r.derate_expert|round(3) }}</td></tr>
+        <tr><th>Cobertura real</th><td>{{ r.cobertura_real_pct|round(1) }}% do consumo anual estimado</td></tr>
+        <tr><th>Área disponível</th><td>{% if r.area_disponivel>0 %}{{ r.area_disponivel|round(1) }} m² · {% if r.cabivel_area %}suficiente{% else %}falta {{ r.area_excedente|round(1) }} m²{% endif %}{% else %}não informada{% endif %}</td></tr>
+        <tr><th>CO₂ evitado</th><td>{{ r.co2_t_ano|round(2) }} t/ano</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if r.tipo_sistema in ['offgrid','hibrido','hybrid'] %}
+<div class="panel p-3 p-lg-4 mb-4">
+  <h4 class="fw-bold text-primary-emphasis">Banco de baterias</h4>
+  <div class="row g-3">
+    <div class="col-md-3"><div class="kpi"><small>Energia útil</small><br><strong>{{ r.bateria_kwh_util|round(2) }} kWh</strong></div></div>
+    <div class="col-md-3"><div class="kpi"><small>Capacidade bruta</small><br><strong>{{ r.bateria_kwh_bruta|round(2) }} kWh</strong></div></div>
+    <div class="col-md-3"><div class="kpi"><small>Módulos</small><br><strong>{{ r.n_modulos_bateria }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi"><small>Tensão banco</small><br><strong>{{ r.system_voltage|round(0) }} V</strong></div></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="panel p-3 p-lg-4 mb-4">
+  <h4 class="fw-bold text-primary-emphasis">Guardar simulação</h4>
+  <form method="post" action="{{ url_for('solar_salvar') }}" class="row g-3">
+    <input type="hidden" name="r_json" value='{{ r|tojson }}'>
+    <input type="hidden" name="params_json" value='{{ params|tojson }}'>
+    <input type="hidden" name="producao_mensal_json" value='{{ r.producao_mensal|tojson }}'>
+    <div class="col-md-5"><label class="form-label">Nome do projeto</label><input type="text" name="nome_projeto" class="form-control" placeholder="Ex.: FV ETA Umbeluzi 250 kWp"></div>
+    <div class="col-md-5"><label class="form-label">Observações</label><input type="text" name="obs" class="form-control" placeholder="Notas técnicas, cliente ou cenário"></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-success w-100">Salvar</button></div>
+  </form>
+</div>
+{% endblock %}

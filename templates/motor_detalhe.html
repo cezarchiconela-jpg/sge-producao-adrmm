@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Ficha técnica do motor - SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--azul:#0b3d91;--azul2:#0f63c7;--verde:#159957;--bg:#f4f7fb;--txt:#162033;--muted:#64748b;--line:#e5e7eb;--red:#b91c1c;--amber:#b45309;--green:#15803d;--card:#fff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Segoe UI,Arial,sans-serif;color:var(--txt)}.wrap{max-width:1500px;margin:auto;padding:22px}
+    .hero{background:linear-gradient(135deg,#082c68,#0f63c7 62%,#159957);color:white;border-radius:26px;padding:24px;box-shadow:0 18px 42px rgba(11,61,145,.18)}.hero h1{margin:8px 0 4px;font-size:clamp(1.6rem,3vw,2.7rem)}.badge{display:inline-flex;background:rgba(255,255,255,.16);padding:8px 12px;border-radius:999px;font-weight:900}.top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}.actions{display:flex;gap:9px;flex-wrap:wrap}.btn{border:0;border-radius:13px;padding:10px 14px;text-decoration:none;font-weight:900;display:inline-flex;align-items:center;gap:7px;cursor:pointer}.btn-white{background:#fff;color:#0b3d91}.btn-soft{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28)}.btn-blue{background:#0b3d91;color:#fff}.btn-line{background:#fff;color:#0b3d91;border:1px solid var(--line)}
+    .filters{background:white;border:1px solid var(--line);border-radius:20px;padding:14px;margin:18px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:end}.filters label{display:block;color:var(--muted);font-size:.78rem;font-weight:900;text-transform:uppercase;margin-bottom:5px}.filters input{padding:10px;border:1px solid #dbe3ef;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:white;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:0 10px 28px rgba(15,23,42,.055)}.card h2{margin:0 0 12px;font-size:1.12rem;color:#0b3d91}.kpi small{color:var(--muted);font-weight:900;text-transform:uppercase}.kpi b{display:block;font-size:1.7rem;color:#0b3d91;margin-top:6px}.status{display:inline-block;border-radius:999px;padding:7px 11px;font-weight:900}.Crítico{background:#fee2e2;color:#991b1b}.Atenção{background:#fef3c7;color:#92400e}.Normal{background:#dcfce7;color:#166534}.Sem-dados{background:#e2e8f0;color:#334155}.mini{color:var(--muted);font-size:.88rem}.pair{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #e5e7eb;padding:8px 0}.pair span:first-child{color:var(--muted);font-weight:800}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:900px}th,td{padding:9px 10px;border-bottom:1px solid #edf1f7;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:.75rem}.wide{grid-column:span 2}.full{grid-column:1/-1}.rec{border-left:5px solid #0b3d91;padding:10px 12px;background:#f8fbff;border-radius:14px;margin:9px 0}.rec b{color:#0b3d91}.alert{border-left:5px solid #b91c1c;background:#fff7f7;border-radius:14px;padding:10px 12px;margin:8px 0}.ok{border-left-color:#15803d;background:#f0fdf4}.chart{height:190px;width:100%;border:1px solid #e5e7eb;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);padding:10px}.bar{height:12px;border-radius:999px;background:#e5e7eb;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#0f63c7,#159957)}
+    @media(max-width:1100px){.grid{grid-template-columns:repeat(2,1fr)}.wide{grid-column:span 2}}@media(max-width:680px){.wrap{padding:12px}.grid{grid-template-columns:1fr}.wide{grid-column:span 1}.actions,.btn{width:100%;justify-content:center}.filters{display:grid}.hero{padding:18px}}@media print{.filters,.actions,.no-print{display:none}.wrap{padding:0}.hero{box-shadow:none}.card{box-shadow:none}.table-wrap{overflow:visible}body{background:white;font-size:11px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="top">
+      <div>
+        <span class="badge">⚙️ Ficha técnica e diagnóstico</span>
+        <h1>{{ equipamento.nome }}</h1>
+        <p>Local: <b>{{ equipamento.local_nome or '—' }}</b> · Período: {{ data_ini }} a {{ data_fim }} · Estado: <span class="status {{ analise.status.replace(' ', '-') }}">{{ analise.status }}</span></p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-white" href="/motores/nova?equipamento_id={{ equipamento.id }}">+ Medição</a>
+        <a class="btn btn-soft" href="/motores/graficos?equipamento_id={{ equipamento.id }}&ini={{ data_ini }}&fim={{ data_fim }}">Gráficos</a>
+        <a class="btn btn-soft" href="/motores/detalhe/{{ equipamento.id }}/imprimir?ini={{ data_ini }}&fim={{ data_fim }}">PDF/Imprimir</a>
+        <a class="btn btn-soft" href="/equipamentos/config/{{ equipamento.id }}">Parâmetros</a>
+        <a class="btn btn-soft" href="/motores?equipamento_id={{ equipamento.id }}&ini={{ data_ini }}&fim={{ data_fim }}">Voltar</a>
+      </div>
+    </div>
+  </section>
+
+  <form class="filters no-print" method="get">
+    <div><label>Data inicial</label><input type="date" name="ini" value="{{ data_ini }}"></div>
+    <div><label>Data final</label><input type="date" name="fim" value="{{ data_fim }}"></div>
+    <button class="btn btn-blue" type="submit">Carregar período</button>
+    <button class="btn btn-line" type="button" onclick="print()">Imprimir / PDF</button>
+  </form>
+
+  <section class="grid">
+    <div class="card kpi"><small>Energia no período</small><b>{{ '{:,.1f}'.format(analise.kwh).replace(',', 'X').replace('.', ',').replace('X','.') }} kWh</b><div class="mini">Fonte: {{ analise.fontes }}</div></div>
+    <div class="card kpi"><small>FP médio</small><b>{% if analise.avg_fp is not none %}{{ '%.3f'|format(analise.avg_fp) }}{% else %}—{% endif %}</b><div class="mini">Limite configurado: {{ equipamento.limite_fp or '0.80' }}</div></div>
+    <div class="card kpi"><small>Carga estimada</small><b>{% if analise.carga_pct is not none %}{{ '%.1f'|format(analise.carga_pct) }}%{% else %}—{% endif %}</b><div class="mini">Potência média: {% if analise.avg_kw is not none %}{{ '%.1f'|format(analise.avg_kw) }} kW{% else %}—{% endif %}</div></div>
+    <div class="card kpi"><small>Horas / arranques</small><b>{{ '%.1f'|format(analise.horas) }} h</b><div class="mini">Arranques: {{ analise.arranques }}</div></div>
+
+    <div class="card wide">
+      <h2>Parâmetros técnicos cadastrados</h2>
+      <div class="pair"><span>Tag</span><b>{{ equipamento.tag or '—' }}</b></div>
+      <div class="pair"><span>Categoria</span><b>{{ equipamento.categoria or 'Motor / Bomba' }}</b></div>
+      <div class="pair"><span>Fabricante / Modelo</span><b>{{ equipamento.fabricante or '—' }} {{ equipamento.modelo or '' }}</b></div>
+      <div class="pair"><span>Potência nominal</span><b>{{ equipamento.potencia_nominal_kw or equipamento.potencia_kw or '—' }} kW</b></div>
+      <div class="pair"><span>Tensão nominal</span><b>{{ equipamento.tensao_nominal or equipamento.tensao_v or '—' }} V</b></div>
+      <div class="pair"><span>Corrente nominal</span><b>{{ equipamento.corrente_nominal or equipamento.corrente_a or '—' }} A</b></div>
+      <div class="pair"><span>Eficiência nominal</span><b>{{ equipamento.eficiencia_nominal or '—' }}</b></div>
+      <div class="pair"><span>Criticidade</span><b>{{ equipamento.criticidade or '—' }}</b></div>
+    </div>
+
+    <div class="card wide">
+      <h2>Diagnóstico automático</h2>
+      {% if analise.alertas %}
+        {% for al in analise.alertas %}
+          <div class="alert"><b>{{ al[0] }} — {{ al[1] }}</b><div class="mini">{{ al[2] }}</div></div>
+        {% endfor %}
+      {% else %}
+        <div class="alert ok"><b>Sem alertas críticos no período.</b><div class="mini">Manter monitoria, inspeção de rotina e atualização das medições.</div></div>
+      {% endif %}
+      <div style="margin-top:12px">
+        <div class="mini">Corrente máxima: {{ '%.1f'|format(analise.corr_max) }} A</div>
+        <div class="bar"><i style="width:{% if equipamento.corrente_nominal and analise.corr_max %}{{ [100, (analise.corr_max / equipamento.corrente_nominal * 100)]|min }}{% else %}0{% endif %}%"></i></div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="mini">Carga estimada</div>
+        <div class="bar"><i style="width:{% if analise.carga_pct is not none %}{{ [100, analise.carga_pct]|min }}{% else %}0{% endif %}%"></i></div>
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>Plano de acção recomendado</h2>
+      {% for r in recomendacoes %}
+        <div class="rec"><b>{{ r[0] }}</b> · {{ r[1] }}<div class="mini">{{ r[2] }}</div></div>
+      {% endfor %}
+    </div>
+
+    <div class="card wide">
+      <h2>Estimativa de correção de fator de potência</h2>
+      {% if kvar_sugerido is not none %}
+        <div class="kpi"><small>Banco sugerido para FP alvo 0,92</small><b>{{ '%.1f'|format(kvar_sugerido) }} kVAr</b></div>
+        <p class="mini">Estimativa baseada na potência ativa média e no FP médio do período. Deve ser confirmada com medições por fase, perfil de carga e engenharia de aplicação antes de aquisição.</p>
+      {% else %}
+        <p class="mini">Não há dados suficientes ou o FP médio já está igual/acima do alvo usado no cálculo.</p>
+      {% endif %}
+    </div>
+
+    <div class="card full">
+      <h2>Últimas medições específicas do motor</h2>
+      <div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Tensão</th><th>Corrente</th><th>FP</th><th>Hz</th><th>kW</th><th>kVAr</th><th>kVA</th><th>kWh</th><th>Obs.</th></tr></thead><tbody>
+        {% for m in medicoes %}<tr><td>{{m.datahora}}</td><td>{{m.tensao_v or '—'}}</td><td>{{m.corrente_a or '—'}}</td><td>{{m.fator_potencia or '—'}}</td><td>{{m.frequencia_hz or '—'}}</td><td>{{m.pot_ativa_kw or '—'}}</td><td>{{m.pot_reativa_kvar or '—'}}</td><td>{{m.pot_aparente_kva or '—'}}</td><td>{{m.energia_kwh or '—'}}</td><td>{{m.observacoes or ''}}</td></tr>{% else %}<tr><td colspan="10" class="mini">Sem medições específicas neste período.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+
+    <div class="card full">
+      <h2>Registos associados da Monitoria Operacional</h2>
+      <div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Local</th><th>Energia</th><th>Potência</th><th>FP</th><th>Ponta</th><th>Corrente</th><th>Tensão</th><th>Obs.</th></tr></thead><tbody>
+        {% for l in leituras_monitoria %}<tr><td>{{l.datahora}}</td><td>{{l.local}}</td><td>{{l.energia_ativa or '—'}}</td><td>{{l.pot_ativa or '—'}}</td><td>{{l.fp or '—'}}</td><td>{{l.ponta or '—'}}</td><td>{{l.corrente or '—'}}</td><td>{{l.tensao or '—'}}</td><td>{{l.observacoes or ''}}</td></tr>{% else %}<tr><td colspan="9" class="mini">Sem registos associados da Monitoria neste período.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

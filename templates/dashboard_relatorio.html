@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Relatório Executivo do Dashboard{% endblock %}
+{% block extra_head %}
+<style>
+  .report-wrap{background:#fff;border-radius:24px;padding:28px;box-shadow:0 12px 34px rgba(2,32,71,.08);border:1px solid #e7eef8}
+  .report-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;border-bottom:3px solid #0b72b9;padding-bottom:18px;margin-bottom:20px}
+  .report-head h1{font-weight:900;color:#103b63;margin:0;letter-spacing:-.03em}.muted{color:#667085}.kpi{border:1px solid #e7eef8;border-radius:18px;padding:15px;background:#f8fbff;height:100%}.kpi .label{text-transform:uppercase;font-size:.75rem;color:#667085;font-weight:800}.kpi .value{font-size:1.45rem;font-weight:900;color:#0f172a}.pill{border-radius:999px;padding:.35rem .7rem;font-weight:800;display:inline-block}.ok{background:#e8fff6;color:#047857}.warn{background:#fff7e6;color:#b45309}.crit{background:#fff1f2;color:#be123c}.tbl{width:100%;border-collapse:collapse}.tbl th{background:#103b63;color:white;padding:9px;font-size:.78rem;text-transform:uppercase}.tbl td{padding:9px;border-bottom:1px solid #e7eef8}.section-title{font-weight:900;color:#103b63;margin-top:22px}.no-print{}
+  @media print{.no-print,.navbar,.sidebar,.btn{display:none!important}body{background:#fff}.report-wrap{box-shadow:none;border:0;padding:0}.report-head{break-after:avoid}.page-break{break-before:page}}
+</style>
+{% endblock %}
+{% block content %}
+{% macro n(v,dec=2) -%}{{ ("{:,.%df}" % dec).format((v or 0)|float).replace(',', 'X').replace('.', ',').replace('X', '.') }}{%- endmacro %}
+<div class="no-print mb-3 d-flex gap-2 flex-wrap">
+  <a href="/dashboard?mes={{ mes }}&ano={{ ano }}{% if local_id %}&local_id={{ local_id }}{% endif %}" class="btn btn-outline-primary">Voltar ao Dashboard</a>
+  <button onclick="window.print()" class="btn btn-primary">Imprimir / PDF</button>
+  <a href="/dashboard/acoes?mes={{ mes }}&ano={{ ano }}{% if local_id %}&local_id={{ local_id }}{% endif %}" class="btn btn-success">Ações prioritárias</a>
+</div>
+<div class="report-wrap">
+  <div class="report-head">
+    <div>
+      <div class="muted fw-bold text-uppercase">Sistema de Gestão de Energia</div>
+      <h1>Relatório Executivo do Dashboard</h1>
+      <div class="muted">Período: {{ mes }}/{{ ano }}</div>
+    </div>
+    <div><span class="pill {% if kpis.estado_geral=='Crítico' %}crit{% elif kpis.estado_geral=='Atenção' %}warn{% else %}ok{% endif %}">{{ kpis.estado_geral }}</span></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-3"><div class="kpi"><div class="label">Energia ativa</div><div class="value">{{ n(kpis.energia_total,2) }}</div><div class="muted small">kWh faturáveis</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Fatura estimada</div><div class="value">{{ n(kpis.fatura_total,2) }}</div><div class="muted small">MT</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Reativa excedente</div><div class="value">{{ n(kpis.reativa_excedente_total,2) }}</div><div class="muted small">kVArh</div></div></div>
+    <div class="col-md-3"><div class="kpi"><div class="label">Ponta faturável</div><div class="value">{{ n(kpis.ponta_faturavel_global,2) }}</div><div class="muted small">kW máxima</div></div></div>
+  </div>
+
+  <h3 class="section-title">Diagnóstico executivo</h3>
+  <p>O período apresenta estado <strong>{{ kpis.estado_geral }}</strong>. A energia ativa consolidada foi calculada com a lógica mensal de faturação, evitando soma indevida de leituras acumuladas. A reativa excedente considera o limite técnico de 0,75 × energia ativa e a ponta faturável considera a regra operacional 20/80 configurada no SGE.</p>
+  <ul>
+    <li>Locais com FP baixo: <strong>{{ kpis.locais_fp_baixo }}</strong></li>
+    <li>Locais com cobertura de dados inferior a 80%: <strong>{{ kpis.locais_cobertura_baixa }}</strong></li>
+    <li>Locais sem base do mês anterior a validar: <strong>{{ kpis.locais_sem_base }}</strong></li>
+    <li>Consumo específico global: <strong>{% if kpis.consumo_especifico_global %}{{ n(kpis.consumo_especifico_global,4) }} kWh/m³{% else %}—{% endif %}</strong></li>
+  </ul>
+
+  <h3 class="section-title">Ranking por local</h3>
+  <table class="tbl">
+    <thead><tr><th>Local</th><th>Estado</th><th>Energia kWh</th><th>Fatura MT</th><th>Reativa exc.</th><th>Ponta fat.</th><th>Cobertura</th></tr></thead>
+    <tbody>
+      {% for c in cards %}
+      <tr>
+        <td><strong>{{ c.local }}</strong></td>
+        <td>{{ c.status }}</td>
+        <td>{{ n(c.energia_mes,2) }}</td>
+        <td>{{ n(c.fatura_estimativa,2) }}</td>
+        <td>{{ n(c.reativa_excedente,2) }}</td>
+        <td>{{ n(c.ponta_faturavel,2) }}</td>
+        <td>{{ n(c.cobertura_pct,1) }}%</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center muted">Sem dados para o período.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 class="section-title">Score executivo</h3>
+  <p>Score de gestão do período: <strong>{{ kpis.score_executivo|default(0) }}/100</strong>. O score combina cobertura de dados, FP, reativa excedente, ponta, variação de consumo e base de leitura anterior.</p>
+
+  <h3 class="section-title">Recomendações prioritárias</h3>
+  <ol>
+    <li>Corrigir ou completar locais com baixa cobertura antes de usar os resultados como base definitiva.</li>
+    <li>Investigar locais com reativa excedente e FP baixo, avaliando compensação reativa e regime de operação dos motores.</li>
+    <li>Validar a ponta máxima registada nos locais com maior impacto financeiro.</li>
+    <li>Usar o módulo Alertas para atribuir responsáveis, prazos e acções correctivas.</li>
+  </ol>
+</div>
+{% endblock %}

@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Erro {{ status_code }} · Sistema de Gestão de Energia{% endblock %}
+{% block content %}<div class="hero-panel"><div class="hero-kicker"><i class="bi bi-exclamation-triangle"></i> Ocorreu um erro no sistema</div><h1 class="hero-title">Erro {{ status_code }}</h1><p class="hero-text">{{ message }}</p><div class="hero-actions mt-4"><a href="/" class="btn btn-light">Ir para o início</a></div></div>{% endblock %}

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Fatura Mensal - SGE</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="container mt-4">
+    <h3>Fatura Mensal do Local: {{ local }}</h3>
+    <p><b>Mês:</b> {{ mes }}/{{ ano }}</p>
+    <table class="table table-bordered table-sm">
+        <tr><th>Total Energia Ativa (kWh)</th><td>{{ total_ativa|round(2) }}</td></tr>
+        <tr><th>Total Energia Reativa (kVArh)</th><td>{{ total_reativa|round(2) }}</td></tr>
+        <tr><th>Energia Reativa Faturável</th><td>{{ reativa_faturavel|round(2) }}</td></tr>
+        <tr><th>Ponta Máxima (kW)</th><td>{{ total_ponta|round(2) }}</td></tr>
+        <tr><th>Ponta Faturada</th><td>{{ ponta_faturada|round(2) }}</td></tr>
+        <tr><th>Fator de Potência Médio</th><td>{{ fp_medio|round(3) }}</td></tr>
+        <tr><th>Penalização FP (&lt;0.80)</th><td>{{ penalizacao_fp|round(2) }}</td></tr>
+        <tr><th>Valor Energia Ativa (MT)</th><td>{{ valor_ativa|round(2) }}</td></tr>
+        <tr><th>Valor Energia Reativa (MT)</th><td>{{ valor_reativa|round(2) }}</td></tr>
+        <tr><th>Valor Ponta (MT)</th><td>{{ valor_ponta|round(2) }}</td></tr>
+        <tr><th>Taxa Fixa</th><td>207.28</td></tr>
+        <tr><th>Taxa Rádio</th><td>297.00</td></tr>
+        <tr><th>Taxa Lixo</th><td>150.00</td></tr>
+        <tr><th>Subtotal</th><td>{{ subtotal|round(2) }}</td></tr>
+        <tr><th>IVA (16%)</th><td>{{ valor_iva|round(2) }}</td></tr>
+        <tr><th><b>Total a Pagar (MT)</b></th><td><b>{{ total|round(2) }}</b></td></tr>
+    </table>
+    <a href="/leituras_mensal?local={{ local }}&mes={{ mes }}&ano={{ ano }}" class="btn btn-secondary">Voltar para Leituras</a>
+    <a href="/" class="btn btn-outline-primary">Menu Principal</a>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monitoria Operacional Diária — SGE</title>
+  <style>
+    :root{
+      --azul:#0b3c78; --azul2:#1f6fbe; --azul3:#eaf4ff; --verde:#159957; --verde2:#e9fff3;
+      --cinza:#5f7897; --linha:#c9e0f6; --bg:#f3f9ff; --card:#ffffff; --danger:#c82333; --warn:#b7791f;
+    }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#f7fbff,#edf7ff);color:#142b44}
+    .topbar{height:7px;background:linear-gradient(90deg,var(--azul),var(--azul2),var(--verde))}
+    .page{width:calc(100vw - 28px);margin:18px auto 40px;max-width:none}.hero{background:linear-gradient(135deg,#073769,#155da4);color:white;border-radius:22px;padding:22px 26px;box-shadow:0 16px 35px rgba(11,60,120,.18);display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+    .hero h1{font-size:28px;margin:0 0 8px}.hero p{margin:0;color:#dbeeff;line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.btn{border:1px solid transparent;border-radius:13px;padding:11px 15px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:white;color:#123;white-space:nowrap}.btn.primary{background:#1f6fbe;color:white}.btn.green{background:var(--verde);color:white}.btn.outline{background:#fff;color:#0b3c78;border-color:#9bc8f4}.btn.dark{background:#253140;color:white}.btn.danger{background:#fff;color:var(--danger);border-color:#ffb5b5}.btn.small{padding:7px 10px;border-radius:10px;font-size:12px}
+    .panel{background:rgba(255,255,255,.92);border:1px solid var(--linha);border-radius:20px;padding:18px;box-shadow:0 10px 28px rgba(45,89,130,.08);margin-top:16px}.filters{display:grid;grid-template-columns:1.1fr 1.1fr 1.4fr 1.4fr 1.8fr .7fr auto;gap:12px;align-items:end}.field label{display:block;font-size:13px;font-weight:800;color:#24476f;margin:0 0 6px}.field input,.field select{width:100%;height:46px;border:1px solid #bcd7f3;border-radius:13px;background:white;padding:0 12px;font-size:14px;color:#20364d}.field input:focus,.field select:focus{outline:3px solid #d8ecff;border-color:#3a91e8}
+    .chips{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.chip{border:1px solid #bcd7f3;background:#f8fcff;border-radius:999px;padding:8px 12px;font-weight:800;color:#123e6a;font-size:13px}.chip.green{background:var(--verde2);border-color:#b7e6cb;color:#0f693c}.chip.warn{background:#fff6db;border-color:#ffd486;color:#7a4d00}.chip.danger{background:#fff0f2;border-color:#ffb4bc;color:#9e1d2d}
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}.kpi{background:white;border:1px solid var(--linha);border-radius:18px;padding:16px;box-shadow:0 8px 22px rgba(45,89,130,.06);min-height:92px}.kpi .t{font-size:12px;text-transform:uppercase;color:#5d7898;font-weight:900}.kpi .v{font-size:22px;font-weight:950;color:#0b3c78;margin-top:5px}.kpi .s{font-size:12px;color:#6b7f96;margin-top:4px}
+    .grid-2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.chart-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.toggle{border:1px solid #bcd7f3;background:white;border-radius:999px;padding:7px 12px;font-weight:800;color:#0b3c78;cursor:pointer}.toggle.active{background:#1f6fbe;color:white}.chart-box{height:370px;position:relative;background:white;border:1px solid var(--linha);border-radius:18px;padding:10px}.mini-table{width:100%;border-collapse:collapse;font-size:13px}.mini-table th,.mini-table td{border-bottom:1px solid #e2edf8;padding:9px;text-align:right}.mini-table th:first-child,.mini-table td:first-child{text-align:left}.mini-table thead th{background:#eef7ff;color:#0b3c78;font-weight:900}.table-wrap{overflow:auto;max-height:560px;border:1px solid var(--linha);border-radius:18px;background:white}.data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:1350px}.data-table th{position:sticky;top:0;background:#eaf4ff;color:#073769;z-index:2;padding:10px 8px;border-bottom:1px solid #c9e0f6;text-align:center}.data-table td{padding:8px;border-bottom:1px solid #edf4fb;text-align:right}.data-table td:nth-child(3),.data-table td:nth-child(4),.data-table td:nth-child(17){text-align:left}.data-table tr:hover{background:#f8fcff}.data-table td[contenteditable="true"]{border-radius:8px;outline:1px solid transparent}.data-table td[contenteditable="true"]:focus{background:#fffbe6;outline:2px solid #f7c948}.row-warn{background:#fff8e8}.row-danger{background:#fff1f3}.row-info{background:#eefaff}.badge{display:inline-flex;padding:4px 7px;border-radius:999px;font-size:11px;font-weight:900;margin-left:4px}.badge.danger{background:#dc3545;color:white}.badge.warn{background:#ffc107;color:#553800}.badge.info{background:#17a2b8;color:white}.footer-actions{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px}.pagination{display:flex;list-style:none;gap:6px;padding:0;margin:14px 0}.pagination a,.pagination span{display:block;padding:9px 12px;border:1px solid #bcd7f3;border-radius:10px;text-decoration:none;color:#0b3c78;background:white}.disabled span,.disabled a{opacity:.5;pointer-events:none}.mobile-note{display:none}
+    @media(max-width:1100px){.filters{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.hero{flex-direction:column}.hero-actions{justify-content:flex-start}}
+    @media(max-width:640px){.page{width:100vw}.filters{grid-template-columns:1fr}.kpis{grid-template-columns:1fr}.hero h1{font-size:23px}.mobile-note{display:block}.chart-box{height:300px}}
+    @media print{.hero-actions,.filters,.chips,.footer-actions,.btn,.topbar{display:none!important}.page{width:100%;margin:0}.panel,.hero{box-shadow:none}.table-wrap{max-height:none;overflow:visible}.data-table{font-size:10px;min-width:0}.chart-box{height:240px}}
+  </style>
+</head>
+<body>
+<div class="topbar"></div>
+<main class="page">
+  <section class="hero">
+    <div>
+      <h1>Monitoria Operacional Diária</h1>
+      <p>Registo técnico de medições pontuais por local e equipamento. Este módulo acompanha comportamento eléctrico, anomalias, FP, tensão, corrente, potência, caudal e histórico operacional. A faturação oficial permanece no módulo de Leituras Mensais.</p>
+    </div>
+    <div class="hero-actions">
+      <a class="btn" href="/energia">↩ Gestão de Leituras</a>
+      <a class="btn primary" href="/monitoria/nova{% if local %}?local={{ local|urlencode }}{% endif %}">+ Nova leitura</a>
+      <a class="btn green" href="/leituras_mensal{% if local %}?local={{ local|urlencode }}{% endif %}">Leituras Mensais</a>
+      <a class="btn dark" href="/monitoria/controlo?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Painel de controlo</a>
+      <a class="btn outline" href="/monitoria/relatorio?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Relatório técnico</a>
+      <a class="btn outline" href="/">Início</a>
+    </div>
+  </section>
+
+  <section class="panel">
+    <form method="get" class="filters" id="filtroForm">
+      <div class="field"><label>Início</label><input type="date" name="inicio" value="{{ inicio }}"></div>
+      <div class="field"><label>Fim</label><input type="date" name="fim" value="{{ fim }}"></div>
+      <div class="field"><label>Local / Instalação</label><select name="local"><option value="">Todos os locais</option>{% for l in locais_opts or [] %}<option value="{{ l }}" {% if l==local %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Equipamento</label><select name="equipamento"><option value="">Todos os equipamentos</option>{% for e in equipamentos_opts or [] %}<option value="{{ e }}" {% if e==equipamento %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Pesquisar</label><input type="text" name="q" value="{{ q }}" placeholder="observações, local, equipamento..."></div>
+      <div class="field"><label>Por pág.</label><input type="number" name="per" value="{{ per }}" min="10" max="200"></div>
+      <button class="btn primary" type="submit">Filtrar</button>
+    </form>
+    <div class="chips">
+      <button id="btnSaveFilter" type="button" class="btn small outline">Guardar filtros</button>
+      <button id="btnListFilters" type="button" class="btn small outline">Meus filtros</button>
+      {% if local_config %}<span class="chip green">Pot. contratada: {{ '%.2f'|format(local_config[1] or 0) }} kVA</span><span class="chip">Fator mult.: {{ '%.4f'|format(local_config[2] or 1) }}</span><span class="chip">Pot. instalada: {{ '%.2f'|format(local_config[3] or 0) }} kW</span>{% else %}<span class="chip warn">Selecione um local para ver parâmetros técnicos.</span>{% endif %}
+      {% if low_fp_count %}<span class="chip danger">{{ low_fp_count }} registo(s) com FP baixo</span>{% endif %}
+      {% if tensao_alert_count %}<span class="chip warn">{{ tensao_alert_count }} tensão fora de 360–440 V</span>{% endif %}
+      {% if anomalias|length %}<span class="chip warn">{{ anomalias|length }} possível(is) anomalia(s)</span>{% endif %}
+    </div>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><div class="t">Energia activa</div><div class="v">{{ '{:,.2f}'.format(total_ativa or 0).replace(',', 'X').replace('.', ',').replace('X','.') }}</div><div class="s">kWh no intervalo</div></div>
+    <div class="kpi"><div class="t">Potência média</div><div class="v">{{ '{:,.2f}'.format(media_pot_ativa or 0).replace(',', 'X').replace('.', ',').replace('X','.') }}</div><div class="s">kW</div></div>
+    <div class="kpi"><div class="t">Ponta máxima</div><div class="v">{{ '{:,.2f}'.format(max_ponta or 0).replace(',', 'X').replace('.', ',').replace('X','.') }}</div><div class="s">kW</div></div>
+    <div class="kpi"><div class="t">FP médio</div><div class="v">{{ '%.3f'|format(fp_medio or 0) }}</div><div class="s">meta operacional ≥ 0,85</div></div>
+    <div class="kpi"><div class="t">Água / caudal</div><div class="v">{{ '{:,.2f}'.format(agua_total or 0).replace(',', 'X').replace('.', ',').replace('X','.') }}</div><div class="s">m³ no intervalo</div></div>
+    <div class="kpi"><div class="t">Consumo específico</div><div class="v">{{ '%.3f'|format(consumo_especifico or 0) }}</div><div class="s">kWh/m³</div></div>
+  </section>
+
+  <section class="panel grid-2">
+    <div>
+      <div class="chart-tools">
+        <button class="toggle active" data-serie="ativa">Energia</button>
+        <button class="toggle" data-serie="pot_ativa">Potência</button>
+        <button class="toggle" data-serie="fp">FP</button>
+        <button class="toggle" data-serie="ponta">Ponta</button>
+        <button class="toggle" data-serie="corrente">Corrente</button>
+        <button class="toggle" data-serie="tensao">Tensão</button>
+        <button class="toggle" data-serie="agua">Água</button>
+      </div>
+      <div class="chart-box"><canvas id="graficoCanvas"></canvas></div>
+      <p class="mobile-note">No telemóvel, deslize as tabelas para ver todas as colunas.</p>
+    </div>
+    <div>
+      <h3 style="margin-top:0;color:#0b3c78">Resumo por equipamento</h3>
+      <div style="max-height:385px;overflow:auto;border:1px solid #d7e8f9;border-radius:14px">
+        <table class="mini-table">
+          <thead><tr><th>Equipamento</th><th>Reg.</th><th>kWh</th><th>FP</th></tr></thead>
+          <tbody>
+            {% for e in resumo_equip or [] %}
+            <tr><td><b>{{ e[0] or 'Sem nome' }}</b><br><small>{{ e[1] or '' }}</small></td><td>{{ e[2] }}</td><td>{{ '%.2f'|format(e[3] or 0) }}</td><td>{{ '%.3f'|format(e[5] or 0) }}</td></tr>
+            {% else %}<tr><td colspan="4">Sem dados no intervalo.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  {% if resumo|length > 0 %}
+  <section class="panel">
+    <h3 style="margin-top:0;color:#0b3c78">Resumo por local</h3>
+    <div class="table-wrap" style="max-height:260px">
+      <table class="mini-table">
+        <thead><tr><th>Local</th><th>Total kWh</th><th>Média kW</th><th>Ponta máx.</th><th>FP médio</th><th>Água m³</th><th>kWh/m³</th></tr></thead>
+        <tbody>{% for r in resumo %}<tr><td><b>{{ r[0] or 'Sem local' }}</b></td><td>{{ '%.2f'|format(r[1] or 0) }}</td><td>{{ '%.2f'|format(r[2] or 0) }}</td><td>{{ '%.2f'|format(r[3] or 0) }}</td><td>{{ '%.3f'|format(r[4] or 0) }}</td><td>{{ '%.2f'|format(r[5] or 0) }}</td><td>{{ '%.3f'|format(((r[1] or 0)/(r[5] or 1)) if (r[5] or 0)>0 else 0) }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <div class="footer-actions">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn outline" href="/leituras/export?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">CSV</a>
+        <a class="btn outline" href="/leituras/export_xlsx?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">XLSX</a>
+        <a class="btn outline" href="/leituras/export_pdf?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">PDF</a>
+        <a class="btn outline" href="/leituras/import_preview">Importar CSV</a>
+        <a class="btn outline" href="/leituras/bulk">Edição em massa</a>
+      </div>
+      <button form="deleteForm" class="btn danger" onclick="return confirm('Eliminar registos selecionados?');">Eliminar selecionados</button>
+    </div>
+
+    <form method="post" action="/leituras/delete_batch" id="deleteForm">
+      <div style="margin:12px 0"><input type="checkbox" id="checkAll"> <label for="checkAll"><b>Selecionar todos</b></label></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th></th><th>#</th><th>Data/Hora</th><th>Local</th><th>Equipamento</th><th>Ativa<br>kWh</th><th>Reativa<br>kVArh</th><th>Aparente<br>kVAh</th><th>P. Ativa<br>kW</th><th>P. Reativa<br>kVAr</th><th>P. Aparente<br>kVA</th><th>FP</th><th>Ponta</th><th>Caudal<br>m³</th><th>Corrente<br>A</th><th>Tensão<br>V</th><th>Obs.</th><th>Ações</th></tr></thead>
+          <tbody>
+          {% set anoms = anomalias or [] %}
+          {% for row in leituras %}
+            {% set is_anom = row[0] in anoms %}
+            {% set low_fp = (row[10] is not none) and (row[10] < 0.85) and (row[10] > 0) %}
+            {% set tensao_alert = (row[14] is not none) and ((row[14] < 360) or (row[14] > 440)) and (row[14] > 0) %}
+            <tr class="{% if low_fp or tensao_alert %}row-danger{% elif is_anom %}row-info{% endif %}" data-id="{{ row[0] }}">
+              <td><input type="checkbox" name="ids" value="{{ row[0] }}"></td><td>{{ row[0] }}</td>
+              <td contenteditable="true" data-field="datahora">{{ row[1] }}</td><td contenteditable="true" data-field="local">{{ row[2] }}</td><td contenteditable="true" data-field="equipamento">{{ row[3] }}</td>
+              <td contenteditable="true" data-field="energia_ativa">{{ '%.3f'|format(row[4] or 0) }}{% if is_anom %}<span class="badge info">anomalia</span>{% endif %}</td>
+              <td contenteditable="true" data-field="energia_reativa">{{ '%.3f'|format(row[5] or 0) }}</td><td contenteditable="true" data-field="energia_aparente">{{ '%.3f'|format(row[6] or 0) }}</td>
+              <td contenteditable="true" data-field="pot_ativa">{{ '%.3f'|format(row[7] or 0) }}</td><td contenteditable="true" data-field="pot_reativa">{{ '%.3f'|format(row[8] or 0) }}</td><td contenteditable="true" data-field="pot_aparente">{{ '%.3f'|format(row[9] or 0) }}</td>
+              <td contenteditable="true" data-field="fp">{{ '%.3f'|format(row[10] or 0) }}{% if low_fp %}<span class="badge danger">FP</span>{% endif %}</td><td contenteditable="true" data-field="ponta">{{ '%.3f'|format(row[11] or 0) }}</td><td contenteditable="true" data-field="caudal_elevada">{{ '%.3f'|format(row[12] or 0) }}</td>
+              <td contenteditable="true" data-field="corrente">{{ '%.3f'|format(row[13] or 0) }}</td><td contenteditable="true" data-field="tensao">{{ '%.3f'|format(row[14] or 0) }}{% if tensao_alert %}<span class="badge warn">V</span>{% endif %}</td><td contenteditable="true" data-field="observacoes">{{ row[15] or '' }}</td>
+              <td style="text-align:left;white-space:nowrap"><a class="btn small outline" href="/leituras/{{ row[0] }}/edit">Editar</a> <a class="btn small outline" href="/leituras/{{ row[0] }}/duplicate" onclick="return confirm('Duplicar este registo?');">Duplicar</a></td>
+            </tr>
+          {% else %}<tr><td colspan="18" style="text-align:center;padding:24px">Sem leituras no intervalo selecionado.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+
+    <ul class="pagination">
+      <li class="{% if page<=1 %}disabled{% endif %}"><a href="?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}&per={{ per }}&page={{ page-1 }}">Anterior</a></li>
+      <li class="disabled"><span>Página {{ page }} de {{ total_pages }}</span></li>
+      <li class="{% if page>=total_pages %}disabled{% endif %}"><a href="?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}&per={{ per }}&page={{ page+1 }}">Próxima</a></li>
+    </ul>
+  </section>
+</main>
+
+<script>
+const grafico = {{ grafico|tojson }};
+const canvas = document.getElementById('graficoCanvas');
+const ctx = canvas.getContext('2d');
+let serieAtual = 'ativa';
+const titulos = {ativa:'Energia ativa (kWh)',pot_ativa:'Potência ativa (kW)',fp:'Fator de potência',ponta:'Ponta (kW)',corrente:'Corrente (A)',tensao:'Tensão (V)',agua:'Água / Caudal (m³)'};
+function resizeCanvas(){ const r=canvas.parentElement.getBoundingClientRect(); canvas.width=r.width-20; canvas.height=r.height-20; drawChart(); }
+function drawChart(){
+  if(!canvas.width) return; const w=canvas.width,h=canvas.height; ctx.clearRect(0,0,w,h);
+  const y = (grafico[serieAtual]||[]).map(Number); const x = grafico.horas||[];
+  ctx.font='12px Segoe UI'; ctx.fillStyle='#24476f'; ctx.fillText(titulos[serieAtual]||serieAtual, 14, 18);
+  const left=55,right=18,top=32,bottom=42; const gw=w-left-right, gh=h-top-bottom;
+  ctx.strokeStyle='#d9e8f7'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){let yy=top+gh*i/4;ctx.beginPath();ctx.moveTo(left,yy);ctx.lineTo(left+gw,yy);ctx.stroke();}
+  ctx.strokeStyle='#24476f';ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+gh);ctx.lineTo(left+gw,top+gh);ctx.stroke();
+  if(!y.length){ctx.fillStyle='#6b7f96';ctx.fillText('Sem dados para o gráfico.', left+20, top+50);return;}
+  let min=Math.min(...y), max=Math.max(...y); if(min===max){min=0; max=max||1;} const pad=(max-min)*0.08; min-=pad; max+=pad;
+  ctx.fillStyle='#5f7897'; for(let i=0;i<=4;i++){let val=max-(max-min)*i/4;let yy=top+gh*i/4;ctx.fillText(val.toFixed(2),6,yy+4);}
+  ctx.strokeStyle='#1f6fbe';ctx.lineWidth=2.5;ctx.beginPath();
+  y.forEach((v,i)=>{let xx=left+(x.length>1?gw*i/(x.length-1):gw/2);let yy=top+gh-(v-min)/(max-min)*gh;if(i===0)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);});ctx.stroke();
+  ctx.fillStyle='#159957'; y.forEach((v,i)=>{let xx=left+(x.length>1?gw*i/(x.length-1):gw/2);let yy=top+gh-(v-min)/(max-min)*gh;ctx.beginPath();ctx.arc(xx,yy,3,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle='#5f7897'; ctx.fillText(x[0]||'', left, h-12); if(x.length>1) ctx.fillText(x[x.length-1]||'', Math.max(left+80,w-190), h-12);
+}
+window.addEventListener('resize', resizeCanvas); setTimeout(resizeCanvas, 50);
+document.querySelectorAll('.toggle').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.toggle').forEach(b=>b.classList.remove('active'));btn.classList.add('active');serieAtual=btn.dataset.serie;drawChart();}));
+
+const checkAll = document.getElementById('checkAll'); if(checkAll) checkAll.addEventListener('change',()=>document.querySelectorAll('input[name="ids"]').forEach(cb=>cb.checked=checkAll.checked));
+document.querySelectorAll('td[contenteditable="true"]').forEach(td=>{
+  td.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ev.preventDefault();td.blur();} });
+  td.addEventListener('blur', async()=>{
+    const tr=td.closest('tr'); const id=tr?.dataset.id; const field=td.dataset.field; const value=td.innerText.replace(/FP|anomalia|V/g,'').trim(); if(!id||!field) return;
+    try{ const resp=await fetch(`/leituras/${id}/update_field`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})}); const js=await resp.json(); if(!js.ok) alert(js.error||'Erro ao salvar'); }
+    catch(e){ alert('Falha ao comunicar com o servidor.'); }
+  });
+});
+const btnSave=document.getElementById('btnSaveFilter'), btnList=document.getElementById('btnListFilters');
+if(btnSave) btnSave.addEventListener('click', async()=>{const nome=prompt('Nome para este filtro:'); if(!nome)return; const form=new FormData(document.getElementById('filtroForm')); form.append('nome',nome); form.append('user','default'); const resp=await fetch('/leituras/save_filter',{method:'POST',body:form}); if(resp.redirected) window.location=resp.url; else alert('Filtro guardado.');});
+if(btnList) btnList.addEventListener('click', async()=>{const resp=await fetch('/leituras/list_filters?user=default'); const rows=await resp.json(); if(!rows.length){alert('Sem filtros guardados.');return;} const opts=rows.map(r=>`${r.id} - ${r.nome}`).join('\n'); const id=parseInt(prompt('Escolhe o ID do filtro:\n'+opts)||'0',10); if(id>0) window.location='/leituras/apply_filter/'+id;});
+</script>
+</body>
+</html>

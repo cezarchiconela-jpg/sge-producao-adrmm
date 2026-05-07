@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Análise de Motores - SGE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--azul:#0b3d91;--azul2:#0f63c7;--verde:#159957;--bg:#f4f7fb;--txt:#162033;--muted:#64748b;--card:#fff;--line:#e5e7eb;--red:#b91c1c;--amber:#b45309;--green:#15803d}
+    *{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--txt)}
+    .wrap{padding:22px 14px 30px;max-width:none;width:calc(100vw - 28px);margin:0 auto}.hero{border-radius:26px;padding:26px;background:linear-gradient(135deg,#082c68,#0f63c7 62%,#159957);color:#fff;box-shadow:0 20px 45px rgba(11,61,145,.20)}
+    .hero h1{margin:8px 0 6px;font-size:clamp(1.7rem,3vw,3rem)}.hero p{max-width:920px;line-height:1.5;opacity:.94}.badge{display:inline-flex;gap:8px;align-items:center;background:rgba(255,255,255,.16);padding:8px 12px;border-radius:999px;font-weight:700}
+    .top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.btn{border:0;border-radius:14px;padding:10px 14px;text-decoration:none;font-weight:800;cursor:pointer;display:inline-flex;gap:8px;align-items:center}.btn-primary{background:#fff;color:#0b3d91}.btn-soft{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28)}.btn-blue{background:#0b3d91;color:#fff}.btn-line{background:#fff;color:#0b3d91;border:1px solid var(--line)}
+    .filters{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;margin:18px 0;box-shadow:0 10px 30px rgba(15,23,42,.06)}
+    label{font-size:.78rem;color:var(--muted);font-weight:800;text-transform:uppercase}select,input{width:100%;padding:10px 11px;border:1px solid #dbe3ef;border-radius:12px;background:#fff}.filter-actions{display:flex;align-items:end;gap:8px}
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:18px 0}.kpi{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:0 10px 28px rgba(15,23,42,.055)}.kpi small{color:var(--muted);font-weight:800;text-transform:uppercase}.kpi b{display:block;font-size:1.55rem;margin-top:7px;color:#0b3d91}.kpi.red b{color:var(--red)}.kpi.green b{color:var(--green)}
+    .panel{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 12px 35px rgba(15,23,42,.06);overflow:hidden}.panel-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.panel-head h2{margin:0;font-size:1.18rem}.table-wrap{overflow:auto;max-height:68vh}table{width:100%;border-collapse:collapse;min-width:1180px}th,td{padding:11px 12px;border-bottom:1px solid #edf1f7;text-align:left;vertical-align:top}th{background:#f8fafc;color:#475569;font-size:.78rem;text-transform:uppercase;letter-spacing:.02em;position:sticky;top:0}tbody tr:hover{background:#f8fbff}.status{display:inline-block;border-radius:999px;padding:5px 9px;font-weight:900;font-size:.78rem}.Crítico{background:#fee2e2;color:#991b1b}.Atenção{background:#fef3c7;color:#92400e}.Normal{background:#dcfce7;color:#166534}.Sem-dados{background:#e2e8f0;color:#334155}.mini{color:var(--muted);font-size:.84rem}.alert-list{margin:0;padding-left:16px}.alert-list li{margin:2px 0}.source{font-size:.78rem;background:#eef6ff;color:#075985;border-radius:999px;padding:4px 8px;display:inline-block}.empty{padding:24px;color:var(--muted)}
+    @media(max-width:1100px){.filters{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){.wrap{width:100vw;padding:12px}.filters{grid-template-columns:1fr}.kpis{grid-template-columns:1fr}.hero{padding:20px}.actions{width:100%}.btn{width:100%;justify-content:center}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="top">
+      <div>
+        <span class="badge">⚙️ Análise electromecânica</span>
+        <h1>Motores e Desempenho Electromecânico</h1>
+        <p>Este módulo consolida medições de motores, dados da Monitoria Operacional, horas de funcionamento e parâmetros técnicos dos equipamentos para identificar sobrecarga, baixo fator de potência, tensão anormal, baixo carregamento, necessidade de manutenção e oportunidades de eficiência energética.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-primary" href="/motores/nova">+ Nova medição</a>
+        <a class="btn btn-soft" href="/motores/runs">Start / Stop</a>
+        <a class="btn btn-soft" href="/motores/relatorio?local_id={{ local_id }}&equipamento_id={{ equip_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Relatório</a>
+        <a class="btn btn-soft" href="/motores/graficos?equipamento_id={{ equip_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Gráficos</a>
+        <a class="btn btn-soft" href="/motores/manutencao?local_id={{ local_id }}&equipamento_id={{ equip_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Plano manutenção</a>
+        <a class="btn btn-soft" href="/motores/export/diagnostico_csv?local_id={{ local_id }}&equipamento_id={{ equip_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Exportar CSV</a>
+        <a class="btn btn-soft" href="/alertas?local_id={{ local_id }}&ini={{ data_ini }}&fim={{ data_fim }}">Alertas</a>
+      </div>
+    </div>
+  </section>
+
+  <form class="filters" method="get" action="/motores">
+    <div><label>Local</label><select name="local_id"><option value="">Todos</option>{% for l in locais %}<option value="{{l[0]}}" {% if local_id|string == l[0]|string %}selected{% endif %}>{{l[1]}}</option>{% endfor %}</select></div>
+    <div><label>Equipamento</label><select name="equipamento_id"><option value="">Todos</option>{% for e in equipamentos_select %}<option value="{{e[0]}}" {% if equip_id|string == e[0]|string %}selected{% endif %}>{{e[1]}}</option>{% endfor %}</select></div>
+    <div><label>Data inicial</label><input type="date" name="ini" value="{{data_ini}}"></div>
+    <div><label>Data final</label><input type="date" name="fim" value="{{data_fim}}"></div>
+    <div class="filter-actions"><button class="btn btn-blue" type="submit">Carregar</button></div>
+    <div class="filter-actions"><a class="btn btn-line" href="/motores">Limpar</a></div>
+  </form>
+
+  <section class="kpis">
+    <div class="kpi"><small>Equipamentos</small><b>{{ resumo.equipamentos }}</b></div>
+    <div class="kpi green"><small>Com dados</small><b>{{ resumo.com_dados }}</b></div>
+    <div class="kpi red"><small>Críticos</small><b>{{ resumo.criticos }}</b></div>
+    <div class="kpi"><small>Alertas</small><b>{{ resumo.alertas }}</b></div>
+    <div class="kpi"><small>Energia</small><b>{{ '{:,.1f}'.format(resumo.kwh).replace(',', 'X').replace('.', ',').replace('X','.') }} kWh</b></div>
+    <div class="kpi"><small>FP médio</small><b>{% if resumo.fp_medio is not none %}{{ '%.3f'|format(resumo.fp_medio) }}{% else %}—{% endif %}</b></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Diagnóstico dos motores</h2><span class="mini">Período: {{data_ini}} a {{data_fim}}</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Estado</th><th>Equipamento</th><th>Local</th><th>Fonte</th><th>Medições</th><th>Energia</th><th>Potência/Carga</th><th>Corrente</th><th>FP</th><th>Horas</th><th>Tensão</th><th>Alertas e acções</th></tr></thead>
+        <tbody>
+        {% for a in analises %}
+          {% set stclass = a.status.replace(' ', '-') %}
+          <tr>
+            <td><span class="status {{stclass}}">{{a.status}}</span></td>
+            <td><b>{{a.equipamento.nome}}</b><div class="mini">Tag: {{a.equipamento.tag or '—'}} | Crit.: {{a.equipamento.criticidade or '—'}}</div><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><a class="btn btn-line" style="padding:7px 10px;font-size:.78rem" href="/motores/detalhe/{{a.id}}?ini={{data_ini}}&fim={{data_fim}}">Ficha técnica</a><a class="btn btn-line" style="padding:7px 10px;font-size:.78rem" href="/motores/detalhe/{{a.id}}/imprimir?ini={{data_ini}}&fim={{data_fim}}">PDF/Imprimir</a><a class="btn btn-line" style="padding:7px 10px;font-size:.78rem" href="/equipamentos/config/{{a.id}}">Parâmetros</a></div></td>
+            <td>{{a.equipamento.local_nome or '—'}}</td>
+            <td><span class="source">{{a.fontes}}</span></td>
+            <td>{{a.n}}<div class="mini">Última: {{a.last_ts or '—'}}</div></td>
+            <td>{{ '{:,.1f}'.format(a.kwh).replace(',', 'X').replace('.', ',').replace('X','.') }} kWh</td>
+            <td>{% if a.avg_kw is not none %}{{ '%.1f'|format(a.avg_kw) }} kW{% else %}—{% endif %}<div class="mini">Carga: {% if a.carga_pct is not none %}{{ '%.1f'|format(a.carga_pct) }}%{% else %}—{% endif %}</div></td>
+            <td>Máx. {{ '%.1f'|format(a.corr_max) }} A<div class="mini">Média: {% if a.avg_corr is not none %}{{ '%.1f'|format(a.avg_corr) }} A{% else %}—{% endif %}</div></td>
+            <td>{% if a.avg_fp is not none %}{{ '%.3f'|format(a.avg_fp) }}{% else %}—{% endif %}</td>
+            <td>{{ '%.1f'|format(a.horas) }} h<div class="mini">Arranques: {{a.arranques}}</div></td>
+            <td>{% if a.tensao_min is not none %}{{ '%.0f'|format(a.tensao_min) }}–{{ '%.0f'|format(a.tensao_max) }} V{% else %}—{% endif %}</td>
+            <td>
+              {% if a.alertas %}<ul class="alert-list">{% for al in a.alertas[:3] %}<li><b>{{al[0]}}:</b> {{al[1]}}<div class="mini">{{al[2]}}</div></li>{% endfor %}</ul>{% else %}<span class="mini">Sem alertas no período.</span>{% endif %}
+            </td>
+          </tr>
+        {% else %}<tr><td colspan="12" class="empty">Sem equipamentos cadastrados para análise.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</body>
+</html>

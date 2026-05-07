@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: sge-projetecnica
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: SGE_HSTS
+        value: "1"
+      - key: SGE_DB_PATH
+        value: /var/data/sge.db
+      - key: SGE_UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: SGE_REQUIRE_LOGIN
+        value: "1"
+      - key: SGE_ADMIN_USER
+        value: admin
+      - key: SGE_ADMIN_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: sge-data
+      mountPath: /var/data
+      sizeGB: 1
