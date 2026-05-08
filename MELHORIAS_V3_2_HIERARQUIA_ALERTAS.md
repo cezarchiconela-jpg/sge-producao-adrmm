@@ -1,4 +1,4 @@
-# SGE V3.2 — Hierarquia de Locais e Optimização dos Alertas
+# SGE  — Hierarquia de Locais e Optimização dos Alertas
 
 ## 1. Hierarquia de locais e sublocais
 

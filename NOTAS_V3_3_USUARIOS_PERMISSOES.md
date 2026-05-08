@@ -1,4 +1,4 @@
-# SGE V3.3 — Utilizadores e Permissões
+# SGE  — Utilizadores e Permissões
 
 Melhorias adicionadas:
 

@@ -156,7 +156,7 @@ def _check_admin_password(password):
     return bool(stored_plain and secrets.compare_digest(stored_plain, password or ''))
 
 
-# === GESTÃO DE UTILIZADORES E PERMISSÕES (V3.3) ===
+# === GESTÃO DE UTILIZADORES E PERMISSÕES () ===
 USER_ROLES = {
     'admin': 'Administrador',
     'gestor': 'Gestor / Supervisor',
@@ -541,10 +541,10 @@ def _inject_global_template_helpers():
 try:
     migrate_pack3()
 except Exception as _e:
-    print("Pack3 migration failed:", _e)
+    print("Migração de validações falhou:", _e)
 
-# --- Locais premium fase 3: enriquecimento do cadastro ---
-def migrate_locais_premium_fase3():
+# --- Locais operacional: enriquecimento do cadastro ---
+def migrate_locais_operacional_fase3():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
@@ -566,9 +566,9 @@ def migrate_locais_premium_fase3():
         conn.close()
 
 try:
-    migrate_locais_premium_fase3()
+    migrate_locais_operacional_fase3()
 except Exception as _e:
-    print("Locais premium fase 3 migration failed:", _e)
+    print("Migração de locais falhou:", _e)
 
 
 def migrate_locais_hierarquia_online_v3():
@@ -590,8 +590,8 @@ except Exception as _e:
     print("Migração de hierarquia de locais falhou:", _e)
 
 
-# --- Locais premium fase 4: histórico, alertas e exportação executiva ---
-def migrate_locais_premium_fase4():
+# --- Locais operacional: histórico, alertas e exportação executiva ---
+def migrate_locais_operacional_fase4():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
@@ -639,9 +639,9 @@ def get_local_alertas(local, cfg, overview):
     return itens
 
 try:
-    migrate_locais_premium_fase4()
+    migrate_locais_operacional_fase4()
 except Exception as _e:
-    print("Locais premium fase 4 migration failed:", _e)
+    print("Migração de locais falhou:", _e)
 
 
 # --- Auto-migrations for leituras_mensais ---
@@ -1314,7 +1314,7 @@ def get_local_by_id(local_id):
         return None
 
 def get_local_full(local_id: int):
-    """Dados completos do local (inclui colunas premium e hierarquia)."""
+    """Dados completos do local (inclui colunas operacional e hierarquia)."""
     ensure_locais_parent_id_column()
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('''
@@ -1389,7 +1389,7 @@ def calcular_maturidade_local(local: dict) -> int:
 
 
 def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order='asc', tipo=None, qualidade=None, estado_tecnico=None, prioridade=None):
-    """Locais + config com filtros premium."""
+    """Locais + config com filtros operacional."""
     ensure_locais_parent_id_column()
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     where = []
@@ -4822,7 +4822,7 @@ def fatura_mes():
 # =========================
 # === MÓDULO "MOTORES" ===
 # =========================
-# Fase 4A — o módulo de Motores deixa de ser uma página isolada e passa a ser
+# A — o módulo de Motores deixa de ser uma página isolada e passa a ser
 # uma análise técnica especializada, integrada com Equipamentos, Monitoria e Alertas.
 
 def _motor_intervalo_padrao():
