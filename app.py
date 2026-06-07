@@ -4797,12 +4797,33 @@ def _import_read_uploaded_workbook(file_bytes, filename, default_local):
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
         for ws in wb.worksheets:
-            max_row = min(ws.max_row or 0, 5000)
-            max_col = min(ws.max_column or 0, 60)
+            ws_key = _import_norm_txt(ws.title)
+            if ws_key.startswith(('02_resumo', '03_a_rever', '04_ignorados', '05_modelo')):
+                # Folhas auxiliares do modelo padronizado; a importação real fica em 01_IMPORTAR_NO_SGE.
+                continue
+            # Leitura robusta e rápida: alguns XLSX gerados por sistemas externos ficam
+            # "unsized" no openpyxl, deixando ws.max_row/ws.max_column vazios. Além disso,
+            # usar ws.cell() repetidamente em modo read_only pode ser muito lento. Por isso,
+            # calculamos a dimensão quando necessário e usamos iter_rows(values_only=True).
+            try:
+                ws.calculate_dimension(force=True)
+            except Exception:
+                pass
+            max_row = min(ws.max_row or 5000, 5000)
+            max_col = min(ws.max_column or 60, 60)
+            sheet_rows = []
+            for idx, row_vals in enumerate(ws.iter_rows(min_row=1, max_row=max_row, max_col=max_col, values_only=True), start=1):
+                sheet_rows.append(list(row_vals or []))
+                if idx >= 5000:
+                    break
+            if not sheet_rows:
+                issues.append({'nivel': 'ignorado', 'folha': ws.title, 'data': '', 'mensagem': 'Folha vazia; ignorada.'})
+                continue
+            max_row = len(sheet_rows)
+            max_col = max((len(r) for r in sheet_rows), default=0)
             header_row = None
             headers = []
-            for ridx in range(1, min(max_row, 20) + 1):
-                vals = [ws.cell(ridx, c).value for c in range(1, max_col + 1)]
+            for ridx, vals in enumerate(sheet_rows[:20], start=1):
                 norm = [_import_norm_txt(v) for v in vals]
                 if 'data' in norm and any(x in norm for x in ('ativa_lida', 'activa_lida', 'ativa', 'energia_activa', 'energia_ativa')):
                     header_row = ridx
@@ -4819,8 +4840,7 @@ def _import_read_uploaded_workbook(file_bytes, filename, default_local):
                 c_status = _import_find_col(headers, ['status', 'estado'])
                 c_obs = _import_find_col(headers, ['observacao', 'observacoes', 'obs'])
                 c_at_ant = _import_find_col(headers, ['ativa_anterior', 'activa_anterior', 'leitura_anterior'])
-                for ridx in range(header_row + 1, max_row + 1):
-                    vals = [ws.cell(ridx, c).value for c in range(1, max_col + 1)]
+                for ridx, vals in enumerate(sheet_rows[header_row:], start=header_row + 1):
                     if not any(v not in (None, '') for v in vals):
                         continue
                     data_obj = _import_parse_data(vals[c_data] if c_data is not None and c_data < len(vals) else None)
@@ -4843,7 +4863,8 @@ def _import_read_uploaded_workbook(file_bytes, filename, default_local):
                     continue
                 dias_mes = calendar.monthrange(ano, mes)[1]
                 for ridx in range(6, min(max_row, 36) + 1):
-                    dia = ws.cell(ridx, 1).value
+                    vals = sheet_rows[ridx - 1] if ridx - 1 < len(sheet_rows) else []
+                    dia = vals[0] if len(vals) > 0 else None
                     if not isinstance(dia, (int, float)):
                         continue
                     dia = int(dia)
@@ -4853,10 +4874,14 @@ def _import_read_uploaded_workbook(file_bytes, filename, default_local):
                         issues.append({'nivel': 'ignorado', 'folha': ws.title, 'data': f'{ano}-{mes:02d}-{dia:02d}', 'mensagem': 'Dia inexistente no mês; ignorado.'})
                         continue
                     data_obj = datetime(ano, mes, dia).date()
-                    add_row(default_local, data_obj, ws.cell(ridx, 2).value,
-                            ws.cell(ridx, 4).value, ws.cell(ridx, 5).value, ws.cell(ridx, 7).value,
-                            ws.cell(ridx, 6).value, filename, ws.title,
-                            ativa_anterior=ws.cell(ridx, 3).value,
+                    add_row(default_local, data_obj,
+                            vals[1] if len(vals) > 1 else '',
+                            vals[3] if len(vals) > 3 else None,
+                            vals[4] if len(vals) > 4 else None,
+                            vals[6] if len(vals) > 6 else None,
+                            vals[5] if len(vals) > 5 else None,
+                            filename, ws.title,
+                            ativa_anterior=vals[2] if len(vals) > 2 else None,
                             status='OK', observacao='Importado de folha histórica ETAU')
     unique = {}
     for r in rows:
