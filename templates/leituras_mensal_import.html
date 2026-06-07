@@ -1,46 +1,172 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Importar leituras MT{% endblock %}
+{% block extra_head %}
+<style>
+  :root{--imp-blue:#073b78;--imp-blue2:#0f6fc6;--imp-soft:#f4faff;--imp-line:#d8e8f8;--imp-text:#103b63}
+  .imp-hero{background:linear-gradient(135deg,var(--imp-blue),var(--imp-blue2));color:#fff;border-radius:22px;padding:18px 20px;box-shadow:0 18px 45px rgba(6,46,92,.18)}
+  .imp-hero h2{font-size:1.35rem;font-weight:850;margin:0 0 5px}.imp-hero p{margin:0;opacity:.94;max-width:1050px}
+  .imp-card{border:1px solid var(--imp-line);border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(6,46,92,.06)}
+  .imp-section-title{font-weight:850;color:var(--imp-blue);margin:0}.small-note{font-size:.86rem;color:#607d9d}
+  .imp-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--imp-line);background:#fff;border-radius:999px;padding:7px 11px;font-weight:800;color:var(--imp-text);font-size:.82rem}
+  .imp-pill.ok{border-color:#cfead9;background:#f2fbf5;color:#146c43}.imp-pill.warn{border-color:#ffd8a8;background:#fff8ef;color:#8a5200}.imp-pill.info{border-color:#bcd7ff;background:#f4f8ff;color:#0757b6}
+  .imp-help{background:var(--imp-soft);border:1px solid var(--imp-line);border-radius:16px;padding:12px 14px;color:#244f78}
+  .table-import-preview{font-size:.84rem}.table-import-preview th{background:#eaf4ff;color:var(--imp-blue);white-space:nowrap}.table-import-preview td{white-space:nowrap}
+  .imp-scroll{max-height:420px;overflow:auto;border:1px solid var(--imp-line);border-radius:14px}
+  .btn-rounded{border-radius:999px;font-weight:750}
+</style>
+{% endblock %}
+{% block content %}
+<section class="imp-hero mb-3">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+    <div>
+      <h2>Importação inteligente de leituras MT</h2>
+      <p>Carregue ficheiros Excel históricos ou o modelo padronizado do SGE. Para ficheiros ETAU/ETA Umbeluzi, o sistema garante o destino no Local ETA DE UMBELUZI, identifica as datas, distribui as leituras pelos meses e anos correctos, aplica o fator multiplicativo do Local e recalcula consumo, FP, reativa excedente, água e pré-custos.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-light btn-sm btn-rounded" href="{{ url_for('leituras_mensal_template_importacao_xlsx') }}">Baixar modelo XLSX</a>
+      <a class="btn btn-outline-light btn-sm btn-rounded" href="{{ url_for('leituras_mensal') }}">Voltar às leituras</a>
+    </div>
+  </div>
+</section>
 
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-  <meta charset="UTF-8">
-  <title>Importar Leituras Mensais</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-</head>
-<body class="container mt-4">
-  <h3>Importar Leituras Mensais (CSV/Excel)</h3>
-<div class="row g-3 my-2">
-  <div class="col-md-3"><label class="form-label">Potência contratada (kVA)</label><input id="potencia_contratada" class="form-control" value="{{ local.potencia_contratada if local and local.potencia_contratada is defined else '0.00' }}" readonly></div>
-  <div class="col-md-3"><label class="form-label">Fator multiplicativo</label><input id="fator_multiplicativo" class="form-control" value="{{ local.fator_mult if local and local.fator_mult is defined else '1.0000' }}" readonly></div>
-  <div class="col-md-3 align-self-end"><button id="btnCalcularFatura" type="button" class="btn btn-primary">Calcular Fatura</button></div>
-</div>
+{% if msg %}
+  <div class="alert alert-{{ msg[0] }}">{{ msg[1] }}</div>
+{% endif %}
 
-  <p>Formato esperado (separador ; para CSV): data;hora;ativa;reativa;ponta;fp;potc;anterior;atual;diferenca;agua;esp;acum;valor</p>
+<section class="imp-card p-3 p-lg-4 mb-3">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+      <h5 class="imp-section-title">Carregar ficheiro</h5>
+      <div class="small-note">Formatos aceites: .xlsx, .xls e .csv. Pode carregar um ano inteiro com várias folhas, por exemplo Jan 25, Fev 25, Mar 25...</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <span class="imp-pill info">Excel histórico ETAU/ETA Umbeluzi suportado</span>
+      <span class="imp-pill ok">Importação multi-mês</span>
+      <span class="imp-pill warn">Pré-visualização antes de gravar</span>
+    </div>
+  </div>
+
   <form method="POST" enctype="multipart/form-data" class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label">Local</label>
+    <div class="col-lg-4 col-md-6">
+      <label class="form-label fw-bold">Local / Instalação no SGE</label>
       <select name="local" class="form-select" required>
         {% for l in locais %}
-          <option value="{{ l }}">{{ l }}</option>
+          <option value="{{ l.id }}" {% if local_recomendado_id and l.id == local_recomendado_id %}selected{% endif %}>{{ l.nome }}</option>
         {% endfor %}
       </select>
+      <div class="form-text">As leituras serão gravadas neste Local. Para ficheiros ETAU/ETA Umbeluzi, o destino é forçado para ETA DE UMBELUZI quando esse local existir no SGE.</div>
     </div>
-    <div class="col-md-2">
-      <label class="form-label">Mês</label>
-      <input type="text" name="mes" class="form-control" placeholder="MM" required>
+    <div class="col-lg-5 col-md-6">
+      <label class="form-label fw-bold">Ficheiro Excel/CSV</label>
+      <input type="file" name="arquivo" class="form-control" accept=".xlsx,.xls,.csv" required>
+      <div class="form-text">Campos procurados: data, ativa lida, reativa lida, ponta lida e água elevada.</div>
     </div>
-    <div class="col-md-2">
-      <label class="form-label">Ano</label>
-      <input type="number" name="ano" class="form-control" value="{{ now().year if now else 2025 }}" required>
+    <div class="col-lg-3 col-md-12">
+      <label class="form-label fw-bold">Modo de gravação</label>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" name="substituir_periodos" id="substituir_periodos">
+        <label class="form-check-label" for="substituir_periodos">Substituir períodos existentes</label>
+      </div>
+      <div class="form-text">Quando activo, apaga e recria as leituras dos meses encontrados no ficheiro.</div>
     </div>
-    <div class="col-md-5">
-      <label class="form-label">Ficheiro</label>
-      <input type="file" name="arquivo" class="form-control" accept=".csv,.xls,.xlsx" required>
-    </div>
-    <div class="col-12">
-      <button class="btn btn-primary">Importar</button>
-      <a href="{{ url_for('leituras_mensal') }}" class="btn btn-secondary">Voltar</a>
+    <div class="col-12 d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-primary btn-rounded" name="acao" value="previsualizar" type="submit">Pré-visualizar ficheiro</button>
+      <button class="btn btn-success btn-rounded" name="acao" value="importar" type="submit" onclick="return confirm('Confirma a importação das leituras para o SGE?')">Importar agora</button>
+      <a class="btn btn-outline-secondary btn-rounded" href="{{ url_for('leituras_mensal') }}">Cancelar</a>
     </div>
   </form>
-<script src="{{ url_for('static', filename='mt_leituras_mensal.js') }}"></script>
-</body>
-</html>
+</section>
+
+<section class="imp-card p-3 p-lg-4 mb-3">
+  <h5 class="imp-section-title mb-2">Estrutura recomendada</h5>
+  <div class="imp-help">
+    <b>Modelo padrão:</b> local, data, hora, ativa_lida, reativa_lida, ponta_lida, agua, ativa_anterior, status, observacao.  
+    A coluna <b>ativa_anterior</b> é opcional, mas ajuda a calcular correctamente o primeiro dia quando não existe leitura do mês anterior no SGE.
+    Nos ficheiros históricos ETAU/ETA Umbeluzi, o sistema lê automaticamente as folhas mensais, força o destino para ETA DE UMBELUZI quando esse local existir no SGE, e ignora dias inexistentes, como 29/30/31 de Fevereiro.
+  </div>
+</section>
+
+{% if report %}
+<section class="imp-card p-3 p-lg-4 mb-3">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+    <div>
+      <h5 class="imp-section-title">Resumo da leitura do ficheiro</h5>
+      <div class="small-note">Ficheiro: <b>{{ report.filename }}</b> · Local destino: <b>{{ report.local }}</b></div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <span class="imp-pill ok">{{ report.linhas_validas }} linhas válidas</span>
+      <span class="imp-pill {% if report.issues %}warn{% else %}ok{% endif %}">{{ report.issues|length }} alertas mostrados</span>
+      {% if report.substituir %}<span class="imp-pill warn">Substituição activa</span>{% endif %}{% if report.local_forcado %}<span class="imp-pill info">Destino corrigido para Umbeluzi</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="imp-scroll">
+        <table class="table table-sm table-bordered mb-0 table-import-preview">
+          <thead><tr><th>Ano</th><th>Mês</th><th>Linhas</th></tr></thead>
+          <tbody>
+            {% for r in report.resumo %}
+              <tr><td>{{ r.ano }}</td><td>{{ r.mes }}</td><td>{{ r.linhas }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="imp-scroll">
+        <table class="table table-sm table-bordered mb-0 table-import-preview">
+          <thead><tr><th>Nível</th><th>Folha</th><th>Data</th><th>Mensagem</th></tr></thead>
+          <tbody>
+            {% if report.issues %}
+              {% for i in report.issues %}
+                <tr><td>{{ i.nivel }}</td><td>{{ i.folha }}</td><td>{{ i.data }}</td><td>{{ i.mensagem }}</td></tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="text-success fw-bold">Sem alertas relevantes.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if report.gravacao %}
+    <div class="alert alert-success">
+      <b>Resultado da gravação:</b>
+      Inseridos: {{ report.gravacao.inseridos }} · Atualizados: {{ report.gravacao.atualizados }} · Ignorados: {{ report.gravacao.ignorados }} · Erros: {{ report.gravacao.erros }} · Fator aplicado: {{ report.gravacao.fator_mult }}
+    </div>
+    {% if report.gravacao.avisos %}
+      <div class="alert alert-warning"><b>Avisos:</b><br>{% for a in report.gravacao.avisos %}• {{ a }}<br>{% endfor %}</div>
+    {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if preview %}
+<section class="imp-card p-3 p-lg-4 mb-3">
+  <h5 class="imp-section-title mb-2">Pré-visualização das primeiras {{ preview|length }} linhas válidas</h5>
+  <div class="imp-scroll">
+    <table class="table table-sm table-bordered mb-0 table-import-preview">
+      <thead>
+        <tr><th>Data</th><th>Ativa lida</th><th>Reativa lida</th><th>Ponta lida</th><th>Água</th><th>Ativa anterior</th><th>Folha</th><th>Observação</th></tr>
+      </thead>
+      <tbody>
+        {% for r in preview %}
+          <tr>
+            <td>{{ r.data }}</td>
+            <td>{{ '%.2f'|format(r.ativa_lida or 0) }}</td>
+            <td>{{ '%.2f'|format(r.reativa_lida or 0) }}</td>
+            <td>{{ r.ponta_lida }}</td>
+            <td>{{ r.agua }}</td>
+            <td>{{ r.ativa_anterior or '' }}</td>
+            <td>{{ r.folha }}</td>
+            <td>{{ r.observacao }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

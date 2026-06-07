@@ -65,6 +65,7 @@
       <button class="btn btn-primary" type="submit">Carregar</button>
       <a class="btn btn-outline-dark" href="/leituras_mensal/fatura_edm?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Fatura EDM</a>
       <a class="btn btn-outline-success" href="/leituras_mensal/export_xlsx?local={{ local }}&mes={{ mes }}&ano={{ ano }}">XLSX</a>
+      <a class="btn btn-outline-primary" href="/leituras_mensal/import">Importar Excel</a>
       <a class="btn btn-outline-dark" href="/leituras_mensal/financeiro?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Resumo financeiro</a>
       <a class="btn btn-outline-primary" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Auditoria inteligente</a>
       <a class="btn btn-outline-secondary" href="/leituras_mensal/arquivo?local={{ local }}">Arquivo leituras</a>
@@ -238,6 +239,7 @@
       <button class="btn btn-success" type="submit" {% if pst.fechado %}disabled title="Mês fechado. Reabra para alterar."{% endif %}>Salvar leituras e cálculos</button>
       <button id="btn_fatura_edm" class="btn btn-outline-dark" type="button" {% if pst.fechado %}disabled title="Mês fechado. Reabra para alterar."{% endif %}>Salvar e abrir fatura EDM</button>
       <a class="btn btn-outline-primary" href="/leituras_mensal/export_xlsx?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Exportar XLSX</a>
+      <a class="btn btn-outline-success" href="/leituras_mensal/import">Importar Excel histórico</a>
       <a class="btn btn-outline-primary" href="/leituras_mensal/audit?local={{ local }}&mes={{ mes }}&ano={{ ano }}">Auditoria inteligente</a>
     </div>
   </form>
