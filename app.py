@@ -4631,65 +4631,490 @@ def visualizar_mensal():
     return render_template('visualizar_mensal.html', locais=locais, local=local, mes=f"{ano_val}-{mes_val}", dias=dias,
                            difs=difs, ativas=ativa, reativas=reativa, pontas=ponta, fps=fp)
 
-# === Importar Leituras Mensais (CSV ; separado por ponto e vírgula) ===
+# === Importar Leituras Mensais Históricas (Excel/CSV inteligente) ===
+
+def _import_norm_txt(v):
+    import unicodedata, re
+    s = '' if v is None else str(v).strip().lower()
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+    s = s.replace('\xa0', ' ')
+    s = re.sub(r'[^a-z0-9]+', '_', s).strip('_')
+    return s
+
+
+def _import_float(v, default=None):
+    if v is None or v == '':
+        return default
+    try:
+        if isinstance(v, str):
+            s = v.strip().replace('\xa0', '').replace(' ', '')
+            if not s or s.upper() in ('#DIV/0!', '#VALUE!', '#REF!', '#N/A', 'N/A'):
+                return default
+            if ',' in s and '.' not in s:
+                s = s.replace(',', '.')
+            return float(s)
+        return float(v)
+    except Exception:
+        return default
+
+
+def _import_parse_data(v):
+    from datetime import datetime, date, timedelta
+    if v is None or v == '':
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    if isinstance(v, (int, float)):
+        try:
+            return (datetime(1899, 12, 30) + timedelta(days=float(v))).date()
+        except Exception:
+            return None
+    s = str(v).strip()
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except Exception:
+            pass
+    return None
+
+
+def _import_month_year_from_sheet(sheet_name):
+    import re
+    key = _import_norm_txt(sheet_name).replace('_', '')
+    mapa = {'jan': 1, 'fev': 2, 'mar': 3, 'abr': 4, 'mai': 5, 'jun': 6,
+            'jul': 7, 'ago': 8, 'set': 9, 'out': 10, 'nov': 11, 'dez': 12}
+    mes = None
+    for pref, num in mapa.items():
+        if key.startswith(pref):
+            mes = num
+            break
+    m = re.search(r'(20\d{2}|\d{2})', key)
+    ano = None
+    if m:
+        ano_raw = int(m.group(1))
+        ano = ano_raw if ano_raw > 100 else 2000 + ano_raw
+    return mes, ano
+
+
+def _import_find_umbeluzi_local(locais_db):
+    """Localiza o registo oficial da ETA de Umbeluzi na tabela de locais.
+    Isto evita importar folhas históricas ETAU para um centro errado.
+    """
+    for lid, lname in (locais_db or []):
+        if 'umbeluzi' in _import_norm_txt(lname):
+            return lid, lname
+    for lid, lname in (locais_db or []):
+        n = _import_norm_txt(lname)
+        if n in ('etau', 'eta_u', 'eta_umbeluzi', 'eta_de_umbeluzi'):
+            return lid, lname
+    return None, None
+
+
+def _import_is_eta_umbeluzi_file(filename, linhas=None):
+    """Detecta ficheiros/linhas do histórico ETAU/ETA Umbeluzi."""
+    markers = ('etau', 'umbeluzi', 'eta_umbeluzi', 'eta_de_umbeluzi')
+    filename_key = _import_norm_txt(filename)
+    if any(m in filename_key for m in markers):
+        return True
+    for r in (linhas or [])[:120]:
+        campos = ' '.join(str(r.get(k, '') or '') for k in ('local', 'origem', 'folha', 'origem_ficheiro'))
+        key = _import_norm_txt(campos)
+        if any(m in key for m in markers):
+            return True
+    return False
+
+
+def _import_find_col(headers, aliases):
+    norm_aliases = {_import_norm_txt(a) for a in aliases}
+    for idx, h in enumerate(headers):
+        if h in norm_aliases:
+            return idx
+    for idx, h in enumerate(headers):
+        for a in norm_aliases:
+            if a and (h == a or h.endswith('_' + a) or a in h):
+                return idx
+    return None
+
+
+def _import_read_uploaded_workbook(file_bytes, filename, default_local):
+    import csv as _csv
+    from collections import Counter
+    rows, issues, resumo = [], [], []
+    filename_l = (filename or '').lower()
+
+    def add_row(local, data_obj, hora, ativa_lida, reativa_lida, ponta_lida, agua, origem, folha,
+                ativa_anterior=None, status='OK', observacao=''):
+        if not data_obj:
+            issues.append({'nivel': 'erro', 'folha': folha, 'data': '', 'mensagem': 'Linha sem data válida.'})
+            return
+        ano, mes = int(data_obj.year), int(data_obj.month)
+        row = {
+            'local': (str(local or default_local or '').strip()),
+            'data': data_obj.strftime('%Y-%m-%d'),
+            'ano': ano,
+            'mes': str(mes).zfill(2),
+            'hora': str(hora or '').strip(),
+            'ativa_lida': _import_float(ativa_lida, None),
+            'reativa_lida': _import_float(reativa_lida, None),
+            'ponta_lida': _import_float(ponta_lida, None),
+            'agua': _import_float(agua, None),
+            'ativa_anterior': _import_float(ativa_anterior, None),
+            'status': str(status or 'OK').strip().upper(),
+            'observacao': str(observacao or ''),
+            'origem': origem or filename,
+            'folha': folha or '',
+        }
+        if row['status'] in ('NAO_IMPORTAR', 'NÃO_IMPORTAR', 'IGNORAR'):
+            issues.append({'nivel': 'ignorado', 'folha': folha, 'data': row['data'], 'mensagem': 'Linha marcada para não importar.'})
+            return
+        if row['ativa_lida'] is None:
+            issues.append({'nivel': 'erro', 'folha': folha, 'data': row['data'], 'mensagem': 'Sem leitura ativa lida; linha não importada.'})
+            return
+        if row['reativa_lida'] is None:
+            issues.append({'nivel': 'aviso', 'folha': folha, 'data': row['data'], 'mensagem': 'Sem leitura reativa; será gravada vazia/zero no cálculo.'})
+        if row['ponta_lida'] is None:
+            issues.append({'nivel': 'aviso', 'folha': folha, 'data': row['data'], 'mensagem': 'Sem ponta lida.'})
+        if row['agua'] is None:
+            issues.append({'nivel': 'aviso', 'folha': folha, 'data': row['data'], 'mensagem': 'Sem água elevada.'})
+        if row['ponta_lida'] is not None and row['ponta_lida'] > 1:
+            issues.append({'nivel': 'aviso', 'folha': folha, 'data': row['data'], 'mensagem': f"Ponta elevada ({row['ponta_lida']}). Confirmar antes de faturar."})
+        rows.append(row)
+
+    if filename_l.endswith('.csv'):
+        raw = file_bytes.decode('utf-8-sig', errors='ignore')
+        dialect = _csv.Sniffer().sniff(raw[:2048], delimiters=';,') if raw.strip() else None
+        reader = _csv.DictReader(io.StringIO(raw), dialect=dialect) if dialect else _csv.DictReader(io.StringIO(raw), delimiter=';')
+        for line_no, r in enumerate(reader, start=2):
+            rm = {_import_norm_txt(k): v for k, v in (r or {}).items()}
+            data_obj = _import_parse_data(rm.get('data'))
+            add_row(rm.get('local') or rm.get('centro') or default_local, data_obj, rm.get('hora'),
+                    rm.get('ativa_lida') or rm.get('ativa'), rm.get('reativa_lida') or rm.get('reativa'),
+                    rm.get('ponta_lida') or rm.get('ponta'), rm.get('agua') or rm.get('agua_m3'),
+                    filename, f'CSV linha {line_no}', rm.get('ativa_anterior'), rm.get('status') or 'OK', rm.get('observacao') or '')
+    else:
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+        for ws in wb.worksheets:
+            max_row = min(ws.max_row or 0, 5000)
+            max_col = min(ws.max_column or 0, 60)
+            header_row = None
+            headers = []
+            for ridx in range(1, min(max_row, 20) + 1):
+                vals = [ws.cell(ridx, c).value for c in range(1, max_col + 1)]
+                norm = [_import_norm_txt(v) for v in vals]
+                if 'data' in norm and any(x in norm for x in ('ativa_lida', 'activa_lida', 'ativa', 'energia_activa', 'energia_ativa')):
+                    header_row = ridx
+                    headers = norm
+                    break
+            if header_row:
+                c_local = _import_find_col(headers, ['local', 'centro', 'instalacao', 'instalação'])
+                c_data = _import_find_col(headers, ['data'])
+                c_hora = _import_find_col(headers, ['hora'])
+                c_ativa = _import_find_col(headers, ['ativa_lida', 'activa_lida', 'energia_activa', 'energia_ativa', 'ativa'])
+                c_reativa = _import_find_col(headers, ['reativa_lida', 'reactiva_lida', 'reativa', 'reactiva'])
+                c_ponta = _import_find_col(headers, ['ponta_lida', 'ponta'])
+                c_agua = _import_find_col(headers, ['agua', 'agua_m3', 'volume_produzido', 'volume_elevado'])
+                c_status = _import_find_col(headers, ['status', 'estado'])
+                c_obs = _import_find_col(headers, ['observacao', 'observacoes', 'obs'])
+                c_at_ant = _import_find_col(headers, ['ativa_anterior', 'activa_anterior', 'leitura_anterior'])
+                for ridx in range(header_row + 1, max_row + 1):
+                    vals = [ws.cell(ridx, c).value for c in range(1, max_col + 1)]
+                    if not any(v not in (None, '') for v in vals):
+                        continue
+                    data_obj = _import_parse_data(vals[c_data] if c_data is not None and c_data < len(vals) else None)
+                    local_file = vals[c_local] if c_local is not None and c_local < len(vals) else default_local
+                    status = vals[c_status] if c_status is not None and c_status < len(vals) else 'OK'
+                    obs = vals[c_obs] if c_obs is not None and c_obs < len(vals) else ''
+                    add_row(local_file, data_obj,
+                            vals[c_hora] if c_hora is not None and c_hora < len(vals) else '',
+                            vals[c_ativa] if c_ativa is not None and c_ativa < len(vals) else None,
+                            vals[c_reativa] if c_reativa is not None and c_reativa < len(vals) else None,
+                            vals[c_ponta] if c_ponta is not None and c_ponta < len(vals) else None,
+                            vals[c_agua] if c_agua is not None and c_agua < len(vals) else None,
+                            filename, ws.title,
+                            vals[c_at_ant] if c_at_ant is not None and c_at_ant < len(vals) else None,
+                            str(status or 'OK'), str(obs or ''))
+            else:
+                mes, ano = _import_month_year_from_sheet(ws.title)
+                if not mes or not ano:
+                    issues.append({'nivel': 'ignorado', 'folha': ws.title, 'data': '', 'mensagem': 'Folha sem mês/ano reconhecido; ignorada.'})
+                    continue
+                dias_mes = calendar.monthrange(ano, mes)[1]
+                for ridx in range(6, min(max_row, 36) + 1):
+                    dia = ws.cell(ridx, 1).value
+                    if not isinstance(dia, (int, float)):
+                        continue
+                    dia = int(dia)
+                    if dia < 1 or dia > 31:
+                        continue
+                    if dia > dias_mes:
+                        issues.append({'nivel': 'ignorado', 'folha': ws.title, 'data': f'{ano}-{mes:02d}-{dia:02d}', 'mensagem': 'Dia inexistente no mês; ignorado.'})
+                        continue
+                    data_obj = datetime(ano, mes, dia).date()
+                    add_row(default_local, data_obj, ws.cell(ridx, 2).value,
+                            ws.cell(ridx, 4).value, ws.cell(ridx, 5).value, ws.cell(ridx, 7).value,
+                            ws.cell(ridx, 6).value, filename, ws.title,
+                            ativa_anterior=ws.cell(ridx, 3).value,
+                            status='OK', observacao='Importado de folha histórica ETAU')
+    unique = {}
+    for r in rows:
+        unique[(r['local'], r['data'])] = r
+    rows = sorted(unique.values(), key=lambda x: (x['ano'], x['mes'], x['data']))
+    cnt = Counter((r['ano'], r['mes']) for r in rows)
+    for (ano, mes), n in sorted(cnt.items()):
+        resumo.append({'ano': ano, 'mes': mes, 'linhas': n})
+    return rows, issues, resumo
+
+
+def _gravar_importacao_leituras_mensais(local_nome, selected_local_id, linhas, substituir_periodos=False):
+    from collections import defaultdict
+    ensure_leituras_mensais_phase2_schema()
+    cfg = get_local_cfg_full(selected_local_id) if selected_local_id else {}
+    fator_mult = _import_float(cfg.get('fator_mult'), 1.0) or 1.0
+    pot_contratada = _import_float(cfg.get('pot_contratada'), 0.0) or 0.0
+    t_ativa = _import_float(cfg.get('tarifa_ativa'), 0.0) or 0.0
+    t_reativa = _import_float(cfg.get('tarifa_reativa'), 0.0) or 0.0
+    grupos = defaultdict(list)
+    for r in linhas:
+        grupos[(int(r['ano']), str(r['mes']).zfill(2))].append(r)
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    inseridos = atualizados = ignorados = erros = 0
+    periodos = []
+    avisos = []
+    try:
+        for (ano, mes), rows_mes in sorted(grupos.items()):
+            if _get_periodo_status(local_nome, mes, ano).get('fechado'):
+                ignorados += len(rows_mes)
+                avisos.append(f'{mes}/{ano}: período fechado; {len(rows_mes)} linha(s) ignorada(s).')
+                continue
+            if substituir_periodos:
+                c.execute('DELETE FROM leituras_mensais WHERE local=? AND mes=? AND ano=?', (local_nome, mes, ano))
+            rows_mes = sorted(rows_mes, key=lambda x: x['data'])
+            prev_ativa, prev_reativa = get_prev_month_last_readings(local_nome, mes, ano)
+            has_prev_ativa = bool(prev_ativa and prev_ativa > 0)
+            has_prev_reativa = bool(prev_reativa and prev_reativa > 0)
+            prev_ponta_corrigida = 0.0
+            acum_mes = 0.0
+            gravadas_mes = 0
+            for r in rows_mes:
+                try:
+                    data_str = r['data']
+                    hora = r.get('hora') or ''
+                    ativa_lida = _import_float(r.get('ativa_lida'), None)
+                    reativa_lida = _import_float(r.get('reativa_lida'), None)
+                    ponta_lida = _import_float(r.get('ponta_lida'), None)
+                    agua_val = _import_float(r.get('agua'), None)
+                    at_ant = _import_float(r.get('ativa_anterior'), None)
+                    if ativa_lida is None and reativa_lida is None and ponta_lida is None and agua_val is None:
+                        ignorados += 1
+                        continue
+                    ativa_fat = (ativa_lida * fator_mult) if ativa_lida is not None else None
+                    reativa_fat = (reativa_lida * fator_mult) if reativa_lida is not None else None
+                    ponta_fat = (ponta_lida * fator_mult) if ponta_lida is not None else None
+                    if not has_prev_ativa and at_ant is not None:
+                        prev_ativa = at_ant * fator_mult
+                        has_prev_ativa = True
+                    if ponta_fat is not None:
+                        if ponta_fat < prev_ponta_corrigida:
+                            ponta_fat = prev_ponta_corrigida
+                        else:
+                            prev_ponta_corrigida = ponta_fat
+                    anterior_val = prev_ativa if has_prev_ativa else (ativa_fat if ativa_fat is not None else prev_ativa)
+                    atual_val = ativa_fat if ativa_fat is not None else prev_ativa
+                    if ativa_fat is not None and has_prev_ativa:
+                        dif_val = atual_val - anterior_val
+                    else:
+                        dif_val = 0.0
+                    dif_operacional = dif_val if dif_val >= 0 else 0.0
+                    if ativa_fat is not None:
+                        if not has_prev_ativa:
+                            prev_ativa = atual_val
+                            has_prev_ativa = True
+                        elif dif_val >= 0:
+                            prev_ativa = atual_val
+                    if reativa_fat is not None:
+                        if has_prev_reativa:
+                            delta_reativa_real = reativa_fat - prev_reativa
+                        else:
+                            delta_reativa_real = 0.0
+                        delta_reativa = delta_reativa_real if delta_reativa_real >= 0 else 0.0
+                        if not has_prev_reativa:
+                            prev_reativa = reativa_fat
+                            has_prev_reativa = True
+                        elif delta_reativa_real >= 0:
+                            prev_reativa = reativa_fat
+                    else:
+                        delta_reativa = 0.0
+                    if dif_operacional > 0 or delta_reativa > 0:
+                        fp_val = dif_operacional / math.sqrt((dif_operacional ** 2) + (delta_reativa ** 2))
+                    else:
+                        fp_val = None
+                    reativa_excedente = max(delta_reativa - (0.75 * dif_operacional), 0.0)
+                    esp_val = (dif_operacional / agua_val) if agua_val else None
+                    acum_mes += dif_operacional
+                    valor_total_dia = (dif_operacional * t_ativa) + (reativa_excedente * t_reativa)
+                    exists = c.execute('SELECT 1 FROM leituras_mensais WHERE local=? AND data=?', (local_nome, data_str)).fetchone()
+                    c.execute('''
+                        INSERT INTO leituras_mensais
+                        (local, data, hora, ativa, reativa, ponta, fp, potc, anterior, atual, diferenca,
+                         agua, esp, acum, valor, mes, ano)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(local, data) DO UPDATE SET
+                            hora=excluded.hora,
+                            ativa=excluded.ativa,
+                            reativa=excluded.reativa,
+                            ponta=excluded.ponta,
+                            fp=excluded.fp,
+                            potc=excluded.potc,
+                            anterior=excluded.anterior,
+                            atual=excluded.atual,
+                            diferenca=excluded.diferenca,
+                            agua=excluded.agua,
+                            esp=excluded.esp,
+                            acum=excluded.acum,
+                            valor=excluded.valor,
+                            mes=excluded.mes,
+                            ano=excluded.ano
+                    ''', (local_nome, data_str, hora, ativa_fat, reativa_fat, ponta_fat, fp_val, pot_contratada,
+                          anterior_val, atual_val, dif_operacional, agua_val, esp_val, acum_mes, valor_total_dia,
+                          mes, ano))
+                    if exists:
+                        atualizados += 1
+                    else:
+                        inseridos += 1
+                    gravadas_mes += 1
+                except Exception as e:
+                    erros += 1
+                    avisos.append(f"{r.get('data','')}: erro ao gravar ({e}).")
+            periodos.append({'ano': ano, 'mes': mes, 'linhas': gravadas_mes})
+        conn.commit()
+    finally:
+        conn.close()
+    return {
+        'inseridos': inseridos,
+        'atualizados': atualizados,
+        'ignorados': ignorados,
+        'erros': erros,
+        'periodos': periodos,
+        'avisos': avisos[:30],
+        'fator_mult': fator_mult,
+    }
+
+
+@app.route('/leituras_mensal/template_importacao_xlsx')
+def leituras_mensal_template_importacao_xlsx():
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    ws = workbook.add_worksheet('MODELO_IMPORTACAO')
+    fmt_title = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': '#073B78', 'align': 'center', 'valign': 'vcenter', 'font_size': 14})
+    fmt_head = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': '#0F6FC6', 'align': 'center', 'valign': 'vcenter', 'border': 1})
+    fmt_date = workbook.add_format({'num_format': 'yyyy-mm-dd', 'border': 1})
+    fmt_num = workbook.add_format({'num_format': '0.00', 'border': 1})
+    fmt_txt = workbook.add_format({'border': 1})
+    ws.merge_range('A1:K1', 'MODELO PADRÃO PARA IMPORTAÇÃO DE LEITURAS MT NO SGE', fmt_title)
+    headers = ['local', 'data', 'hora', 'ativa_lida', 'reativa_lida', 'ponta_lida', 'agua', 'ativa_anterior', 'status', 'observacao', 'origem']
+    for col, h in enumerate(headers):
+        ws.write(2, col, h, fmt_head)
+    exemplo = ['ETA DE UMBELUZI', datetime.now().date(), '00:00', 4806.55, 2260.97, 0.206, 196400, 4802.24, 'OK', 'Exemplo; substituir pelos dados reais', 'modelo']
+    for col, val in enumerate(exemplo):
+        if col == 1:
+            ws.write_datetime(3, col, datetime.combine(val, datetime.min.time()), fmt_date)
+        elif col in (3,4,5,6,7):
+            ws.write_number(3, col, float(val), fmt_num)
+        else:
+            ws.write(3, col, val, fmt_txt)
+    ws.set_column('A:A', 18); ws.set_column('B:B', 13); ws.set_column('C:C', 10); ws.set_column('D:H', 16); ws.set_column('I:I', 14); ws.set_column('J:K', 36)
+    ws.freeze_panes(3, 0)
+    workbook.close()
+    output.seek(0)
+    return Response(output.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': 'attachment; filename=modelo_importacao_leituras_mt_sge.xlsx'})
+
+
 @app.route('/leituras_mensal/import', methods=['GET', 'POST'])
 def leituras_mensal_import():
-    locais = [l[1] for l in get_locais()]
-    if request.method == 'GET':
-        return render_template('leituras_mensal_import.html', locais=locais)
-    # POST
-    local = request.form.get('local','')
-    mes = request.form.get('mes') or datetime.now().strftime('%m')
-    ano = int(request.form.get('ano') or datetime.now().year)
-    file = request.files.get('arquivo')
-    if not (file and file.filename):
-        flash('Selecione um ficheiro CSV/Excel.', 'warning')
-        return redirect(url_for('leituras_mensal_import'))
-    filename = secure_filename(file.filename)
-    data_bytes = file.read()
-    # Detect CSV vs Excel
-    try:
-        import pandas as pd
-        from io import BytesIO
-        if filename.lower().endswith(('.xls','.xlsx')):
-            df = pd.read_excel(BytesIO(data_bytes))
-        else:
-            df = pd.read_csv(io.BytesIO(data_bytes), sep=';', encoding='utf-8')
-    except Exception as e:
-        flash(f'Erro ao ler o ficheiro: {e}', 'danger')
-        return redirect(url_for('leituras_mensal_import'))
+    locais_db = get_locais()
+    locais = [{'id': lid, 'nome': lname} for lid, lname in locais_db]
+    umbeluzi_id, umbeluzi_nome = _import_find_umbeluzi_local(locais_db)
+    preview = []
+    report = None
+    msg = None
 
-    expected_cols = {'data','hora','ativa','reativa','ponta','fp','potc','anterior','atual','diferenca','agua','esp','acum','valor'}
-    lower_map = {c: c.lower().strip() for c in df.columns}
-    df.columns = [lower_map[c] for c in df.columns]
-    missing = expected_cols - set(df.columns)
-    if missing:
-        flash('Colunas em falta: ' + ', '.join(sorted(missing)), 'warning')
-        return redirect(url_for('leituras_mensal_import'))
-
-    # Inserir linhas
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    inseridos = 0
-    for _, r in df.iterrows():
-        data = str(r.get('data'))
-        hora = str(r.get('hora')) if not pd.isna(r.get('hora')) else ''
-        vals = (
-            local, data, hora,
-            float(r.get('ativa',0) or 0), float(r.get('reativa',0) or 0), float(r.get('ponta',0) or 0),
-            fp_val if 'fp_val' in locals() else float(r.get('fp',0) or 0), float(r.get('potc',0) or 0),
-            float(r.get('anterior',0) or 0), float(r.get('atual',0) or 0), dif_val if 'dif_val' in locals() else float(r.get('diferenca',0) or 0),
-            float(r.get('agua',0) or 0), float(r.get('esp',0) or 0), float(r.get('acum',0) or 0),
-            float(r.get('valor',0) or 0), mes, ano
+    def render_import_page():
+        return render_template(
+            'leituras_mensal_import.html',
+            locais=locais,
+            msg=msg,
+            report=report,
+            preview=preview,
+            local_recomendado_id=umbeluzi_id,
+            local_recomendado_nome=umbeluzi_nome
         )
-        c.execute('DELETE FROM leituras_mensais WHERE local=? AND data=? AND mes=? AND ano=?',
-                  (local, data, mes, ano))
-        c.execute('''INSERT INTO leituras_mensais
-            (local,data,hora,ativa,reativa,ponta,fp,potc,anterior,atual,diferenca,agua,esp,acum,valor,mes,ano)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', vals)
-        inseridos += 1
-    conn.commit(); conn.close()
-    flash(f'Importação concluída: {inseridos} linhas.', 'success')
-    return redirect(url_for('leituras_mensal', local=local, mes=mes, ano=ano))
+
+    if request.method == 'POST':
+        raw_local = request.form.get('local', '')
+        selected_local_id, local_nome = _local_id_nome_from_request(raw_local, locais_db)
+        if not local_nome or not selected_local_id:
+            msg = ('danger', 'Selecione um local válido para importar as leituras.')
+            return render_import_page()
+        file = request.files.get('arquivo')
+        if not file or not file.filename:
+            msg = ('warning', 'Selecione um ficheiro Excel ou CSV.')
+            return render_import_page()
+        filename = secure_filename(file.filename)
+        data_bytes = file.read()
+        try:
+            linhas, issues, resumo = _import_read_uploaded_workbook(data_bytes, filename, local_nome)
+        except Exception as e:
+            msg = ('danger', f'Erro ao ler o ficheiro: {e}')
+            return render_import_page()
+
+        local_forcado = False
+        if _import_is_eta_umbeluzi_file(filename, linhas):
+            if umbeluzi_id and umbeluzi_nome:
+                if selected_local_id != umbeluzi_id:
+                    issues.insert(0, {
+                        'nivel': 'aviso',
+                        'folha': '',
+                        'data': '',
+                        'mensagem': f'Ficheiro reconhecido como ETAU/ETA Umbeluzi. O destino foi corrigido automaticamente de "{local_nome}" para "{umbeluzi_nome}".'
+                    })
+                    selected_local_id, local_nome = umbeluzi_id, umbeluzi_nome
+                    local_forcado = True
+            elif 'umbeluzi' not in _import_norm_txt(local_nome):
+                msg = ('danger', 'Este ficheiro foi reconhecido como ETAU/ETA Umbeluzi, mas não encontrei o local "ETA DE UMBELUZI" cadastrado no SGE. Cadastre ou selecione o local correto antes de importar.')
+                return render_import_page()
+
+        substituir = request.form.get('substituir_periodos') == 'on'
+        acao = request.form.get('acao') or 'previsualizar'
+        preview = linhas[:80]
+        report = {
+            'filename': filename,
+            'local': local_nome,
+            'linhas_validas': len(linhas),
+            'issues': issues[:80],
+            'resumo': resumo,
+            'substituir': substituir,
+            'local_forcado': local_forcado,
+            'gravacao': None,
+        }
+        if acao == 'importar':
+            if not linhas:
+                msg = ('warning', 'O ficheiro foi lido, mas nenhuma linha válida foi encontrada para importar.')
+            else:
+                grav = _gravar_importacao_leituras_mensais(local_nome, selected_local_id, linhas, substituir_periodos=substituir)
+                report['gravacao'] = grav
+                if grav.get('erros'):
+                    msg = ('warning', f"Importação concluída com alertas. Local destino: {local_nome}. Inseridos={grav['inseridos']}, Atualizados={grav['atualizados']}, Ignorados={grav['ignorados']}, Erros={grav['erros']}.")
+                else:
+                    msg = ('success', f"Importação concluída para {local_nome}. Inseridos={grav['inseridos']}, Atualizados={grav['atualizados']}, Ignorados={grav['ignorados']}. Fator usado: {grav.get('fator_mult', 1)}.")
+        else:
+            msg = ('info', f'Pré-visualização pronta para {local_nome}: {len(linhas)} linha(s) válidas encontradas. Revise o resumo e clique em Importar agora se estiver correto.')
+    return render_import_page()
 
 
 # === FATURA (manual) ===
