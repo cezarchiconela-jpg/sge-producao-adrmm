@@ -1,0 +1,21 @@
+SGE - ACTUALIZACAO TELEMETRIA F650
+
+SUBSTITUIR NO GITHUB:
+- app.py
+- .env.example
+- render.yaml
+- templates/base.html
+
+ADICIONAR AO GITHUB:
+- telemetria.py
+- templates/telemetria.html
+- static/telemetria.css
+- static/telemetria.js
+- README_TELEMETRIA_F650_GITHUB.md
+
+NAO CARREGAR NO GITHUB:
+- tokens
+- ficheiros .env
+- base de dados local
+
+Depois do upload, configurar SGE_F650_API_TOKEN no Render e fazer deploy.

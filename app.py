@@ -133,7 +133,7 @@ app.config.update(
 # Em produção recomenda-se activar: SGE_REQUIRE_LOGIN=1
 # Credenciais via variáveis de ambiente: SGE_ADMIN_USER e SGE_ADMIN_PASSWORD
 # Alternativa mais segura: SGE_ADMIN_PASSWORD_HASH com hash Werkzeug.
-AUTH_EXEMPT_PREFIXES = ('/static/', '/uploads/')
+AUTH_EXEMPT_PREFIXES = ('/static/', '/uploads/', '/api/v1/telemetria')
 AUTH_EXEMPT_PATHS = {'/login', '/logout', '/healthz', '/robots.txt', '/favicon.ico'}
 
 def _truthy_env(name, default='0'):
@@ -1061,6 +1061,15 @@ except Exception:
     pass
 
 init_db()
+
+# === TELEMETRIA AUTOMÁTICA / F650 ===
+# O módulo é separado para manter o app.py estável e permitir expansão para
+# outros contadores, relés, caudalímetros e sensores.
+try:
+    from telemetria import register_telemetry
+    register_telemetry(app, DB_PATH)
+except Exception as _telemetry_error:
+    print('Falha ao inicializar módulo de telemetria:', _telemetry_error)
 
 try:
     _ensure_users_schema()
