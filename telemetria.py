@@ -391,6 +391,39 @@ def register_telemetry(app, db_path: str) -> None:
 
     bp = Blueprint("telemetria", __name__)
 
+    @bp.get("/api/v1/telemetria/ping")
+    def api_ping():
+        """Confirma URL, token e cadastro do dispositivo sem guardar medições."""
+        device_code = str(
+            request.args.get("device") or request.headers.get("X-Device-Code") or DEVICE_CODE_F650
+        ).strip()
+        token = _token_from_request()
+        conn = _connect(db_path)
+        try:
+            device = _load_device(conn, device_code)
+            if not device:
+                return jsonify(success=False, error="not_found", message="Dispositivo desconhecido"), 404
+            if not _token_matches(device, token):
+                return jsonify(success=False, error="invalid_token", message="Token de telemetria inválido"), 401
+            channel_count = conn.execute(
+                "SELECT COUNT(*) AS total FROM telemetry_channels WHERE device_id=? AND active=1",
+                (device["id"],),
+            ).fetchone()["total"]
+            state, age_seconds = _device_state(device["last_seen"])
+            return jsonify(
+                success=True,
+                service="sge-telemetria",
+                device=device_code,
+                registered=True,
+                channels=int(channel_count),
+                state=state,
+                age_seconds=age_seconds,
+                server_time=_iso_utc(),
+                message="API e token válidos; nenhuma medição foi guardada.",
+            )
+        finally:
+            conn.close()
+
     @bp.post("/api/v1/telemetria")
     def ingest():
         if not request.is_json:
