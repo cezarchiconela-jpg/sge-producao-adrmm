@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h3 class="mb-1">Histórico tarifário</h3>
+    <div class="text-muted">{{ local.nome }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('configurar_local', local_id=local.id) }}">Voltar à configuração</a>
+</div>
+
+<div class="alert alert-info">
+  Cada vigência preserva os cálculos do respetivo período. O IVA é sempre <strong>16% sobre 62%</strong> do subtotal.
+</div>
+
+{% if can_write('configuracao') %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Nova vigência</div>
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <div class="col-md-3"><label class="form-label">Válida desde</label><input class="form-control" type="date" name="valid_from" value="{{ hoje }}" required></div>
+      <div class="col-md-3"><label class="form-label">Potência contratada (kW)</label><input class="form-control" type="number" min="0" step="0.01" name="pot_contratada" value="{{ cfg.pot_contratada or 0 }}" required></div>
+      <div class="col-md-3"><label class="form-label">Ativa (MZN/kWh)</label><input class="form-control" type="number" min="0" step="0.001" name="tarifa_ativa" value="{{ cfg.tarifa_ativa or 0 }}" required></div>
+      <div class="col-md-3"><label class="form-label">Reativa (MZN/kVArh)</label><input class="form-control" type="number" min="0" step="0.001" name="tarifa_reativa" value="{{ cfg.tarifa_reativa or 0 }}" required></div>
+      <div class="col-md-3"><label class="form-label">Ponta (MZN/kW)</label><input class="form-control" type="number" min="0" step="0.01" name="tarifa_ponta" value="{{ cfg.tarifa_ponta or 497.03 }}" required></div>
+      <div class="col-md-3"><label class="form-label">Perdas (MZN/kWh)</label><input class="form-control" type="number" min="0" step="0.001" name="tarifa_perdas" value="{{ cfg.tarifa_perdas or 0 }}" required></div>
+      <div class="col-md-2"><label class="form-label">Taxa fixa</label><input class="form-control" type="number" min="0" step="0.01" name="taxa_fixa" value="{{ cfg.taxa_fixa or 0 }}" required></div>
+      <div class="col-md-2"><label class="form-label">Taxa rádio</label><input class="form-control" type="number" min="0" step="0.01" name="taxa_radio" value="{{ cfg.taxa_radio or 0 }}" required></div>
+      <div class="col-md-2"><label class="form-label">Taxa lixo</label><input class="form-control" type="number" min="0" step="0.01" name="taxa_lixo" value="{{ cfg.taxa_lixo or 0 }}" required></div>
+      <div class="col-md-6"><label class="form-label">Observação</label><input class="form-control" name="notes" maxlength="300" placeholder="Ex.: atualização tarifária EDM"></div>
+      <div class="col-12"><button class="btn btn-primary">Guardar nova vigência</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header fw-semibold">Vigências registadas</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr><th>Início</th><th>Fim</th><th>Ativa</th><th>Reativa</th><th>Ponta</th><th>Pot. contratada</th><th>IVA</th><th>Responsável</th></tr></thead>
+      <tbody>
+      {% for t in tarifas %}
+        <tr>
+          <td>{{ t.valid_from }}</td><td>{{ t.valid_to or 'Atual' }}</td>
+          <td>{{ '%.3f'|format(t.tarifa_ativa) }}</td><td>{{ '%.3f'|format(t.tarifa_reativa) }}</td>
+          <td>{{ '%.2f'|format(t.tarifa_ponta) }}</td><td>{{ '%.2f'|format(t.pot_contratada) }}</td>
+          <td>16% de 62%</td><td>{{ t.created_by or 'sge' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Ainda não existem vigências registadas.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

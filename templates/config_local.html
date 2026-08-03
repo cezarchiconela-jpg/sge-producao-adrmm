@@ -56,9 +56,9 @@
                    value="{{ (cfg.tarifa_reativa if cfg and cfg.tarifa_reativa is defined else 1.430) }}">
           </div>
           <div class="col-md-3">
-            <label class="form-label">Tarifa Ponta</label>
-            <input type="number" step="0.001" class="form-control" name="tarifa_ponta"
-                   value="{{ (cfg.tarifa_ponta if cfg and cfg.tarifa_ponta is defined else 4.970) }}">
+            <label class="form-label">Tarifa Ponta (MZN/kW)</label>
+            <input type="number" step="0.01" class="form-control" name="tarifa_ponta"
+                   value="{{ (cfg.tarifa_ponta if cfg and cfg.tarifa_ponta is defined else 497.03) }}">
           </div>
           <div class="col-md-3">
             <label class="form-label">Tarifa Perdas</label>
@@ -82,9 +82,8 @@
                    value="{{ (cfg.taxa_lixo if cfg and cfg.taxa_lixo is defined else 150.00) }}">
           </div>
           <div class="col-md-3">
-            <label class="form-label">IVA (%)</label>
-            <input type="number" step="0.01" class="form-control" name="iva"
-                   value="{{ (cfg.iva if cfg and cfg.iva is defined else 16.0) }}">
+            <label class="form-label">IVA</label>
+            <input type="text" class="form-control" value="16% sobre 62% do subtotal" readonly>
           </div>
 
           <div class="col-12">

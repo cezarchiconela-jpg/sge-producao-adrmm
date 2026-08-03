@@ -98,8 +98,9 @@
         <li><span>Tarifa ativa</span><strong>{{ '%.3f'|format(cfg.tarifa_ativa) }}</strong></li>
         <li><span>Tarifa reativa</span><strong>{{ '%.3f'|format(cfg.tarifa_reativa) }}</strong></li>
         <li><span>Tarifa ponta</span><strong>{{ '%.3f'|format(cfg.tarifa_ponta) }}</strong></li>
-        <li><span>IVA</span><strong>{{ '%.2f'|format(cfg.iva) }}%</strong></li>
+        <li><span>IVA</span><strong>16% sobre 62%</strong></li>
       </ul>
+      <a class="btn btn-sm btn-outline-primary mt-2" href="{{ url_for('tarifas_historico_local', local_id=local.id) }}">Histórico tarifário</a>
     </article>
   </section>
 

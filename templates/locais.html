@@ -222,9 +222,11 @@
                 <div class="d-flex flex-wrap gap-2">
                   <a class="sge-btn sge-btn-soft" href="{{ url_for('detalhes_local', local_id=r.id) }}">Detalhes</a>
                   <a class="sge-btn sge-btn-soft" href="{{ url_for('configurar_local', local_id=r.id) }}">Config</a>
+                  {% if can_write('locais') %}
                   <a class="sge-btn sge-btn-soft" href="{{ url_for('editar_local', local_id=r.id) }}">Editar</a>
-                  <a class="sge-btn sge-btn-soft" href="{{ url_for('locais_duplicar', local_id=r.id) }}">Duplicar</a>
-                  <a class="sge-btn sge-btn-warning" href="{{ url_for('locais_toggle', local_id=r.id) }}">{{ 'Arquivar' if (r.ativo|int == 1) else 'Ativar' }}</a>
+                  <form method="post" action="{{ url_for('locais_duplicar', local_id=r.id) }}" class="d-inline"><button class="sge-btn sge-btn-soft" type="submit">Duplicar</button></form>
+                  <form method="post" action="{{ url_for('locais_toggle', local_id=r.id) }}" class="d-inline" onsubmit="return confirm('Confirmar alteração do estado deste local?')"><button class="sge-btn sge-btn-warning" type="submit">{{ 'Arquivar' if (r.ativo|int == 1) else 'Ativar' }}</button></form>
+                  {% endif %}
                 </div>
               </td>
             </tr>

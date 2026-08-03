@@ -265,11 +265,8 @@
     const taxaRadio = toNum(taxaRadioEl?.value);
     const taxaLixo  = toNum(taxaLixoEl?.value);
 
-    // IVA configurado: aceita 16 ou 0.16, default 0.16
-    let ivaCfg = toNum(ivaEl?.value);
-    if (!ivaCfg) ivaCfg = 0.16;
-    let ivaFrac = ivaCfg;
-    if (ivaFrac > 1) ivaFrac = ivaFrac / 100;
+    // Regra fiscal única do SGE: 16% sobre 62% do subtotal.
+    const ivaFrac = 0.16;
 
     // Energias / potências reais (após fator multiplicativo)
     const kwhAtivaReal       = somaKwh   * fatorMult;
@@ -293,17 +290,18 @@
     const energiaSubtotal = cAtiva + cReativa + cPonta;
     const taxasSubtotal   = taxaFixa + taxaRadio + taxaLixo;
 
-    // IVA: 16% aplicado sobre 62% do SUBTOTAL DE ENERGIA
-    const IVA_BASE_FRAC = 0.62;        // 62% da energia
-    const baseIVA       = energiaSubtotal * IVA_BASE_FRAC;
+    // IVA: 16% aplicado sobre 62% do subtotal completo (energia + taxas).
+    const IVA_BASE_FRAC = 0.62;
+    const subtotalSemIva = energiaSubtotal + taxasSubtotal;
+    const baseIVA       = subtotalSemIva * IVA_BASE_FRAC;
     const valorIva      = baseIVA * ivaFrac;
 
     // Subtotal mostrado na coluna "Subtotal + IVA":
     // energia + IVA (sem taxas)
     const subtotalComIva = energiaSubtotal + valorIva;
 
-    // Total da fatura = energia + IVA + taxas
-    const total = subtotalComIva + taxasSubtotal;
+    // Total da fatura = subtotal completo + IVA
+    const total = subtotalSemIva + valorIva;
 
     // escreve "valor (energia unidade)" quando há energia associada
     function putEnergia(id, energia, money, unidade){

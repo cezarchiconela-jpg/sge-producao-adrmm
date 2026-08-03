@@ -159,7 +159,7 @@
               <tbody>
                 {% for e in equipamentos %}
                 <tr>
-                  <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
+                  <td>{% if can_write('equipamentos') %}<input type="checkbox" name="ids" value="{{ e.id }}">{% endif %}</td>
                   <td class="fw-semibold text-muted">{{ e.id }}</td>
                   <td>
                     {% if e.cover_thumb %}
@@ -191,15 +191,14 @@
                   <td class="text-end">
                     <div class="d-flex flex-wrap justify-content-end gap-1">
                       <a class="btn btn-sm btn-outline-primary" href="/equipamentos/{{ e.id }}">Ver</a>
-                      <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/editar/{{ e.id }}">Editar</a>
+                      {% if can_write('equipamentos') %}<a class="btn btn-sm btn-outline-secondary" href="/equipamentos/editar/{{ e.id }}">Editar</a>
                       {% if e.ativo %}
-                        <a class="btn btn-sm btn-outline-warning" href="/equipamentos/desativar/{{ e.id }}">Desativar</a>
+                        <button class="btn btn-sm btn-outline-warning" type="submit" formmethod="post" formaction="/equipamentos/desativar/{{ e.id }}">Desativar</button>
                       {% else %}
-                        <a class="btn btn-sm btn-outline-success" href="/equipamentos/ativar/{{ e.id }}">Reativar</a>
+                        <button class="btn btn-sm btn-outline-success" type="submit" formmethod="post" formaction="/equipamentos/ativar/{{ e.id }}">Reativar</button>
                       {% endif %}
-                      <form method="post" action="/equipamentos/{{ e.id }}/arquivar" onsubmit="return confirm('Remover este equipamento da lista ativa?');" class="d-inline">
-                        <button class="btn btn-sm btn-outline-danger">Arquivar</button>
-                      </form>
+                      <button class="btn btn-sm btn-outline-danger" type="submit" formmethod="post" formaction="/equipamentos/{{ e.id }}/arquivar" onclick="return confirm('Remover este equipamento da lista ativa?');">Arquivar</button>
+                      {% endif %}
                     </div>
                   </td>
                 </tr>
@@ -210,7 +209,7 @@
             </table>
           </div>
 
-          <div class="p-3 border-top bg-light-subtle sticky-actions">
+          {% if can_write('equipamentos') %}<div class="p-3 border-top bg-light-subtle sticky-actions">
             <div class="row g-2 align-items-center">
               <div class="col-lg-5">
                 <select name="action" class="form-select">
@@ -225,7 +224,7 @@
               <div class="col-lg-2 d-grid"><button class="btn btn-primary">Aplicar</button></div>
               <div class="col-lg-5 text-lg-end muted-mini">Ações em lote limitadas ao que faz sentido operacionalmente.</div>
             </div>
-          </div>
+          </div>{% endif %}
         </form>
       </div>
     </div>

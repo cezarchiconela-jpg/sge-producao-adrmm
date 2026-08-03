@@ -43,7 +43,7 @@
             <td class="text-end">
               {% set qj = r[3]|safe %}
               <a class="btn btn-sm btn-outline-primary" href="/equipamentos">Aplicar</a>
-              <a class="btn btn-sm btn-outline-danger" href="/equipamentos/filtros/{{ r[0] }}/delete">Remover</a>
+              {% if can_write('equipamentos') %}<form method="post" action="/equipamentos/filtros/{{ r[0] }}/delete" class="d-inline"><button class="btn btn-sm btn-outline-danger" type="submit">Remover</button></form>{% endif %}
             </td>
           </tr>
           {% endfor %}

@@ -5,8 +5,10 @@
   <div class="card-body d-flex flex-wrap gap-2">
     <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/export/detalhe/{{ _id }}.pdf">Ficha PDF</a>
     <a class="btn btn-sm btn-outline-secondary" href="/equipamentos/{{ _id }}/label">Etiqueta A7</a>
-    <a class="btn btn-sm btn-outline-success" href="/equipamentos/ativar/{{ _id }}">Ativar</a>
-    <a class="btn btn-sm btn-outline-warning" href="/equipamentos/desativar/{{ _id }}">Desativar</a>
-    <a class="btn btn-sm btn-outline-danger" href="/equipamentos/remover/{{ _id }}">Remover</a>
+    {% if can_write('equipamentos') %}
+    <form method="post" action="/equipamentos/ativar/{{ _id }}" class="d-inline"><button class="btn btn-sm btn-outline-success" type="submit">Ativar</button></form>
+    <form method="post" action="/equipamentos/desativar/{{ _id }}" class="d-inline"><button class="btn btn-sm btn-outline-warning" type="submit">Desativar</button></form>
+    <form method="post" action="/equipamentos/remover/{{ _id }}" class="d-inline" onsubmit="return confirm('Remover este equipamento da lista ativa?')"><button class="btn btn-sm btn-outline-danger" type="submit">Remover</button></form>
+    {% endif %}
   </div>
 </div>

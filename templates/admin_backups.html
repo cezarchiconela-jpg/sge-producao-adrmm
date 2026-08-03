@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div><h3 class="mb-1">Backups do SGE</h3><div class="text-muted">Cópias SQLite consistentes, compactadas e verificadas.</div></div>
+  <form method="post" action="{{ url_for('admin_backups_criar') }}"><button class="btn btn-primary">Criar e verificar backup</button></form>
+</div>
+
+<div class="alert alert-info">É criado no máximo um backup automático por dia. Retenção configurada: <strong>{{ retention_days }} dias</strong>.</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Ficheiro</th><th>Data</th><th>Tamanho</th><th class="text-end">Ações</th></tr></thead>
+      <tbody>
+      {% for b in backups %}
+        <tr>
+          <td><code>{{ b.name }}</code></td>
+          <td>{{ b.mtime.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ '%.2f'|format(b.size / 1048576) }} MB</td>
+          <td class="text-end">
+            <form class="d-inline" method="post" action="{{ url_for('admin_backups_verificar', filename=b.name) }}"><button class="btn btn-sm btn-outline-success">Verificar</button></form>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_backups_download', filename=b.name) }}">Descarregar</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Ainda não existem backups.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

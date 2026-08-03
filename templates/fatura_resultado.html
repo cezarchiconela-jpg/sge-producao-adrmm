@@ -42,7 +42,8 @@
     <tr><th>Taxa Lixo (MT)</th><td>{{ taxa_lixo|default(0)|round(2) }}</td></tr>
 
     <tr class="table-light"><th>Subtotal (MT)</th><td>{{ subtotal|round(2) }}</td></tr>
-    <tr><th>IVA (MT)</th><td>{{ valor_iva|round(2) }}</td></tr>
+    <tr><th>Base tributável do IVA (62%)</th><td>{{ (subtotal * 0.62)|round(2) }} MT</td></tr>
+    <tr><th>IVA (16% sobre 62%)</th><td>{{ valor_iva|round(2) }} MT</td></tr>
     <tr class="table-success"><th><b>Total a Pagar (MT)</b></th><td><b>{{ total|round(2) }}</b></td></tr>
   </table>
 

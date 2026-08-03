@@ -57,12 +57,12 @@
     <div class="row">
       <div class="col-md-2"><label>Tarifa Ativa</label><input type="number" name="tarifa_ativa" id="tarifa_ativa" step="0.0001" class="form-control" value="4.780" required></div>
       <div class="col-md-2"><label>Tarifa Reativa</label><input type="number" name="tarifa_reativa" id="tarifa_reativa" step="0.0001" class="form-control" value="1.430" required></div>
-      <div class="col-md-2"><label>Tarifa Ponta</label><input type="number" name="tarifa_ponta" id="tarifa_ponta" step="0.0001" class="form-control" value="4.970"></div>
+      <div class="col-md-2"><label>Tarifa Ponta</label><input type="number" name="tarifa_ponta" id="tarifa_ponta" step="0.01" class="form-control" value="497.03"></div>
       <div class="col-md-2"><label>Tarifa Perdas</label><input type="number" name="tarifa_perdas" id="tarifa_perdas" step="0.0001" class="form-control" value="4.780"></div>
       <div class="col-md-2"><label>Taxa Fixa</label><input type="number" name="taxa_fixa" id="taxa_fixa" step="0.01" class="form-control" value="207.28"></div>
       <div class="col-md-2"><label>Taxa Rádio</label><input type="number" name="taxa_radio" id="taxa_radio" step="0.01" class="form-control" value="297.00"></div>
       <div class="col-md-2 mt-2"><label>Taxa Lixo</label><input type="number" name="taxa_lixo" id="taxa_lixo" step="0.01" class="form-control" value="150.00"></div>
-      <div class="col-md-2 mt-2"><label>IVA (%)</label><input type="number" name="iva" id="iva" step="0.01" class="form-control" value="16.0"></div>
+      <div class="col-md-3 mt-2"><label>IVA</label><input type="text" id="iva" class="form-control" value="16% sobre 62% do subtotal" readonly></div>
       <div class="col-md-2 mt-2"><label>Saldo Anterior</label><input type="number" name="saldo_ant" step="0.01" class="form-control" value="0.00"></div>
     </div>
 
@@ -88,7 +88,7 @@
     taxa_fixa: document.getElementById('taxa_fixa'),
     taxa_radio: document.getElementById('taxa_radio'),
     taxa_lixo: document.getElementById('taxa_lixo'),
-    iva: document.getElementById('iva')
+    iva: null
   };
 
   function aplicarPadroes(){

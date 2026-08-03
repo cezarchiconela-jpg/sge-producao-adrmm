@@ -17,7 +17,7 @@
             <td><code class="small">{{ f['query_json'] }}</code></td>
             <td class="text-end">
               <a class="btn btn-sm btn-outline-primary" href="/equipamentos?{{ f['query_qs'] }}">Aplicar</a>
-              <a class="btn btn-sm btn-outline-danger" href="/equipamentos/filtros/{{ f['id'] }}/delete">Apagar</a>
+              {% if can_write('equipamentos') %}<form method="post" action="/equipamentos/filtros/{{ f['id'] }}/delete" class="d-inline"><button class="btn btn-sm btn-outline-danger" type="submit">Apagar</button></form>{% endif %}
             </td>
           </tr>
         {% endfor %}

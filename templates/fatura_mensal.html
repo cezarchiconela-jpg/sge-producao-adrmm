@@ -23,7 +23,7 @@
         <tr><th>Taxa Rádio</th><td>297.00</td></tr>
         <tr><th>Taxa Lixo</th><td>150.00</td></tr>
         <tr><th>Subtotal</th><td>{{ subtotal|round(2) }}</td></tr>
-        <tr><th>IVA (16%)</th><td>{{ valor_iva|round(2) }}</td></tr>
+        <tr><th>IVA (16% sobre 62% do subtotal)</th><td>{{ valor_iva|round(2) }}</td></tr>
         <tr><th><b>Total a Pagar (MT)</b></th><td><b>{{ total|round(2) }}</b></td></tr>
     </table>
     <a href="/leituras_mensal?local={{ local }}&mes={{ mes }}&ano={{ ano }}" class="btn btn-secondary">Voltar para Leituras</a>

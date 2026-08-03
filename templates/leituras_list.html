@@ -32,7 +32,7 @@
     </div>
     <div class="hero-actions">
       <a class="btn" href="/energia">↩ Gestão de Leituras</a>
-      <a class="btn primary" href="/monitoria/nova{% if local %}?local={{ local|urlencode }}{% endif %}">+ Nova leitura</a>
+      {% if can_write('monitoria') %}<a class="btn primary" href="/monitoria/nova{% if local %}?local={{ local|urlencode }}{% endif %}">+ Nova leitura</a>{% endif %}
       <a class="btn green" href="/leituras_mensal{% if local %}?local={{ local|urlencode }}{% endif %}">Leituras Mensais</a>
       <a class="btn dark" href="/monitoria/controlo?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Painel de controlo</a>
       <a class="btn outline" href="/monitoria/relatorio?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&equipamento={{ equipamento|urlencode }}&q={{ q|urlencode }}">Relatório técnico</a>
@@ -51,7 +51,7 @@
       <button class="btn primary" type="submit">Filtrar</button>
     </form>
     <div class="chips">
-      <button id="btnSaveFilter" type="button" class="btn small outline">Guardar filtros</button>
+      {% if can_write('leituras') %}<button id="btnSaveFilter" type="button" class="btn small outline">Guardar filtros</button>{% endif %}
       <button id="btnListFilters" type="button" class="btn small outline">Meus filtros</button>
       {% if local_config %}<span class="chip green">Pot. contratada: {{ '%.2f'|format(local_config[1] or 0) }} kVA</span><span class="chip">Fator mult.: {{ '%.4f'|format(local_config[2] or 1) }}</span><span class="chip">Pot. instalada: {{ '%.2f'|format(local_config[3] or 0) }} kW</span>{% else %}<span class="chip warn">Selecione um local para ver parâmetros técnicos.</span>{% endif %}
       {% if low_fp_count %}<span class="chip danger">{{ low_fp_count }} registo(s) com FP baixo</span>{% endif %}
@@ -116,14 +116,14 @@
         <a class="btn outline" href="/leituras/export?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">CSV</a>
         <a class="btn outline" href="/leituras/export_xlsx?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">XLSX</a>
         <a class="btn outline" href="/leituras/export_pdf?inicio={{ inicio }}&fim={{ fim }}&local={{ local|urlencode }}&q={{ q|urlencode }}">PDF</a>
-        <a class="btn outline" href="/leituras/import_preview">Importar CSV</a>
-        <a class="btn outline" href="/leituras/bulk">Edição em massa</a>
+        {% if can_write('leituras') %}<a class="btn outline" href="/leituras/import_preview">Importar CSV</a>
+        <a class="btn outline" href="/leituras/bulk">Edição em massa</a>{% endif %}
       </div>
-      <button form="deleteForm" class="btn danger" onclick="return confirm('Eliminar registos selecionados?');">Eliminar selecionados</button>
+      {% if can_write('leituras') %}<button form="deleteForm" class="btn danger" onclick="return confirm('Eliminar registos selecionados?');">Eliminar selecionados</button>{% endif %}
     </div>
 
     <form method="post" action="/leituras/delete_batch" id="deleteForm">
-      <div style="margin:12px 0"><input type="checkbox" id="checkAll"> <label for="checkAll"><b>Selecionar todos</b></label></div>
+      {% if can_write('leituras') %}<div style="margin:12px 0"><input type="checkbox" id="checkAll"> <label for="checkAll"><b>Selecionar todos</b></label></div>{% endif %}
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr><th></th><th>#</th><th>Data/Hora</th><th>Local</th><th>Equipamento</th><th>Ativa<br>kWh</th><th>Reativa<br>kVArh</th><th>Aparente<br>kVAh</th><th>P. Ativa<br>kW</th><th>P. Reativa<br>kVAr</th><th>P. Aparente<br>kVA</th><th>FP</th><th>Ponta</th><th>Caudal<br>m³</th><th>Corrente<br>A</th><th>Tensão<br>V</th><th>Obs.</th><th>Ações</th></tr></thead>
@@ -134,14 +134,14 @@
             {% set low_fp = (row[10] is not none) and (row[10] < 0.85) and (row[10] > 0) %}
             {% set tensao_alert = (row[14] is not none) and ((row[14] < 360) or (row[14] > 440)) and (row[14] > 0) %}
             <tr class="{% if low_fp or tensao_alert %}row-danger{% elif is_anom %}row-info{% endif %}" data-id="{{ row[0] }}">
-              <td><input type="checkbox" name="ids" value="{{ row[0] }}"></td><td>{{ row[0] }}</td>
-              <td contenteditable="true" data-field="datahora">{{ row[1] }}</td><td contenteditable="true" data-field="local">{{ row[2] }}</td><td contenteditable="true" data-field="equipamento">{{ row[3] }}</td>
-              <td contenteditable="true" data-field="energia_ativa">{{ '%.3f'|format(row[4] or 0) }}{% if is_anom %}<span class="badge info">anomalia</span>{% endif %}</td>
-              <td contenteditable="true" data-field="energia_reativa">{{ '%.3f'|format(row[5] or 0) }}</td><td contenteditable="true" data-field="energia_aparente">{{ '%.3f'|format(row[6] or 0) }}</td>
-              <td contenteditable="true" data-field="pot_ativa">{{ '%.3f'|format(row[7] or 0) }}</td><td contenteditable="true" data-field="pot_reativa">{{ '%.3f'|format(row[8] or 0) }}</td><td contenteditable="true" data-field="pot_aparente">{{ '%.3f'|format(row[9] or 0) }}</td>
-              <td contenteditable="true" data-field="fp">{{ '%.3f'|format(row[10] or 0) }}{% if low_fp %}<span class="badge danger">FP</span>{% endif %}</td><td contenteditable="true" data-field="ponta">{{ '%.3f'|format(row[11] or 0) }}</td><td contenteditable="true" data-field="caudal_elevada">{{ '%.3f'|format(row[12] or 0) }}</td>
-              <td contenteditable="true" data-field="corrente">{{ '%.3f'|format(row[13] or 0) }}</td><td contenteditable="true" data-field="tensao">{{ '%.3f'|format(row[14] or 0) }}{% if tensao_alert %}<span class="badge warn">V</span>{% endif %}</td><td contenteditable="true" data-field="observacoes">{{ row[15] or '' }}</td>
-              <td style="text-align:left;white-space:nowrap"><a class="btn small outline" href="/leituras/{{ row[0] }}/edit">Editar</a> <a class="btn small outline" href="/leituras/{{ row[0] }}/duplicate" onclick="return confirm('Duplicar este registo?');">Duplicar</a></td>
+              <td>{% if can_write('leituras') %}<input type="checkbox" name="ids" value="{{ row[0] }}">{% endif %}</td><td>{{ row[0] }}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="datahora">{{ row[1] }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="local">{{ row[2] }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="equipamento">{{ row[3] }}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="energia_ativa">{{ '%.3f'|format(row[4] or 0) }}{% if is_anom %}<span class="badge info">anomalia</span>{% endif %}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="energia_reativa">{{ '%.3f'|format(row[5] or 0) }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="energia_aparente">{{ '%.3f'|format(row[6] or 0) }}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="pot_ativa">{{ '%.3f'|format(row[7] or 0) }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="pot_reativa">{{ '%.3f'|format(row[8] or 0) }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="pot_aparente">{{ '%.3f'|format(row[9] or 0) }}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="fp">{{ '%.3f'|format(row[10] or 0) }}{% if low_fp %}<span class="badge danger">FP</span>{% endif %}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="ponta">{{ '%.3f'|format(row[11] or 0) }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="caudal_elevada">{{ '%.3f'|format(row[12] or 0) }}</td>
+              <td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="corrente">{{ '%.3f'|format(row[13] or 0) }}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="tensao">{{ '%.3f'|format(row[14] or 0) }}{% if tensao_alert %}<span class="badge warn">V</span>{% endif %}</td><td contenteditable="{{ 'true' if can_write('leituras') else 'false' }}" data-field="observacoes">{{ row[15] or '' }}</td>
+              <td style="text-align:left;white-space:nowrap">{% if can_write('leituras') %}<a class="btn small outline" href="/leituras/{{ row[0] }}/edit">Editar</a> <button class="btn small outline" type="submit" formmethod="post" formaction="/leituras/{{ row[0] }}/duplicate" onclick="return confirm('Duplicar este registo?');">Duplicar</button>{% else %}—{% endif %}</td>
             </tr>
           {% else %}<tr><td colspan="18" style="text-align:center;padding:24px">Sem leituras no intervalo selecionado.</td></tr>{% endfor %}
           </tbody>
