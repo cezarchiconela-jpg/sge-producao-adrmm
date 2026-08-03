@@ -1,7 +1,7 @@
 
 /*! SGE MT – Cálculo de Fatura (EDM) – drop‑in para módulo 'Leituras Mensais'
  *  Regras:
- *    ER_exced = max(0, ER_total - α * EA_total)   (α=0.50 por padrão)
+ *    ER_exced = max(0, ER_total - 0.75 * EA_total)
  *    P_fat    = 0.2 * Pc + 0.8 * Dmax
  *    IVA      = 0.16 * 0.62 * Subtotal
  *  O script tenta detectar automaticamente as colunas 'Ativa', 'Reativa' e 'Ponta'.
@@ -18,13 +18,13 @@
     // tentar vários ids conhecidos no teu módulo
     const fm = val('fator_multiplicativo', val('fm', val('fatorMult', 1.0)));
     const pc = val('potencia_contratada', val('pc', 0.0));
-    const alfa = val('alfa_reativa', 0.50);
+    const alfa = 0.75;
     const tarifaAtiva = val('tarifa_ativa', 4.780);
     const tarifaReativa = val('tarifa_reativa', 1.430);
-    const tarifaPot = val('tarifa_potencia', 497.000);
+    const tarifaPot = val('tarifa_potencia', 497.03);
     // IVA
-    const ivaTaxa = val('iva_taxa', 0.16);
-    const ivaBase = val('iva_base_factor', val('iva_base', 0.62));
+    const ivaTaxa = 0.16;
+    const ivaBase = 0.62;
     return {fm, pc, alfa, tarifaAtiva, tarifaReativa, tarifaPot, ivaTaxa, ivaBase};
   }
 

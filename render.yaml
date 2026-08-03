@@ -16,6 +16,14 @@ services:
         value: /var/data/sge.db
       - key: SGE_UPLOAD_FOLDER
         value: /var/data/uploads
+      - key: SGE_BACKUP_DIR
+        value: /var/data/backups
+      - key: SGE_BACKUP_RETENTION_DAYS
+        value: "30"
+      - key: SGE_BACKUP_MAX_COUNT
+        value: "30"
+      - key: SGE_SESSION_HOURS
+        value: "8"
       - key: SGE_REQUIRE_LOGIN
         value: "1"
       - key: SGE_ADMIN_USER

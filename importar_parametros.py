@@ -26,7 +26,7 @@ def ensure_tabelas():
             pot_contratada REAL DEFAULT 0.0,
             tarifa_ativa REAL DEFAULT 4.780,
             tarifa_reativa REAL DEFAULT 1.430,
-            tarifa_ponta REAL DEFAULT 4.970,
+            tarifa_ponta REAL DEFAULT 497.03,
             tarifa_perdas REAL DEFAULT 4.780,
             taxa_fixa REAL DEFAULT 207.28,
             taxa_radio REAL DEFAULT 297.00,

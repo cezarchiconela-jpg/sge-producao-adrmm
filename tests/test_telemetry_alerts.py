@@ -35,7 +35,7 @@ class TelemetryAlertsTest(unittest.TestCase):
         conn.execute(
             """
             INSERT INTO locais_cfg VALUES(1, 300.0, 3500.0, 4.780, 1.430,
-                                           4.970, 207.28, 297.0, 150.0, 16.0)
+                                           497.03, 207.28, 297.0, 150.0, 16.0)
             """
         )
         conn.commit()

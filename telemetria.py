@@ -21,6 +21,8 @@ from typing import Any, Iterable
 from flask import Blueprint, Response, jsonify, render_template, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from billing import DEFAULT_TARIFFS as BILLING_DEFAULT_TARIFFS, calculate_invoice, resolve_tariffs
+
 
 DEVICE_CODE_F650 = "F650_ENTRADA_GERAL_33KV"
 DEFAULT_ONLINE_SECONDS = 180
@@ -32,16 +34,7 @@ LOCAL_TIMEZONE = timezone(timedelta(hours=2))
 # O factor multiplicativo não faz parte desta estrutura de propósito: os
 # valores do F650 já chegam convertidos para o primário e nunca são escalados
 # novamente dentro da telemetria.
-DEFAULT_ENERGY_TARIFFS = {
-    "tarifa_ativa": 4.780,
-    "tarifa_reativa": 1.430,
-    "tarifa_ponta": 4.970,
-    "taxa_fixa": 207.28,
-    "taxa_radio": 297.00,
-    "taxa_lixo": 150.00,
-    "iva": 16.0,
-    "pot_contratada": 0.0,
-}
+DEFAULT_ENERGY_TARIFFS = dict(BILLING_DEFAULT_TARIFFS)
 
 # Os valores abaixo são limites de supervisão do SGE. Não alteram ajustes,
 # protecções ou a programação do F650. Foram escolhidos para uma rede nominal
@@ -657,7 +650,7 @@ def _seed_f650(db_path: str) -> None:
                 "F650",
                 "5.40",
                 "Modbus TCP",
-                "192.168.0.1",
+                "169.254.219.155",
                 _iso_utc(),
             ),
         )
@@ -1234,45 +1227,13 @@ def _query_alerts(
 def _load_energy_tariffs(
     conn: sqlite3.Connection,
     device: sqlite3.Row | dict[str, Any],
+    effective_date: datetime | str | None = None,
 ) -> dict[str, Any]:
     """Lê tarifas do local sem aplicar o factor multiplicativo das facturas."""
-    tariffs: dict[str, Any] = dict(DEFAULT_ENERGY_TARIFFS)
-    tariffs.update(
-        {
-            "configured": False,
-            "source": "Valores-padrão do SGE",
-            "factor_multiplicative_applied": False,
-        }
-    )
     item = dict(device)
     local_id = item.get("local_id")
-    if not local_id:
-        return tariffs
-    table_exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='locais_cfg'"
-    ).fetchone()
-    if not table_exists:
-        return tariffs
-    available = {
-        row["name"] for row in conn.execute("PRAGMA table_info(locais_cfg)").fetchall()
-    }
-    wanted = [key for key in DEFAULT_ENERGY_TARIFFS if key in available]
-    if not wanted or "local_id" not in available:
-        return tariffs
-    row = conn.execute(
-        f"SELECT {', '.join(wanted)} FROM locais_cfg WHERE local_id=? LIMIT 1",
-        (local_id,),
-    ).fetchone()
-    if not row:
-        return tariffs
-    for key in wanted:
-        if row[key] is not None:
-            try:
-                tariffs[key] = max(0.0, float(row[key]))
-            except (TypeError, ValueError):
-                pass
-    tariffs["configured"] = True
-    tariffs["source"] = "Configuração tarifária do local"
+    tariffs = resolve_tariffs(conn, int(local_id) if local_id else None, effective_date)
+    tariffs["factor_multiplicative_applied"] = False
     return tariffs
 
 
@@ -1403,20 +1364,21 @@ def _energy_cost_breakdown(
     reactive_kvarh: float,
     tariffs: dict[str, Any],
 ) -> dict[str, float]:
-    active = max(0.0, float(active_kwh or 0.0))
-    reactive = max(0.0, float(reactive_kvarh or 0.0))
-    reactive_limit = 0.75 * active
-    reactive_excess = max(0.0, reactive - reactive_limit)
-    active_cost = active * float(tariffs["tarifa_ativa"])
-    reactive_cost = reactive_excess * float(tariffs["tarifa_reativa"])
+    bill = calculate_invoice(
+        active_kwh=active_kwh,
+        reactive_kvarh=reactive_kvarh,
+        measured_peak_kw=0,
+        contracted_power_kw=0,
+        tariffs={**tariffs, "taxa_fixa": 0, "taxa_radio": 0, "taxa_lixo": 0},
+    )
     return {
-        "active_energy_kwh": active,
-        "reactive_energy_kvarh": reactive,
-        "reactive_limit_kvarh": reactive_limit,
-        "reactive_excess_kvarh": reactive_excess,
-        "active_cost_mzn": active_cost,
-        "reactive_cost_mzn": reactive_cost,
-        "energy_cost_mzn": active_cost + reactive_cost,
+        "active_energy_kwh": bill["active_energy_kwh"],
+        "reactive_energy_kvarh": bill["reactive_energy_kvarh"],
+        "reactive_limit_kvarh": bill["reactive_limit_kvarh"],
+        "reactive_excess_kvarh": bill["reactive_excess_kvarh"],
+        "active_cost_mzn": bill["active_cost_mzn"],
+        "reactive_cost_mzn": bill["reactive_cost_mzn"],
+        "energy_cost_mzn": bill["active_cost_mzn"] + bill["reactive_cost_mzn"],
     }
 
 
@@ -1425,24 +1387,24 @@ def _invoice_estimate(
     peak_kw: float,
     tariffs: dict[str, Any],
 ) -> dict[str, Any]:
-    contracted = max(0.0, float(tariffs.get("pot_contratada") or 0.0))
-    billing_demand = 0.20 * contracted + 0.80 * max(0.0, peak_kw)
-    demand_cost = billing_demand * float(tariffs["tarifa_ponta"])
-    fees = sum(float(tariffs[key]) for key in ("taxa_fixa", "taxa_radio", "taxa_lixo"))
-    subtotal_energy = energy["energy_cost_mzn"] + demand_cost
-    subtotal = subtotal_energy + fees
-    iva_value = subtotal * 0.62 * float(tariffs["iva"]) / 100.0
+    bill = calculate_invoice(
+        active_kwh=energy["active_energy_kwh"],
+        reactive_kvarh=energy["reactive_energy_kvarh"],
+        measured_peak_kw=peak_kw,
+        contracted_power_kw=tariffs.get("pot_contratada"),
+        tariffs=tariffs,
+    )
     return {
         "peak_kw": peak_kw,
-        "contracted_power_kw": contracted,
-        "billing_demand_kw": billing_demand,
-        "demand_cost_mzn": demand_cost,
-        "fees_mzn": fees,
-        "subtotal_energy_mzn": subtotal_energy,
-        "subtotal_mzn": subtotal,
-        "iva_mzn": iva_value,
-        "estimated_total_mzn": subtotal + iva_value,
-        "contracted_power_configured": contracted > 0,
+        "contracted_power_kw": bill["contracted_power_kw"],
+        "billing_demand_kw": bill["billing_demand_kw"],
+        "demand_cost_mzn": bill["demand_cost_mzn"],
+        "fees_mzn": bill["fees_subtotal_mzn"],
+        "subtotal_energy_mzn": bill["energy_subtotal_mzn"],
+        "subtotal_mzn": bill["subtotal_mzn"],
+        "iva_mzn": bill["vat_mzn"],
+        "estimated_total_mzn": bill["total_mzn"],
+        "contracted_power_configured": bill["contracted_power_kw"] > 0,
     }
 
 
@@ -1516,7 +1478,7 @@ def _build_analysis(
     ignored_gaps = int(active_result["ignored_gaps"])
     peak_mw = float(active_result["peak"])
     peak_at = active_result["peak_at"]
-    tariffs = _load_energy_tariffs(conn, device)
+    tariffs = _load_energy_tariffs(conn, device, window["end"])
     finance = _energy_cost_breakdown(energy_kwh, reactive_kvarh, tariffs)
 
     previous_active = _integrate_power_channel(
@@ -2516,6 +2478,133 @@ def register_telemetry(app, db_path: str) -> None:
             selected_device=selected,
             online_seconds=DEFAULT_ONLINE_SECONDS,
         )
+
+    manager_required = _admin_or_manager_required(
+        lambda: ({"role": session.get("role")} if session.get("sge_logged_in") else None)
+    )
+
+    @bp.get("/telemetria/dispositivos")
+    @manager_required
+    def devices_admin():
+        conn = _connect(db_path)
+        try:
+            devices = conn.execute(
+                """SELECT d.*, l.nome AS local_name,
+                          (SELECT COUNT(*) FROM telemetry_channels c WHERE c.device_id=d.id AND c.active=1) AS channel_count
+                   FROM telemetry_devices d LEFT JOIN locais l ON l.id=d.local_id
+                   ORDER BY d.active DESC, l.nome, d.name"""
+            ).fetchall()
+            locais = conn.execute(
+                "SELECT id, nome FROM locais WHERE COALESCE(ativo,1)=1 ORDER BY nome"
+            ).fetchall()
+        finally:
+            conn.close()
+        return render_template(
+            "telemetria_dispositivos.html",
+            devices=[dict(row) for row in devices],
+            locais=[dict(row) for row in locais],
+            generated_token=session.pop("telemetry_generated_token", None),
+        )
+
+    @bp.post("/telemetria/dispositivos/guardar")
+    @manager_required
+    def devices_save():
+        raw_id = (request.form.get("device_id") or "").strip()
+        device_id = int(raw_id) if raw_id.isdigit() else None
+        code = (request.form.get("code") or "").strip().upper()
+        name = (request.form.get("name") or "").strip()
+        if not code or not name or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for ch in code):
+            return jsonify(success=False, error="invalid_device", message="Código ou nome inválido"), 400
+        local_raw = (request.form.get("local_id") or "").strip()
+        local_id = int(local_raw) if local_raw.isdigit() else None
+        online = max(30, min(3600, int(request.form.get("online_timeout_seconds") or 180)))
+        offline = max(online + 30, min(86400, int(request.form.get("offline_timeout_seconds") or 900)))
+        token = (request.form.get("token") or "").strip()
+        generated = False
+        conn = _connect(db_path)
+        try:
+            if local_id and not conn.execute("SELECT 1 FROM locais WHERE id=?", (local_id,)).fetchone():
+                return jsonify(success=False, error="invalid_local"), 400
+            if device_id:
+                current = conn.execute("SELECT * FROM telemetry_devices WHERE id=?", (device_id,)).fetchone()
+                if not current:
+                    return jsonify(success=False, error="not_found"), 404
+                token_hash = generate_password_hash(token) if token else current["token_hash"]
+                conn.execute(
+                    """UPDATE telemetry_devices SET local_id=?, code=?, name=?, manufacturer=?, model=?,
+                              firmware=?, protocol=?, local_ip=?, token_hash=?, active=?,
+                              online_timeout_seconds=?, offline_timeout_seconds=?, updated_at=? WHERE id=?""",
+                    (
+                        local_id, code, name, (request.form.get("manufacturer") or "").strip(),
+                        (request.form.get("model") or "").strip(), (request.form.get("firmware") or "").strip(),
+                        (request.form.get("protocol") or "HTTPS/JSON").strip(),
+                        (request.form.get("local_ip") or "").strip(), token_hash,
+                        1 if request.form.get("active") == "1" else 0, online, offline, _iso_utc(), device_id,
+                    ),
+                )
+            else:
+                if not token:
+                    token = secrets.token_urlsafe(32)
+                    generated = True
+                cursor = conn.execute(
+                    """INSERT INTO telemetry_devices(
+                           local_id, code, name, manufacturer, model, firmware, protocol, local_ip,
+                           token_hash, active, online_timeout_seconds, offline_timeout_seconds, updated_at
+                       ) VALUES(?,?,?,?,?,?,?,?,?,1,?,?,?)""",
+                    (
+                        local_id, code, name, (request.form.get("manufacturer") or "").strip(),
+                        (request.form.get("model") or "").strip(), (request.form.get("firmware") or "").strip(),
+                        (request.form.get("protocol") or "HTTPS/JSON").strip(),
+                        (request.form.get("local_ip") or "").strip(), generate_password_hash(token),
+                        online, offline, _iso_utc(),
+                    ),
+                )
+                device_id = int(cursor.lastrowid)
+                if request.form.get("profile") == "f650":
+                    source = conn.execute("SELECT id FROM telemetry_devices WHERE code=?", (DEVICE_CODE_F650,)).fetchone()
+                    if source:
+                        conn.execute(
+                            """INSERT OR IGNORE INTO telemetry_channels(
+                                   device_id, code, name, unit, min_value, max_value, active,
+                                   show_dashboard, sort_order, updated_at)
+                               SELECT ?, code, name, unit, min_value, max_value, active,
+                                      show_dashboard, sort_order, ?
+                               FROM telemetry_channels WHERE device_id=?""",
+                            (device_id, _iso_utc(), source["id"]),
+                        )
+                cfg_columns = ", ".join(["device_id"] + list(DEFAULT_ALERT_CONFIG.keys()))
+                placeholders = ", ".join("?" for _ in range(len(DEFAULT_ALERT_CONFIG) + 1))
+                conn.execute(
+                    f"INSERT OR IGNORE INTO telemetry_alert_config({cfg_columns}) VALUES({placeholders})",
+                    [device_id, *DEFAULT_ALERT_CONFIG.values()],
+                )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return jsonify(success=False, error="duplicate_code", message="Já existe um dispositivo com este código"), 409
+        finally:
+            conn.close()
+        if generated:
+            session["telemetry_generated_token"] = {"device": code, "token": token}
+        return jsonify(success=True, device_id=device_id, generated_token=generated)
+
+    @bp.post("/telemetria/dispositivos/<int:device_id>/estado")
+    @manager_required
+    def devices_toggle(device_id: int):
+        conn = _connect(db_path)
+        try:
+            row = conn.execute("SELECT active FROM telemetry_devices WHERE id=?", (device_id,)).fetchone()
+            if not row:
+                return jsonify(success=False, error="not_found"), 404
+            new_state = 0 if int(row["active"] or 0) else 1
+            conn.execute(
+                "UPDATE telemetry_devices SET active=?, updated_at=? WHERE id=?",
+                (new_state, _iso_utc(), device_id),
+            )
+            conn.commit()
+            return jsonify(success=True, active=bool(new_state))
+        finally:
+            conn.close()
 
     @bp.get("/telemetria/api/overview")
     def overview():

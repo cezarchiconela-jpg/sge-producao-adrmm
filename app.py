@@ -43,7 +43,7 @@ def log_audit(local, data, mes, ano, field, old, new, acao="update", actor="pack
     c.execute('''INSERT INTO leituras_mensais_audit(local,data,mes,ano,field,old_value,new_value,acao,actor)
                  VALUES(?,?,?,?,?,?,?,?,?)''', (local, data, mes, ano, field, str(old), str(new), acao, actor))
     conn.commit(); conn.close()
-from flask import Flask, request, render_template, redirect, url_for, Response, flash, jsonify, send_from_directory, g, session
+from flask import Flask, request, render_template, redirect, url_for, Response, flash, jsonify, send_from_directory, send_file, g, session
 import os
 import secrets
 print(">> SGE a arrancar a partir do ficheiro:", __file__)
@@ -63,14 +63,29 @@ from datetime import datetime, timedelta
 import math
 from io import StringIO
 import json
+import re
 from jinja2 import TemplateNotFound
 from io import BytesIO
 import csv
 import xlsxwriter
 import qrcode
+from urllib.parse import urlsplit
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from werkzeug.utils import secure_filename
+
+from billing import (
+    DEFAULT_TARIFFS,
+    REACTIVE_LIMIT_FACTOR,
+    VAT_BASE_FACTOR,
+    VAT_RATE,
+    billing_demand,
+    calculate_invoice,
+    normalise_tariffs,
+    resolve_tariffs,
+)
+from backup_sge import create_backup, maybe_create_daily_backup, verify_backup
+from migrations import run_migrations
 
 app = Flask(__name__)
 RATE_LIMIT_UPLOADS = {}
@@ -139,13 +154,83 @@ def _after_request(resp):
         _logger and _logger.info("RID=%s %s %s %s %.3fs", getattr(g,'rid','-'), request.remote_addr, request.method, request.path, dt)
     except Exception:
         pass
+    # Compatibilidade segura com todos os templates antigos e novos: qualquer
+    # formulário POST recebe CSRF e qualquer fetch mutável recebe o cabeçalho.
+    try:
+        if resp.status_code < 400 and 'text/html' in (resp.content_type or '').lower():
+            html = resp.get_data(as_text=True)
+            token = _csrf_token()
+            hidden = f'<input type="hidden" name="_csrf_token" value="{token}">'
+            form_pattern = re.compile(r'(<form\b(?=[^>]*\bmethod\s*=\s*["\']?post["\']?)[^>]*>)', re.I)
+            html = form_pattern.sub(lambda match: match.group(1) + hidden, html)
+            fetch_guard = (
+                '<script data-sge-csrf>(function(){const t=' + json.dumps(token) + ';'
+                'const original=window.fetch;if(!original)return;window.fetch=function(input,init){'
+                'init=init||{};const method=String(init.method||"GET").toUpperCase();'
+                'if(["POST","PUT","PATCH","DELETE"].includes(method)){'
+                'init.headers=new Headers(init.headers||{});init.headers.set("X-CSRF-Token",t);}'
+                'return original.call(this,input,init);};})();</script>'
+            )
+            if '</body>' in html.lower():
+                position = html.lower().rfind('</body>')
+                html = html[:position] + fetch_guard + html[position:]
+            else:
+                html += fetch_guard
+            resp.set_data(html)
+            resp.headers['Content-Length'] = str(len(resp.get_data()))
+    except Exception:
+        pass
     # Cabeçalhos defensivos para ambiente online.
     resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
     resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
     resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
     resp.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+    resp.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly; "
+        "font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self'; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+    )
     if os.environ.get('SGE_HSTS', '0').lower() in ('1','true','yes'):
         resp.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    return resp
+
+
+@app.after_request
+def _audit_state_change(resp):
+    """Regista alterações e tentativas recusadas sem guardar dados sensíveis."""
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return resp
+    if (request.path or '').startswith('/api/v1/telemetria'):
+        return resp
+    try:
+        db_path = globals().get('DB_PATH')
+        if db_path and os.path.exists(db_path):
+            user = current_user() if 'current_user' in globals() else None
+            conn = sqlite3.connect(db_path, timeout=5)
+            conn.execute(
+                """INSERT INTO security_audit(
+                       request_id, actor, role, method, endpoint, path,
+                       status_code, remote_ip, outcome
+                   ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                (
+                    getattr(g, 'rid', None),
+                    (user or {}).get('username') or 'anonimo',
+                    (user or {}).get('role') or 'sem_sessao',
+                    request.method,
+                    request.endpoint,
+                    (request.path or '')[:500],
+                    int(resp.status_code),
+                    (request.headers.get('X-Forwarded-For') or request.remote_addr or '')[:100],
+                    'recusado' if getattr(g, 'security_denied', False) or int(resp.status_code) >= 400 else 'permitido',
+                ),
+            )
+            conn.commit()
+            conn.close()
+    except Exception:
+        pass
     return resp
 app.config['UPLOAD_FOLDER'] = os.environ.get('SGE_UPLOAD_FOLDER', os.path.join(BASE_DIR, 'uploads'))
 app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('SGE_MAX_UPLOAD_MB', '25')) * 1024 * 1024
@@ -153,14 +238,18 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax'),
     SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', '0').lower() in ('1','true','yes'),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=max(1, int(os.environ.get('SGE_SESSION_HOURS', '8')))),
+    SESSION_REFRESH_EACH_REQUEST=True,
 )
 
 # === AUTENTICAÇÃO OPCIONAL PARA AMBIENTE ONLINE ===
 # Em produção recomenda-se activar: SGE_REQUIRE_LOGIN=1
 # Credenciais via variáveis de ambiente: SGE_ADMIN_USER e SGE_ADMIN_PASSWORD
 # Alternativa mais segura: SGE_ADMIN_PASSWORD_HASH com hash Werkzeug.
-AUTH_EXEMPT_PREFIXES = ('/static/', '/uploads/', '/api/v1/telemetria')
+AUTH_EXEMPT_PREFIXES = ('/static/', '/api/v1/telemetria')
 AUTH_EXEMPT_PATHS = {'/login', '/logout', '/healthz', '/robots.txt', '/favicon.ico'}
+CSRF_EXEMPT_PREFIXES = ('/api/v1/telemetria',)
+LOGIN_FAILURES = {}
 
 def _truthy_env(name, default='0'):
     return os.environ.get(name, default).lower() in ('1', 'true', 'yes', 'on')
@@ -289,7 +378,72 @@ def _user_has_role(*roles):
     u = current_user()
     return bool(u and u.get('role') in roles)
 
+
+ROLE_CAPABILITIES = {
+    'admin': {'*'},
+    'gestor': {'locais', 'configuracao', 'equipamentos', 'leituras', 'alertas', 'motores', 'solar', 'telemetria', 'calculo'},
+    'tecnico': {'equipamentos', 'leituras', 'monitoria', 'alertas', 'motores', 'solar', 'calculo'},
+    'leitura': {'leituras', 'monitoria', 'calculo'},
+    'consulta': {'calculo'},
+}
+
+
+def _request_scope():
+    path = (request.path or '/').lower()
+    endpoint = (request.endpoint or '').lower()
+    if path.startswith('/usuarios') or path.startswith('/admin'):
+        return 'admin'
+    if path.startswith('/telemetria/dispositivos'):
+        return 'configuracao'
+    if path.startswith('/locais/config') or '/tarifas' in path or path.startswith('/config'):
+        return 'configuracao'
+    if path.startswith('/mt/config'):
+        return 'configuracao'
+    if path.startswith('/mt/'):
+        return 'leituras'
+    if path.startswith('/locais') or endpoint in {'adicionar_local', 'editar_local'}:
+        return 'locais'
+    if path.startswith('/equipamentos') or endpoint.startswith('equipamento'):
+        return 'equipamentos'
+    if path.startswith('/leituras') or path.startswith('/energia'):
+        return 'leituras'
+    if endpoint == 'add':
+        return 'leituras'
+    if path.startswith('/monitoria'):
+        return 'monitoria'
+    if path.startswith('/alertas') or '/alerts/' in path:
+        return 'alertas'
+    if path.startswith('/motores') or path.startswith('/motor'):
+        return 'motores'
+    if path.startswith('/solar'):
+        return 'solar'
+    if path.startswith('/telemetria'):
+        return 'telemetria'
+    if endpoint in {'calcular_fatura', 'fatura_mes', 'api_calc_fatura_mensal_v2'}:
+        return 'calculo'
+    return 'configuracao'
+
+
+def _role_can(role, scope):
+    capabilities = ROLE_CAPABILITIES.get(role or 'consulta', set())
+    return '*' in capabilities or scope in capabilities
+
+
+def can_write(scope):
+    if not _login_required_enabled():
+        return True
+    user = current_user()
+    return bool(user and _role_can(user.get('role'), scope))
+
+
+def _actor_name(default='sge'):
+    user = current_user()
+    if not user:
+        return default
+    return str(user.get('username') or user.get('full_name') or default)[:100]
+
 def _deny_access(message='Sem permissão para executar esta acção.'):
+    setattr(g, 'security_denied', True)
     if request.path.startswith('/api/') or request.headers.get('X-Requested-With','').lower() == 'xmlhttprequest':
         return jsonify(success=False, error='forbidden', message=message), 403
     flash(message, 'warning')
@@ -314,26 +468,32 @@ def _inject_user_context():
 def _permission_guard_after_login():
     u = current_user()
     if not u:
-        return None
+        session.clear()
+        if request.path.startswith('/api/'):
+            return jsonify(success=False, error='auth_required', message='Sessão inválida ou utilizador desativado.'), 401
+        return redirect(url_for('login'))
     role = u.get('role') or 'consulta'
     path = (request.path or '/').lower()
     method = (request.method or 'GET').upper()
+    if request.endpoint == 'perfil_password':
+        return None
     if role == 'admin':
         return None
-    if path.startswith('/usuarios'):
-        return _deny_access('A gestão de utilizadores é reservada ao administrador.')
+    if path.startswith('/usuarios') or path.startswith('/admin'):
+        return _deny_access('Esta área é reservada ao administrador.')
     if method in ('GET', 'HEAD', 'OPTIONS'):
+        sensitive_read = (
+            path.startswith('/locais/config')
+            or '/tarifas' in path
+            or path.startswith('/mt/config')
+            or path.startswith('/telemetria/dispositivos')
+        )
+        if sensitive_read and not _role_can(role, 'configuracao'):
+            return _deny_access('Este perfil não possui acesso às configurações do sistema.')
         return None
-    if role == 'consulta':
-        return _deny_access('O seu perfil permite apenas consulta e emissão de relatórios.')
-    if role == 'leitura':
-        allowed = ('/monitoria', '/leituras', '/leituras_mensal', '/energia')
-        if not path.startswith(allowed):
-            return _deny_access('O seu perfil permite alterar apenas leituras e monitoria operacional.')
-    if role == 'tecnico':
-        blocked = ('/usuarios',)
-        if path.startswith(blocked):
-            return _deny_access('O seu perfil técnico não permite gestão de utilizadores.')
+    scope = _request_scope()
+    if not _role_can(role, scope):
+        return _deny_access(f'O perfil {USER_ROLES.get(role, role)} não possui permissão de escrita nesta área.')
     return None
 
 @app.before_request
@@ -349,6 +509,61 @@ def _require_login_online():
         return jsonify(success=False, error='auth_required', message='Autenticação necessária.'), 401
     return redirect(url_for('login', next=request.url))
 
+
+def _csrf_token():
+    token = session.get('_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf_token'] = token
+    return token
+
+
+def _csrf_failure():
+    setattr(g, 'security_denied', True)
+    if request.path.startswith('/api/') or request.is_json:
+        return jsonify(success=False, error='csrf_invalid', message='Token de segurança ausente ou inválido.'), 400
+    flash('O formulário expirou ou é inválido. Atualize a página e tente novamente.', 'warning')
+    return redirect(request.referrer or url_for('index'))
+
+
+@app.before_request
+def _protect_state_changes():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    if any((request.path or '').startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES):
+        return None
+    expected = session.get('_csrf_token')
+    supplied = request.headers.get('X-CSRF-Token') or request.form.get('_csrf_token')
+    if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
+        return _csrf_failure()
+    return None
+
+
+def _safe_next_url(value, fallback_endpoint='index'):
+    text = str(value or '').strip()
+    if not text:
+        return url_for(fallback_endpoint)
+    parsed = urlsplit(text)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith('/'):
+        return url_for(fallback_endpoint)
+    return parsed.path + (('?' + parsed.query) if parsed.query else '')
+
+
+def _login_is_limited(ip):
+    now = time.time()
+    recent = [stamp for stamp in LOGIN_FAILURES.get(ip, []) if now - stamp < 900]
+    LOGIN_FAILURES[ip] = recent
+    return len(recent) >= 5
+
+
+def _record_login_failure(ip):
+    LOGIN_FAILURES.setdefault(ip, []).append(time.time())
+
+
+@app.context_processor
+def _inject_security_helpers():
+    return {'csrf_token': _csrf_token, 'can_write': can_write}
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if not _login_required_enabled():
@@ -356,6 +571,10 @@ def login():
         return redirect(url_for('index'))
     _ensure_users_schema()
     if request.method == 'POST':
+        client_ip = (request.headers.get('X-Forwarded-For') or request.remote_addr or 'unknown').split(',')[0].strip()
+        if _login_is_limited(client_ip):
+            flash('Muitas tentativas de acesso. Aguarde 15 minutos e tente novamente.', 'danger')
+            return render_template('login.html'), 429
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         row = _get_user_by_username(username)
@@ -374,10 +593,12 @@ def login():
                 session['full_name'] = full_name or uname
                 session['role'] = role or 'consulta'
                 session.permanent = True
+                LOGIN_FAILURES.pop(client_ip, None)
                 if int(must_change or 0) == 1:
                     return redirect(url_for('perfil_password'))
-                return redirect(request.args.get('next') or url_for('index'))
+                return redirect(_safe_next_url(request.args.get('next')))
             else:
+                _record_login_failure(client_ip)
                 flash('Credenciais inválidas.', 'error')
         elif _auth_configured():
             expected_user = os.environ.get('SGE_ADMIN_USER', 'admin')
@@ -388,13 +609,15 @@ def login():
                 session['full_name'] = 'Administrador do Sistema'
                 session['role'] = 'admin'
                 session.permanent = True
-                return redirect(request.args.get('next') or url_for('index'))
+                LOGIN_FAILURES.pop(client_ip, None)
+                return redirect(_safe_next_url(request.args.get('next')))
+            _record_login_failure(client_ip)
             flash('Credenciais inválidas.', 'error')
         else:
             flash('Login activo, mas ainda não existe administrador configurado.', 'error')
     return render_template('login.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     flash('Sessão terminada com sucesso.', 'success')
@@ -560,6 +783,33 @@ def _prepare_runtime_paths():
 
 _prepare_runtime_paths()
 
+# Backup diário consistente antes de qualquer alteração de estrutura/dados.
+STARTUP_BACKUP_RESULT = None
+try:
+    if os.path.exists(DB_PATH) and os.path.getsize(DB_PATH) > 0:
+        STARTUP_BACKUP_RESULT = maybe_create_daily_backup(
+            DB_PATH,
+            app.config['UPLOAD_FOLDER'],
+            os.environ.get('SGE_BACKUP_DIR', os.path.join(os.path.dirname(DB_PATH), 'backups')),
+            reason='pre_migracao_arranque',
+            actor='sge',
+        )
+except Exception as _backup_error:
+    print('Aviso: backup automático não foi concluído:', _backup_error)
+
+# Migração canónica: garante uma instalação completa tanto em base nova como antiga.
+run_migrations(DB_PATH)
+if STARTUP_BACKUP_RESULT:
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute('''INSERT INTO backup_history(filename, sha256, size_bytes, verified, reason, actor)
+                        VALUES(?,?,?,?,?,?)''',
+                     (STARTUP_BACKUP_RESULT['filename'], STARTUP_BACKUP_RESULT['sha256'],
+                      STARTUP_BACKUP_RESULT['size_bytes'], 1, 'pre_migracao_arranque', 'sge'))
+        conn.commit(); conn.close()
+    except Exception:
+        pass
+
 @app.context_processor
 def _inject_global_template_helpers():
     return {'now': datetime.now}
@@ -635,6 +885,8 @@ def migrate_locais_operacional_fase4():
 
 def log_local_history(local_id, evento, detalhe='', actor='sge'):
     try:
+        if actor in ('sge', 'locais_fase4', 'pack3'):
+            actor = _actor_name(actor)
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute('INSERT INTO locais_history(local_id, evento, detalhe, actor) VALUES(?,?,?,?)',
                   (local_id, evento, detalhe, actor))
@@ -703,8 +955,6 @@ def migrate_leituras_mensais():
     )''')
     conn.commit(); conn.close()
 
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
-
 # === BANCO DE DADOS E TABELAS ===
 
 
@@ -745,7 +995,7 @@ def init_db():
             pot_contratada REAL DEFAULT 0.0,
             tarifa_ativa REAL DEFAULT 4.780,
             tarifa_reativa REAL DEFAULT 1.430,
-            tarifa_ponta REAL DEFAULT 4.970,
+            tarifa_ponta REAL DEFAULT 497.03,
             tarifa_perdas REAL DEFAULT 4.780,
             taxa_fixa REAL DEFAULT 207.28,
             taxa_radio REAL DEFAULT 297.00,
@@ -1649,7 +1899,7 @@ def get_local_cfg_full(local_id: int):
     if not row:
         c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (local_id,))
         conn.commit()
-        row = (1.0, 0.0, 4.780, 1.430, 4.970, 4.780, 207.28, 297.00, 150.00, 16.0, 0.0)
+        row = (1.0, 0.0, 4.780, 1.430, 497.03, 4.780, 207.28, 297.00, 150.00, 16.0, 0.0)
     conn.close()
     return {
         "fator_mult": row[0],
@@ -1677,9 +1927,88 @@ def get_local_cfg(local_id: int):
     if not row:
         c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (local_id,))
         conn.commit()
-        row = (1.0, 0.0, 4.780, 1.430, 4.970, 4.780, 207.28, 297.00, 150.00, 16.0)
+        row = (1.0, 0.0, 4.780, 1.430, 497.03, 4.780, 207.28, 297.00, 150.00, 16.0)
     conn.close()
     return row
+
+
+def _tarifas_local_periodo(local_id, mes=None, ano=None, effective_date=None):
+    if effective_date is None:
+        if mes is not None and ano is not None:
+            effective_date = f"{int(ano):04d}-{int(mes):02d}-01"
+        else:
+            effective_date = datetime.now().strftime('%Y-%m-%d')
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        return resolve_tariffs(conn, local_id, effective_date)
+    finally:
+        conn.close()
+
+
+def _guardar_tarifa_historica(local_id, valid_from, values, actor=None, notes=''):
+    """Guarda uma vigência, fecha a anterior e impede sobreposição de períodos."""
+    inicio = datetime.strptime(str(valid_from), '%Y-%m-%d').date()
+    tarifas = normalise_tariffs(values)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        c = conn.cursor()
+        next_row = c.execute(
+            "SELECT valid_from FROM tarifas_historico WHERE local_id=? AND valid_from>? ORDER BY valid_from LIMIT 1",
+            (int(local_id), inicio.isoformat()),
+        ).fetchone()
+        fim = None
+        if next_row:
+            fim = (datetime.strptime(next_row[0], '%Y-%m-%d').date() - timedelta(days=1)).isoformat()
+        previous = c.execute(
+            "SELECT id FROM tarifas_historico WHERE local_id=? AND valid_from<? ORDER BY valid_from DESC LIMIT 1",
+            (int(local_id), inicio.isoformat()),
+        ).fetchone()
+        if previous:
+            c.execute(
+                "UPDATE tarifas_historico SET valid_to=? WHERE id=?",
+                ((inicio - timedelta(days=1)).isoformat(), previous[0]),
+            )
+        c.execute(
+            """
+            INSERT INTO tarifas_historico(
+                local_id, valid_from, valid_to, tarifa_ativa, tarifa_reativa,
+                tarifa_ponta, tarifa_perdas, taxa_fixa, taxa_radio, taxa_lixo,
+                pot_contratada, iva_rate, iva_base_factor, created_by, notes
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(local_id, valid_from) DO UPDATE SET
+                valid_to=excluded.valid_to, tarifa_ativa=excluded.tarifa_ativa,
+                tarifa_reativa=excluded.tarifa_reativa, tarifa_ponta=excluded.tarifa_ponta,
+                tarifa_perdas=excluded.tarifa_perdas, taxa_fixa=excluded.taxa_fixa,
+                taxa_radio=excluded.taxa_radio, taxa_lixo=excluded.taxa_lixo,
+                pot_contratada=excluded.pot_contratada, iva_rate=16.0,
+                iva_base_factor=0.62, created_by=excluded.created_by, notes=excluded.notes
+            """,
+            (
+                int(local_id), inicio.isoformat(), fim, tarifas['tarifa_ativa'],
+                tarifas['tarifa_reativa'], tarifas['tarifa_ponta'], tarifas['tarifa_perdas'],
+                tarifas['taxa_fixa'], tarifas['taxa_radio'], tarifas['taxa_lixo'],
+                tarifas['pot_contratada'], 16.0, 0.62, actor or _actor_name(), notes,
+            ),
+        )
+        if inicio <= datetime.now().date():
+            current = resolve_tariffs(conn, int(local_id), datetime.now().strftime('%Y-%m-%d'))
+            c.execute('INSERT OR IGNORE INTO locais_cfg(local_id) VALUES(?)', (int(local_id),))
+            c.execute(
+                """UPDATE locais_cfg SET pot_contratada=?, tarifa_ativa=?, tarifa_reativa=?,
+                       tarifa_ponta=?, tarifa_perdas=?, taxa_fixa=?, taxa_radio=?, taxa_lixo=?, iva=16.0
+                   WHERE local_id=?""",
+                (
+                    current['pot_contratada'], current['tarifa_ativa'], current['tarifa_reativa'],
+                    current['tarifa_ponta'], current['tarifa_perdas'], current['taxa_fixa'],
+                    current['taxa_radio'], current['taxa_lixo'], int(local_id),
+                ),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 # Consumo mensal (kWh) a partir de leituras_mensais
 def consumo_mensal_kwh(local_nome, mes, ano, fator_mult):
@@ -1754,13 +2083,7 @@ def gestao_leituras():
             cfg = dict(cfg_row)
 
     fator_mult = float(cfg.get('fator_mult') or selected_local['fator_multiplicativo'] if selected_local and 'fator_multiplicativo' in selected_local.keys() else 1) if selected_local else 1.0
-    tarifa_ativa = float(cfg.get('tarifa_ativa') or 0)
-    tarifa_reativa = float(cfg.get('tarifa_reativa') or 0)
-    tarifa_ponta = float(cfg.get('tarifa_ponta') or 0)
-    taxa_fixa = float(cfg.get('taxa_fixa') or 0)
-    taxa_radio = float(cfg.get('taxa_radio') or 0)
-    taxa_lixo = float(cfg.get('taxa_lixo') or 0)
-    iva_pct = float(cfg.get('iva') or 16)
+    tarifas = resolve_tariffs(conn, local_id, f"{int(ano):04d}-{int(mes):02d}-01") if selected_local else normalise_tariffs()
 
     totais = dict(dias=0, ativa=0, reativa=0, ponta=0, agua=0, fp_medio=0, diferenca=0)
     if selected_local:
@@ -1783,21 +2106,23 @@ def gestao_leituras():
     ponta_faturavel = _ponta_faturavel_edm(float(cfg.get('pot_contratada') or (selected_local['potencia_contratada'] if selected_local and 'potencia_contratada' in selected_local.keys() else 0) or 0), float(totais.get('ponta') or 0) * fator_mult)
     agua = float(totais.get('agua') or 0)
     consumo_especifico = (ativa_faturavel / agua) if agua > 0 else 0
-    reativa_excedente = max(0.0, reativa_faturavel - (0.75 * ativa_faturavel))
-    custo_ativa = ativa_faturavel * tarifa_ativa
-    custo_reativa = reativa_excedente * tarifa_reativa
-    custo_ponta = ponta_faturavel * tarifa_ponta
-    subtotal = custo_ativa + custo_reativa + custo_ponta + taxa_fixa + taxa_radio + taxa_lixo
-    iva = subtotal * (iva_pct / 100.0) * 0.62
-    total_estimado = subtotal + iva
+    fatura = calculate_invoice(
+        active_kwh=ativa_faturavel,
+        reactive_kvarh=reativa_faturavel,
+        measured_peak_kw=float(totais.get('ponta') or 0) * fator_mult,
+        contracted_power_kw=tarifas.get('pot_contratada'),
+        tariffs=tarifas,
+    )
+    ponta_faturavel = fatura['billing_demand_kw']
+    total_estimado = fatura['total_mzn']
 
     resumo = {
         'fator_mult': fator_mult,
-        'pot_contratada': float(cfg.get('pot_contratada') or (selected_local['potencia_contratada'] if selected_local and 'potencia_contratada' in selected_local.keys() else 0) or 0),
+        'pot_contratada': fatura['contracted_power_kw'],
         'pot_instalada': float(cfg.get('pot_instalada') or 0),
-        'tarifa_ativa': tarifa_ativa,
-        'tarifa_reativa': tarifa_reativa,
-        'tarifa_ponta': tarifa_ponta,
+        'tarifa_ativa': tarifas['tarifa_ativa'],
+        'tarifa_reativa': tarifas['tarifa_reativa'],
+        'tarifa_ponta': tarifas['tarifa_ponta'],
         'ativa_faturavel': ativa_faturavel,
         'reativa_faturavel': reativa_faturavel,
         'ponta_faturavel': ponta_faturavel,
@@ -2326,7 +2651,7 @@ def export_locais_template_csv():
     si = StringIO()
     w = csv.writer(si, delimiter=';')
     w.writerow(['nome','codigo','endereco','contato_nome','contato_tel','email','responsavel_alt','tipo_local','categoria_operacional','estado_tecnico','prioridade','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','iva','notas'])
-    w.writerow(['Ex.: ETA Umbeluzi','ETA-UMB','Umbeluzi, Maputo','Supervisor Local','84xxxxxxx','supervisor@exemplo.co.mz','Chefe de turno','ETA','Produção','Normal','Alta',1,1.0,6000,11750,4.780,1.430,4.970,4.780,207.28,297.00,150.00,16,'Local de referência'])
+    w.writerow(['Ex.: ETA Umbeluzi','ETA-UMB','Umbeluzi, Maputo','Supervisor Local','84xxxxxxx','supervisor@exemplo.co.mz','Chefe de turno','ETA','Produção','Normal','Alta',1,1.0,6000,11750,4.780,1.430,497.03,4.780,207.28,297.00,150.00,16,'Local de referência'])
     output = si.getvalue()
     return Response(output.encode('utf-8'), mimetype='text/csv; charset=utf-8', headers={"Content-Disposition": "attachment; filename=template_locais.csv"})
 
@@ -2521,11 +2846,15 @@ def locais_import():
             return redirect(url_for('listar_locais', msg='CSV precisa conter a coluna "nome"'))
 
         add_count = 0; upd_count = 0; err_count = 0
+        history_updates = []
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
 
         def ffloat(v, dflt):
-            try: return float(str(v).replace(',','.'))
-            except: return dflt
+            try:
+                value = float(str(v).replace(',','.'))
+                return value if math.isfinite(value) and value >= 0 else dflt
+            except Exception:
+                return dflt
 
         for row in reader:
             try:
@@ -2575,12 +2904,12 @@ def locais_import():
                     "pot_instalada": ffloat(row.get('pot_instalada'), 0.0),
                     "tarifa_ativa": ffloat(row.get('tarifa_ativa'), 4.780),
                     "tarifa_reativa": ffloat(row.get('tarifa_reativa'), 1.430),
-                    "tarifa_ponta": ffloat(row.get('tarifa_ponta'), 4.970),
+                    "tarifa_ponta": ffloat(row.get('tarifa_ponta'), 497.03),
                     "tarifa_perdas": ffloat(row.get('tarifa_perdas'), 4.780),
                     "taxa_fixa": ffloat(row.get('taxa_fixa'), 207.28),
                     "taxa_radio": ffloat(row.get('taxa_radio'), 297.00),
                     "taxa_lixo": ffloat(row.get('taxa_lixo'), 150.00),
-                    "iva": ffloat(row.get('iva'), 16.0),
+                    "iva": 16.0,
                 }
                 c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (lid,))
                 c.execute('''UPDATE locais_cfg
@@ -2591,18 +2920,27 @@ def locais_import():
                           (cfg["fator_mult"], cfg["pot_contratada"], cfg["pot_instalada"],
                            cfg["tarifa_ativa"], cfg["tarifa_reativa"], cfg["tarifa_ponta"], cfg["tarifa_perdas"],
                            cfg["taxa_fixa"], cfg["taxa_radio"], cfg["taxa_lixo"], cfg["iva"], lid))
+                history_updates.append((lid, cfg))
             except Exception:
                 err_count += 1
 
         conn.commit(); conn.close()
+        for lid, cfg in history_updates:
+            try:
+                _guardar_tarifa_historica(
+                    lid, datetime.now().strftime('%Y-%m-%d'), cfg,
+                    actor=_actor_name(), notes='Atualização por importação CSV de locais',
+                )
+            except Exception:
+                err_count += 1
         if add_count or upd_count:
             log_local_history(0, 'Importação CSV', f'{add_count} adicionados, {upd_count} atualizados, {err_count} com erro', actor='locais_fase4')
         return redirect(url_for('listar_locais', msg=f'import:{add_count} add, {upd_count} upd, {err_count} err'))
-    colunas = ['nome','codigo','endereco','contato_nome','contato_tel','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','iva','notas']
+    colunas = ['nome','codigo','endereco','contato_nome','contato_tel','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','notas']
     return render_template('locais_import.html', colunas=colunas)
 
 # === NOVO: Duplicar e Ativar/Arquivar Local
-@app.route('/locais/duplicar/<int:local_id>')
+@app.route('/locais/duplicar/<int:local_id>', methods=['POST'])
 def locais_duplicar(local_id):
     info = get_local_full(local_id)
     if not info:
@@ -2628,18 +2966,22 @@ def locais_duplicar(local_id):
     cfg = get_local_cfg_full(local_id)
     c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (novo_id,))
     c.execute('''UPDATE locais_cfg SET fator_mult=?, pot_contratada=?, pot_instalada=?, tarifa_ativa=?, tarifa_reativa=?, tarifa_ponta=?,
-                 tarifa_perdas=?, taxa_fixa=?, taxa_radio=?, taxa_lixo=?, iva=? WHERE local_id=?''',
+                 tarifa_perdas=?, taxa_fixa=?, taxa_radio=?, taxa_lixo=?, iva=16.0 WHERE local_id=?''',
               (cfg['fator_mult'], cfg['pot_contratada'], cfg['pot_instalada'], cfg['tarifa_ativa'], cfg['tarifa_reativa'],
-               cfg['tarifa_ponta'], cfg['tarifa_perdas'], cfg['taxa_fixa'], cfg['taxa_radio'], cfg['taxa_lixo'], cfg['iva'], novo_id))
+               cfg['tarifa_ponta'], cfg['tarifa_perdas'], cfg['taxa_fixa'], cfg['taxa_radio'], cfg['taxa_lixo'], novo_id))
     conn.commit(); conn.close()
+    _guardar_tarifa_historica(
+        novo_id, datetime.now().strftime('%Y-%m-%d'), cfg,
+        actor=_actor_name(), notes=f'Copiado de {info["nome"]}',
+    )
     log_local_history(novo_id, 'Local duplicado', f'Criado a partir de {info["nome"]}', actor='locais_fase4')
     return redirect(url_for('listar_locais', msg=f'duplicado:{novo_nome}'))
 
-@app.route('/locais/arquivar/<int:local_id>')
+@app.route('/locais/arquivar/<int:local_id>', methods=['POST'])
 def arquivar_local(local_id):
     return locais_toggle(local_id)
 
-@app.route('/locais/toggle/<int:local_id>')
+@app.route('/locais/toggle/<int:local_id>', methods=['POST'])
 def locais_toggle(local_id):
     info = get_local_full(local_id)
     if not info:
@@ -2660,37 +3002,101 @@ def configurar_local(local_id):
         return redirect(url_for('listar_locais'))
 
     if request.method == 'POST':
-        fator_mult       = float(request.form.get('fator_mult', 1) or 1)
-        pot_contratada   = float(request.form.get('pot_contratada', 0) or 0)
-        pot_instalada    = float(request.form.get('pot_instalada', 0) or 0)
-        tarifa_ativa     = float(request.form.get('tarifa_ativa', 4.780) or 4.780)
-        tarifa_reativa   = float(request.form.get('tarifa_reativa', 1.430) or 1.430)
-        tarifa_ponta     = float(request.form.get('tarifa_ponta', 4.970) or 4.970)
-        tarifa_perdas    = float(request.form.get('tarifa_perdas', 4.780) or 4.780)
-        taxa_fixa        = float(request.form.get('taxa_fixa', 207.28) or 207.28)
-        taxa_radio       = float(request.form.get('taxa_radio', 297.00) or 297.00)
-        taxa_lixo        = float(request.form.get('taxa_lixo', 150.00) or 150.00)
-        iva              = float(request.form.get('iva', 16.0) or 16.0)
+        try:
+            fator_mult       = float(request.form.get('fator_mult', 1) or 1)
+            pot_contratada   = float(request.form.get('pot_contratada', 0) or 0)
+            pot_instalada    = float(request.form.get('pot_instalada', 0) or 0)
+            tarifa_ativa     = float(request.form.get('tarifa_ativa', 4.780) or 4.780)
+            tarifa_reativa   = float(request.form.get('tarifa_reativa', 1.430) or 1.430)
+            tarifa_ponta     = float(request.form.get('tarifa_ponta', 497.03) or 497.03)
+            tarifa_perdas    = float(request.form.get('tarifa_perdas', 4.780) or 4.780)
+            taxa_fixa        = float(request.form.get('taxa_fixa', 207.28) or 207.28)
+            taxa_radio       = float(request.form.get('taxa_radio', 297.00) or 297.00)
+            taxa_lixo        = float(request.form.get('taxa_lixo', 150.00) or 150.00)
+            tarifa_valid_from = request.form.get('tarifa_valid_from') or datetime.now().strftime('%Y-%m-%d')
+            datetime.strptime(tarifa_valid_from, '%Y-%m-%d')
+            numbers = (fator_mult, pot_contratada, pot_instalada, tarifa_ativa, tarifa_reativa,
+                       tarifa_ponta, tarifa_perdas, taxa_fixa, taxa_radio, taxa_lixo)
+            if fator_mult <= 0 or any(not math.isfinite(value) or value < 0 for value in numbers):
+                raise ValueError('valores fora do intervalo permitido')
+        except (TypeError, ValueError):
+            flash('Os parâmetros técnicos, tarifas ou data de vigência são inválidos.', 'danger')
+            return redirect(url_for('configurar_local', local_id=local_id))
 
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (local_id,))
         c.execute('''
             UPDATE locais_cfg
-               SET fator_mult=?, pot_contratada=?, pot_instalada=?,
-                   tarifa_ativa=?, tarifa_reativa=?, tarifa_ponta=?, tarifa_perdas=?,
-                   taxa_fixa=?, taxa_radio=?, taxa_lixo=?, iva=?
+               SET fator_mult=?, pot_instalada=?, iva=16.0
              WHERE local_id=?
-        ''', (fator_mult, pot_contratada, pot_instalada,
-              tarifa_ativa, tarifa_reativa, tarifa_ponta, tarifa_perdas,
-              taxa_fixa, taxa_radio, taxa_lixo, iva, local_id))
+        ''', (fator_mult, pot_instalada, local_id))
         conn.commit(); conn.close()
+        _guardar_tarifa_historica(
+            local_id,
+            tarifa_valid_from,
+            {
+                'pot_contratada': pot_contratada,
+                'tarifa_ativa': tarifa_ativa,
+                'tarifa_reativa': tarifa_reativa,
+                'tarifa_ponta': tarifa_ponta,
+                'tarifa_perdas': tarifa_perdas,
+                'taxa_fixa': taxa_fixa,
+                'taxa_radio': taxa_radio,
+                'taxa_lixo': taxa_lixo,
+            },
+            actor=_actor_name(),
+            notes='Atualização pela configuração do local',
+        )
         log_local_history(local_id, 'Configuração atualizada', f'Fator {fator_mult:.4f}; Pot. contratada {pot_contratada:.2f} kW; Pot. instalada {pot_instalada:.2f} kW', actor='locais_fase4')
         flash('Configuração do local guardada com sucesso.', 'success')
         return redirect(url_for('configurar_local', local_id=local_id))
 
     cfg = get_local_cfg_full(local_id)
     overview = get_local_overview(local_id)
-    return render_template('local_config.html', local=local, cfg=cfg, overview=overview)
+    return render_template('local_config.html', local=local, cfg=cfg, overview=overview,
+                           tarifa_valid_from=datetime.now().strftime('%Y-%m-%d'))
+
+
+@app.route('/locais/<int:local_id>/tarifas', methods=['GET', 'POST'])
+def tarifas_historico_local(local_id):
+    local = get_local_full(local_id)
+    if not local:
+        flash('Local não encontrado.', 'warning')
+        return redirect(url_for('listar_locais'))
+    if request.method == 'POST':
+        try:
+            _guardar_tarifa_historica(
+                local_id,
+                request.form.get('valid_from'),
+                {
+                    'pot_contratada': request.form.get('pot_contratada'),
+                    'tarifa_ativa': request.form.get('tarifa_ativa'),
+                    'tarifa_reativa': request.form.get('tarifa_reativa'),
+                    'tarifa_ponta': request.form.get('tarifa_ponta'),
+                    'tarifa_perdas': request.form.get('tarifa_perdas'),
+                    'taxa_fixa': request.form.get('taxa_fixa'),
+                    'taxa_radio': request.form.get('taxa_radio'),
+                    'taxa_lixo': request.form.get('taxa_lixo'),
+                },
+                actor=_actor_name(),
+                notes=(request.form.get('notes') or '').strip(),
+            )
+            log_local_history(local_id, 'Tarifário histórico atualizado', request.form.get('valid_from') or '', actor=_actor_name())
+            flash('Nova vigência tarifária guardada sem alterar faturas históricas anteriores.', 'success')
+            return redirect(url_for('tarifas_historico_local', local_id=local_id))
+        except (ValueError, TypeError):
+            flash('Data ou valores tarifários inválidos.', 'danger')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        'SELECT * FROM tarifas_historico WHERE local_id=? ORDER BY valid_from DESC, id DESC',
+        (local_id,),
+    ).fetchall()
+    conn.close()
+    cfg = get_local_cfg_full(local_id)
+    return render_template('tarifas_historico.html', local=local, tarifas=rows, cfg=cfg,
+                           hoje=datetime.now().strftime('%Y-%m-%d'), iva_rate=16.0,
+                           iva_base_percent=62.0)
 
 # === EQUIPAMENTOS ===
 # === EQUIPAMENTOS ===
@@ -3553,7 +3959,7 @@ def monitoria_relatorio():
                            tensao_media=tensao_media, consumo_especifico=consumo_especifico,
                            alertas=alertas[:50], alertas_total=len(alertas), recomenda=recomenda)
 
-@app.route('/leituras/<int:lid>/duplicate', methods=['POST','GET'])
+@app.route('/leituras/<int:lid>/duplicate', methods=['POST'])
 def leituras_duplicate(lid):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     row = c.execute("SELECT datahora, local, equipamento, energia_ativa, energia_reativa, energia_aparente, pot_ativa, pot_reativa, pot_aparente, fp, ponta, caudal_elevada, corrente, tensao, observacoes FROM leituras WHERE id=?", (lid,)).fetchone()
@@ -3935,9 +4341,7 @@ def _ponta_faturavel_edm(pot_contratada, ponta_lida_corrigida):
     A potência contratada vem diretamente da configuração do Local e NÃO leva fator multiplicativo.
     A ponta lida já deve chegar aqui corrigida pelo fator multiplicativo.
     """
-    pc = _safe_float(pot_contratada, 0.0) or 0.0
-    pl = _safe_float(ponta_lida_corrigida, 0.0) or 0.0
-    return (0.20 * pc) + (0.80 * pl)
+    return billing_demand(pot_contratada, ponta_lida_corrigida)
 
 
 
@@ -4252,31 +4656,15 @@ def _montar_contexto_fatura_mensal(local, mes, ano):
     c.execute('SELECT id, nome FROM locais WHERE nome = ?', (local,))
     row_loc = c.fetchone()
     local_id = row_loc['id'] if row_loc else None
-    fator_mult     = 1.0
-    pot_contratada = 0.0
-    tarifa_ativa   = 4.780
-    tarifa_reativa = 1.430
-    tarifa_ponta   = 497.00
-    taxa_fixa      = 207.28
-    taxa_radio     = 297.00
-    taxa_lixo      = 150.00
-    iva_cfg        = 16.0
+    fator_mult = 1.0
     if local_id is not None:
         try:
-            c.execute('''
-                SELECT fator_mult, pot_contratada, tarifa_ativa, tarifa_reativa, tarifa_ponta,
-                       tarifa_perdas, taxa_fixa, taxa_radio, taxa_lixo, iva
-                FROM locais_cfg WHERE local_id = ?
-            ''', (local_id,))
-            cfg = c.fetchone()
-            if cfg:
-                (fator_mult, pot_contratada, tarifa_ativa, tarifa_reativa, tarifa_ponta,
-                 _tarifa_perdas_ignorar, taxa_fixa, taxa_radio, taxa_lixo, iva_cfg) = cfg
+            row_cfg = c.execute('SELECT fator_mult FROM locais_cfg WHERE local_id=?', (local_id,)).fetchone()
+            fator_mult = float(row_cfg[0] or 1.0) if row_cfg else 1.0
         except Exception:
-            pass
+            fator_mult = 1.0
+    tarifas = resolve_tariffs(conn, local_id, f"{ano_int:04d}-{int(mes_str):02d}-01")
     conn.close()
-    if not tarifa_reativa and tarifa_ativa:
-        tarifa_reativa = tarifa_ativa * 0.30
     qfat = _quantidades_fatura_mensal(local, mes_str, ano_int)
     kwh_ativa = qfat['kwh_ativa']
     kvarh_reativa = qfat['kvarh_reativa']
@@ -4284,39 +4672,38 @@ def _montar_contexto_fatura_mensal(local, mes, ano):
     kvarh_excedente = qfat['kvarh_excedente']
     kw_ponta_lida = qfat['kw_ponta_lida']
     agua_total = qfat['agua_total']
-    demanda_ponta_kw = _ponta_faturavel_edm(pot_contratada, kw_ponta_lida)
-    valor_ativa = kwh_ativa * float(tarifa_ativa or 0)
-    valor_reativa = kvarh_excedente * float(tarifa_reativa or 0)
-    valor_ponta = demanda_ponta_kw * float(tarifa_ponta or 0)
-    valor_perdas = 0.0
-    subtotal_energia = valor_ativa + valor_reativa + valor_ponta
-    subtotal_taxas = float(taxa_fixa or 0) + float(taxa_radio or 0) + float(taxa_lixo or 0)
-    subtotal = subtotal_energia + subtotal_taxas
-    IVA_ALIQUOTA = 0.16
-    BASE_IVA_PERC = 0.62
-    base_iva = subtotal * BASE_IVA_PERC
-    valor_iva = base_iva * IVA_ALIQUOTA
-    total = subtotal + valor_iva
+    fatura = calculate_invoice(
+        active_kwh=kwh_ativa,
+        reactive_kvarh=kvarh_reativa,
+        measured_peak_kw=kw_ponta_lida,
+        contracted_power_kw=tarifas.get('pot_contratada'),
+        tariffs=tarifas,
+        bill_losses=False,
+    )
     consumo_especifico_medio = (kwh_ativa / agua_total) if agua_total and kwh_ativa > 0 else None
     return dict(
         local=local, mes=mes_str, ano=ano_int, periodo=f"{mes_str}/{ano_int}",
-        fator_mult=fator_mult, pot_contratada=pot_contratada,
-        tarifa_ativa=tarifa_ativa, tarifa_reativa=tarifa_reativa, tarifa_ponta=tarifa_ponta,
-        taxa_fixa=taxa_fixa, taxa_radio=taxa_radio, taxa_lixo=taxa_lixo,
+        fator_mult=fator_mult, pot_contratada=fatura['contracted_power_kw'],
+        tarifa_ativa=tarifas['tarifa_ativa'], tarifa_reativa=tarifas['tarifa_reativa'],
+        tarifa_ponta=tarifas['tarifa_ponta'], tarifa_perdas=tarifas['tarifa_perdas'],
+        taxa_fixa=tarifas['taxa_fixa'], taxa_radio=tarifas['taxa_radio'], taxa_lixo=tarifas['taxa_lixo'],
+        tarifa_fonte=tarifas.get('source'), tarifa_valid_from=tarifas.get('valid_from'),
         kwh_ativa=kwh_ativa, kvarh_reativa=kvarh_reativa, limite_reativa=limite_reativa,
-        kvarh_excedente=kvarh_excedente, kw_ponta_lida=kw_ponta_lida,
-        demanda_ponta_kw=demanda_ponta_kw,
-        valor_ativa=valor_ativa, valor_reativa=valor_reativa, valor_ponta=valor_ponta,
-        valor_perdas=valor_perdas, subtotal_energia=subtotal_energia,
-        subtotal_taxas=subtotal_taxas, subtotal=subtotal, base_iva=base_iva,
-        valor_iva=valor_iva, total=total, total_extenso=_mzn_extenso(total),
+        kvarh_excedente=fatura['reactive_excess_kvarh'], kw_ponta_lida=kw_ponta_lida,
+        demanda_ponta_kw=fatura['billing_demand_kw'],
+        valor_ativa=fatura['active_cost_mzn'], valor_reativa=fatura['reactive_cost_mzn'],
+        valor_ponta=fatura['demand_cost_mzn'], valor_perdas=fatura['losses_cost_mzn'],
+        subtotal_energia=fatura['energy_subtotal_mzn'], subtotal_taxas=fatura['fees_subtotal_mzn'],
+        subtotal=fatura['subtotal_mzn'], base_iva=fatura['vat_base_mzn'],
+        valor_iva=fatura['vat_mzn'], total=fatura['total_mzn'],
+        total_extenso=_mzn_extenso(fatura['total_mzn']),
         consumo_especifico_medio=consumo_especifico_medio, agua_total=agua_total,
-        iva_percent=IVA_ALIQUOTA * 100, base_iva_percent=BASE_IVA_PERC * 100,
+        iva_percent=fatura['vat_rate_percent'], base_iva_percent=fatura['vat_base_percent'],
         leitura_base_ativa=qfat.get('leitura_base_ativa', 0),
         leitura_final_ativa=qfat.get('leitura_final_ativa', 0),
         leitura_base_reativa=qfat.get('leitura_base_reativa', 0),
         leitura_final_reativa=qfat.get('leitura_final_reativa', 0),
-        avisos_fatura=qfat.get('avisos', []), qfat=qfat
+        avisos_fatura=qfat.get('avisos', []), qfat=qfat, fatura=fatura
     )
 
 @app.route('/leituras_mensal', methods=['GET', 'POST'])
@@ -5207,37 +5594,44 @@ def calcular_fatura():
         taxa_fixa = float(request.form['taxa_fixa'])
         taxa_radio = float(request.form['taxa_radio'])
         taxa_lixo = float(request.form['taxa_lixo'])
-        iva = float(request.form['iva'])
         saldo_ant = float(request.form['saldo_ant'])
 
         ativa = (ativa_atu - ativa_ant) * fator_mult
         reativa = (reativa_atu - reativa_ant) * fator_mult
         perdas = (perdas_atu - perdas_ant) * fator_mult
-        ponta_lida_corrigida = (ponta_atu - ponta_ant) * fator_mult
-        ponta = _ponta_faturavel_edm(pot_contratada, ponta_lida_corrigida)
-
-        valor_ativa = ativa * tarifa_ativa
-        valor_reativa = reativa_faturavel * tarifa_reativa
-        valor_perdas = perdas * tarifa_perdas
-        valor_ponta = ponta * tarifa_ponta
-
-        subtotal = (valor_ativa + valor_reativa + valor_perdas + valor_ponta +
-                    taxa_fixa + taxa_radio + taxa_lixo)
-        valor_iva = subtotal * iva / 100
-        total = subtotal + valor_iva + saldo_ant
+        ponta_lida_corrigida = max(demanda_max, (ponta_atu - ponta_ant) * fator_mult)
+        fatura = calculate_invoice(
+            active_kwh=ativa,
+            reactive_kvarh=reativa,
+            measured_peak_kw=ponta_lida_corrigida,
+            contracted_power_kw=pot_contratada,
+            losses_kwh=perdas,
+            tariffs={
+                'tarifa_ativa': tarifa_ativa, 'tarifa_reativa': tarifa_reativa,
+                'tarifa_ponta': tarifa_ponta, 'tarifa_perdas': tarifa_perdas,
+                'taxa_fixa': taxa_fixa, 'taxa_radio': taxa_radio, 'taxa_lixo': taxa_lixo,
+            },
+            previous_balance_mzn=saldo_ant,
+            bill_losses=False,
+        )
+        reativa_faturavel = fatura['reactive_excess_kvarh']
+        ponta = fatura['billing_demand_kw']
 
         return render_template('fatura_resultado.html',
                                local=local_nome, periodo=periodo,
                                ativa=ativa, reativa=reativa,
                                reativa_faturavel=reativa_faturavel,
                                perdas=perdas, ponta=ponta,
-                               valor_ativa=valor_ativa,
-                               valor_reativa=valor_reativa,
-                               valor_perdas=valor_perdas,
-                               valor_ponta=valor_ponta,
-                               subtotal=subtotal,
-                               valor_iva=valor_iva,
-                               total=total)
+                               demanda_max=ponta_lida_corrigida, pot_contratada=pot_contratada,
+                               demanda_faturavel=ponta,
+                               valor_ativa=fatura['active_cost_mzn'],
+                               valor_reativa=fatura['reactive_cost_mzn'],
+                               valor_perdas=fatura['losses_cost_mzn'],
+                               valor_ponta=fatura['demand_cost_mzn'],
+                               taxa_fixa=fatura['fixed_fee_mzn'], taxa_radio=fatura['radio_fee_mzn'],
+                               taxa_lixo=fatura['waste_fee_mzn'], subtotal=fatura['subtotal_mzn'],
+                               valor_iva=fatura['vat_mzn'], total=fatura['total_mzn'],
+                               iva_percent=16.0, base_iva_percent=62.0)
     # GET -> cfg_map para auto-preencher
     cfg_map = {}
     for lid, lname in locais:
@@ -5267,42 +5661,21 @@ def fatura_mes():
         ano_int = int(mes.split('-')[0]); mes_int = int(mes.split('-')[1])
         local_nome = [l[1] for l in locais if l[0]==local_id][0]
 
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute('SELECT fator_mult, pot_contratada, tarifa_ativa, tarifa_reativa, tarifa_ponta, tarifa_perdas, taxa_fixa, taxa_radio, taxa_lixo, iva FROM locais_cfg WHERE local_id=?',
-                  (local_id,))
-        cfg = c.fetchone()
-        if not cfg:
-            cfg = (1.0, 0.0, 4.780, 1.430, 4.970, 4.780, 207.28, 297.00, 150.00, 16.0)
-        fator_mult, pot_contratada, tarifa_ativa, tarifa_reativa, tarifa_ponta, tarifa_perdas, taxa_fixa, taxa_radio, taxa_lixo, iva = cfg
-
-        qfat = _quantidades_fatura_mensal(local_nome, str(mes_int).zfill(2), ano_int)
-        ativa = qfat['kwh_ativa']
-        reativa = qfat['kvarh_reativa']
-        reativa_faturavel = qfat['kvarh_excedente']
-        ponta_lida_corrigida = qfat['kw_ponta_lida']
-        ponta = _ponta_faturavel_edm(pot_contratada, ponta_lida_corrigida)
-        perdas = 0.0
-
-        valor_ativa = ativa * tarifa_ativa
-        reativa_faturavel = max(reativa - 0.75 * ativa, 0)
-        valor_reativa = reativa_faturavel * tarifa_reativa
-        valor_perdas = perdas * tarifa_perdas
-        valor_ponta = ponta * tarifa_ponta
-
-        subtotal = (valor_ativa + valor_reativa + valor_perdas + valor_ponta +
-                    taxa_fixa + taxa_radio + taxa_lixo)
-        valor_iva = subtotal * iva / 100
-        total = subtotal + valor_iva
+        ctx = _montar_contexto_fatura_mensal(local_nome, str(mes_int).zfill(2), ano_int)
 
         periodo_leg = f"{mes}-01 a {mes}-{calendar.monthrange(ano_int, mes_int)[1]}"
 
         return render_template('fatura_resultado.html',
                                local=local_nome, periodo=periodo_leg,
-                               ativa=ativa, reativa=reativa, reativa_faturavel=reativa_faturavel,
-                               perdas=perdas, ponta=ponta,
-                               valor_ativa=valor_ativa, valor_reativa=valor_reativa,
-                               valor_perdas=valor_perdas, valor_ponta=valor_ponta,
-                               subtotal=subtotal, valor_iva=valor_iva, total=total)
+                               ativa=ctx['kwh_ativa'], reativa=ctx['kvarh_reativa'],
+                               reativa_faturavel=ctx['kvarh_excedente'], perdas=0.0,
+                               ponta=ctx['demanda_ponta_kw'], demanda_max=ctx['kw_ponta_lida'],
+                               pot_contratada=ctx['pot_contratada'], demanda_faturavel=ctx['demanda_ponta_kw'],
+                               valor_ativa=ctx['valor_ativa'], valor_reativa=ctx['valor_reativa'],
+                               valor_perdas=ctx['valor_perdas'], valor_ponta=ctx['valor_ponta'],
+                               taxa_fixa=ctx['taxa_fixa'], taxa_radio=ctx['taxa_radio'], taxa_lixo=ctx['taxa_lixo'],
+                               subtotal=ctx['subtotal'], valor_iva=ctx['valor_iva'], total=ctx['total'],
+                               iva_percent=ctx['iva_percent'], base_iva_percent=ctx['base_iva_percent'])
 
     return render_template('fatura_mes.html', locais=locais, hoje=hoje.strftime('%Y-%m'))
 
@@ -8296,7 +8669,7 @@ def api_locais_json():
 
 # ==============================
 
-@app.route('/equipamentos/remover/<int:equipamento_id>')
+@app.route('/equipamentos/remover/<int:equipamento_id>', methods=['POST'])
 def remover_equipamento(equipamento_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("UPDATE equipamentos SET deleted_at=datetime('now','localtime'), updated_at=datetime('now','localtime') WHERE id=?", (equipamento_id,))
@@ -8421,14 +8794,14 @@ def log_equip_audit(equipamento_id, acao, detalhes=""):
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute("INSERT INTO mecanismos_dummy (x) VALUES (1)") if False else None  # no-op to keep pattern
-        c.execute("INSERT INTO equipamentos_audit (equipamento_id, acao, detalhes) VALUES (?, ?, ?)",
-                  (equipamento_id, acao, detalhes))
+        c.execute("INSERT INTO equipamentos_audit (equipamento_id, acao, detalhes, actor) VALUES (?, ?, ?, ?)",
+                  (equipamento_id, acao, detalhes, _actor_name()))
         conn.commit(); conn.close()
     except Exception:
         pass
 
 
-@app.route('/equipamentos/desativar/<int:equipamento_id>')
+@app.route('/equipamentos/desativar/<int:equipamento_id>', methods=['POST'])
 def desativar_equipamento(equipamento_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("UPDATE equipamentos SET ativo=0, updated_at=datetime('now','localtime') WHERE id=?", (equipamento_id,))
@@ -8437,7 +8810,7 @@ def desativar_equipamento(equipamento_id):
     flash("Equipamento desativado.", "warning")
     return redirect(url_for('listar_equipamentos'))
 
-@app.route('/equipamentos/ativar/<int:equipamento_id>')
+@app.route('/equipamentos/ativar/<int:equipamento_id>', methods=['POST'])
 def ativar_equipamento(equipamento_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("UPDATE equipamentos SET ativo=1, updated_at=datetime('now','localtime') WHERE id=?", (equipamento_id,))
@@ -8628,7 +9001,7 @@ def equipamento_upload_photos(equipamento_id):
     flash(f"{added} foto(s) adicionada(s).", "success")
     return redirect(url_for('equipamento_detalhe', equipamento_id=equipamento_id))
 
-@app.route('/equipamentos/<int:equipamento_id>/photo/<int:photo_id>/delete')
+@app.route('/equipamentos/<int:equipamento_id>/photo/<int:photo_id>/delete', methods=['POST'])
 def equipamento_photo_delete(equipamento_id, photo_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('SELECT filename, thumb_filename FROM equipamentos_photos WHERE id=? AND equipamento_id=?', (photo_id, equipamento_id))
@@ -8649,7 +9022,7 @@ def equipamento_photo_delete(equipamento_id, photo_id):
     flash("Foto removida.", "warning")
     return redirect(url_for('equipamento_detalhe', equipamento_id=equipamento_id))
 
-@app.route('/equipamentos/<int:equipamento_id>/photo/<int:photo_id>/cover')
+@app.route('/equipamentos/<int:equipamento_id>/photo/<int:photo_id>/cover', methods=['POST'])
 def equipamento_photo_cover(equipamento_id, photo_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('UPDATE equipamentos SET cover_photo_id=? WHERE id=?', (photo_id, equipamento_id))
@@ -9325,7 +9698,7 @@ def equipamento_add_link(equipamento_id):
     flash("Link adicionado.", "success")
     return redirect(url_for('equipamento_detalhe', equipamento_id=equipamento_id))
 
-@app.route('/equipamentos/<int:equipamento_id>/links/<int:link_id>/delete')
+@app.route('/equipamentos/<int:equipamento_id>/links/<int:link_id>/delete', methods=['POST'])
 def equipamento_del_link(equipamento_id, link_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("DELETE FROM equipamentos_links WHERE id=? AND equipamento_id=?", (link_id, equipamento_id))
@@ -9368,7 +9741,7 @@ def api_equipamentos():
     return Response(json.dumps(data, ensure_ascii=False), mimetype='application/json')
 
 
-@app.route('/equipamentos/<int:equipamento_id>/files/<int:file_id>/delete')
+@app.route('/equipamentos/<int:equipamento_id>/files/<int:file_id>/delete', methods=['POST'])
 def delete_equip_file(equipamento_id, file_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT filename, original_name FROM equipamentos_files WHERE id=? AND equipamento_id=?", (file_id, equipamento_id))
@@ -9773,7 +10146,8 @@ def api_v2_equip_detail(equipamento_id):
 
 
 
-@app.route('/equipamentos/filtros/delete/<int:fid>')
+@app.route('/equipamentos/filtros/delete/<int:fid>', methods=['POST'])
+@app.route('/equipamentos/filtros/<int:fid>/delete', methods=['POST'])
 def equipamentos_filtros_delete(fid):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("DELETE FROM saved_filters WHERE id=?", (fid,))
@@ -9884,51 +10258,52 @@ def api_calc_fatura_mensal_v2():
     t_ativa   = _to_float(data.get('tarifa_ativa'))
     t_reativa = _to_float(data.get('tarifa_reativa'))
     t_ponta   = _to_float(data.get('tarifa_ponta'))
-    t_perdas  = _to_float(data.get('tarifa_perdas'))  # já não será usado
+    t_perdas  = _to_float(data.get('tarifa_perdas'))
 
     taxa_fixa  = _to_float(data.get('taxa_fixa'))
     taxa_radio = _to_float(data.get('taxa_radio'))
     taxa_lixo  = _to_float(data.get('taxa_lixo'))
-    iva        = _to_float(data.get('iva'))
-
-    # Reativa excedente faturável (apenas o que ultrapassa 0,75 × kWh ativa)
-    limite_reativa   = 0.75 * kwh_ativa
-    kwh_reativa_fat  = max(kwh_reativa - limite_reativa, 0.0)
-
-    c_ativa   = kwh_ativa      * t_ativa
-    c_reativa = kwh_reativa_fat * t_reativa
-    c_ponta   = kwh_ponta      * t_ponta
-    c_perdas  = 0.0  # retirado do cálculo porque o contador está do lado de MT/AT
-
-    energia_subtotal = c_ativa + c_reativa + c_ponta
-    taxas_subtotal   = taxa_fixa + taxa_radio + taxa_lixo
-    subtotal         = energia_subtotal + taxas_subtotal
-    valor_iva        = subtotal * iva
-    total            = subtotal + valor_iva
+    pot_contratada = _to_float(data.get('pot_contratada'))
+    fatura = calculate_invoice(
+        active_kwh=kwh_ativa,
+        reactive_kvarh=kwh_reativa,
+        measured_peak_kw=kwh_ponta,
+        contracted_power_kw=pot_contratada,
+        losses_kwh=kwh_perdas,
+        tariffs={
+            'tarifa_ativa': t_ativa, 'tarifa_reativa': t_reativa,
+            'tarifa_ponta': t_ponta, 'tarifa_perdas': t_perdas,
+            'taxa_fixa': taxa_fixa, 'taxa_radio': taxa_radio, 'taxa_lixo': taxa_lixo,
+        },
+        bill_losses=False,
+    )
 
     result = {
         "kwh": {
             "ativa":   round(kwh_ativa,       3),
-            "reativa": round(kwh_reativa_fat, 3),  # só excedente faturável
-            "ponta":   round(kwh_ponta,       3),
+            "reativa": round(fatura['reactive_excess_kvarh'], 3),
+            "ponta":   round(fatura['billing_demand_kw'], 3),
             "perdas":  0.0
         },
         "custos": {
-            "ativa":   round(c_ativa,   2),
-            "reativa": round(c_reativa, 2),
-            "ponta":   round(c_ponta,   2),
-            "perdas":  round(c_perdas,  2)
+            "ativa":   round(fatura['active_cost_mzn'], 2),
+            "reativa": round(fatura['reactive_cost_mzn'], 2),
+            "ponta":   round(fatura['demand_cost_mzn'], 2),
+            "perdas":  round(fatura['losses_cost_mzn'], 2)
         },
-        "energia_subtotal": round(energia_subtotal, 2),
+        "energia_subtotal": round(fatura['energy_subtotal_mzn'], 2),
         "taxas": {
             "fixa":  round(taxa_fixa,  2),
             "radio": round(taxa_radio, 2),
             "lixo":  round(taxa_lixo,  2)
         },
-        "taxas_subtotal": round(taxas_subtotal, 2),
-        "subtotal":       round(subtotal, 2),
-        "iva":            round(valor_iva, 2),
-        "total":          round(total, 2)
+        "taxas_subtotal": round(fatura['fees_subtotal_mzn'], 2),
+        "subtotal":       round(fatura['subtotal_mzn'], 2),
+        "base_iva":       round(fatura['vat_base_mzn'], 2),
+        "iva_percent":    16.0,
+        "base_iva_percent": 62.0,
+        "iva":            round(fatura['vat_mzn'], 2),
+        "total":          round(fatura['total_mzn'], 2)
     }
     return jsonify(result), 200
 
@@ -10315,13 +10690,73 @@ def api_leituras_delete(lid):
 
 
 @app.route('/admin/backup_db')
+@admin_required
 def admin_backup_db():
-    # faz dump do DB para o cliente (download)
-    if not os.path.exists(DB_PATH):
-        return "DB inexistente", 404
-    return send_from_directory(os.path.dirname(DB_PATH), os.path.basename(DB_PATH), as_attachment=True)
+    return redirect(url_for('admin_backups'))
+
+
+@app.route('/admin/backups')
+@admin_required
+def admin_backups():
+    backup_dir = os.environ.get('SGE_BACKUP_DIR', os.path.join(os.path.dirname(DB_PATH), 'backups'))
+    os.makedirs(backup_dir, exist_ok=True)
+    files = []
+    for name in sorted(os.listdir(backup_dir), reverse=True):
+        path = os.path.join(backup_dir, name)
+        if name.startswith('sge_backup_') and name.endswith('.zip') and os.path.isfile(path):
+            files.append({'name': name, 'size': os.path.getsize(path), 'mtime': datetime.fromtimestamp(os.path.getmtime(path))})
+    return render_template('admin_backups.html', backups=files, backup_dir=backup_dir,
+                           retention_days=int(os.environ.get('SGE_BACKUP_RETENTION_DAYS', '30')))
+
+
+@app.route('/admin/backups/criar', methods=['POST'])
+@admin_required
+def admin_backups_criar():
+    backup_dir = os.environ.get('SGE_BACKUP_DIR', os.path.join(os.path.dirname(DB_PATH), 'backups'))
+    try:
+        result = create_backup(
+            DB_PATH, app.config['UPLOAD_FOLDER'], backup_dir, reason='manual', actor=_actor_name(),
+            retention_days=int(os.environ.get('SGE_BACKUP_RETENTION_DAYS', '30')),
+            max_backups=int(os.environ.get('SGE_BACKUP_MAX_COUNT', '30')),
+            mirror_dir=os.environ.get('SGE_BACKUP_MIRROR_DIR') or None,
+        )
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute('''INSERT INTO backup_history(filename, sha256, size_bytes, verified, reason, actor)
+                        VALUES(?,?,?,?,?,?)''',
+                     (result['filename'], result['sha256'], result['size_bytes'], 1, 'manual', _actor_name()))
+        conn.commit(); conn.close()
+        flash('Backup criado e verificado com sucesso.', 'success')
+    except Exception as exc:
+        flash(f'Não foi possível criar o backup: {exc}', 'danger')
+    return redirect(url_for('admin_backups'))
+
+
+@app.route('/admin/backups/<path:filename>/verificar', methods=['POST'])
+@admin_required
+def admin_backups_verificar(filename):
+    safe_name = os.path.basename(filename)
+    if safe_name != filename or not safe_name.startswith('sge_backup_') or not safe_name.endswith('.zip'):
+        return _deny_access('Nome de backup inválido.')
+    backup_dir = os.environ.get('SGE_BACKUP_DIR', os.path.join(os.path.dirname(DB_PATH), 'backups'))
+    try:
+        verify_backup(os.path.join(backup_dir, safe_name))
+        flash('Integridade do backup confirmada.', 'success')
+    except Exception as exc:
+        flash(f'Backup inválido: {exc}', 'danger')
+    return redirect(url_for('admin_backups'))
+
+
+@app.route('/admin/backups/<path:filename>/download')
+@admin_required
+def admin_backups_download(filename):
+    safe_name = os.path.basename(filename)
+    if safe_name != filename or not safe_name.startswith('sge_backup_') or not safe_name.endswith('.zip'):
+        return _deny_access('Nome de backup inválido.')
+    backup_dir = os.environ.get('SGE_BACKUP_DIR', os.path.join(os.path.dirname(DB_PATH), 'backups'))
+    return send_from_directory(backup_dir, safe_name, as_attachment=True)
 
 @app.route('/admin/health')
+@admin_required
 def admin_health():
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
@@ -10613,268 +11048,53 @@ def leituras_mensal_import_csv():
 
 @app.route('/leituras_mensal/fatura_edm')
 def leituras_mensal_fatura_edm():
-    """
-    Gera um resumo de fatura em layout tipo EDM, a partir das leituras_mensais,
-    para um determinado local/mês/ano.
-    Abre uma página própria, optimizada para impressão / PDF.
-    """
+    """Gera a fatura mensal através do motor único e do tarifário histórico."""
     local = request.args.get('local', '').strip()
-    mes   = request.args.get('mes', '').strip()   # "01".."12"
-    ano   = request.args.get('ano', '').strip()
-
+    mes = (request.args.get('mes') or '').strip().zfill(2)
+    ano = (request.args.get('ano') or '').strip()
     if not local or not mes or not ano:
-        # volta para leituras_mensal se faltar parâmetro
         return redirect(url_for('leituras_mensal'))
-
     try:
-        ano_int = int(ano)
-    except ValueError:
-        ano_int = datetime.now().year
+        ctx = _montar_contexto_fatura_mensal(local, mes, int(ano))
+    except (TypeError, ValueError):
+        flash('Período de faturação inválido.', 'warning')
+        return redirect(url_for('leituras_mensal'))
+    invoice_id = _arquivar_fatura_mensal_snapshot(ctx)
+    return render_template('leituras_mensal_fatura_edm.html', invoice_id=invoice_id, **ctx)
 
-    mes_str = str(mes).zfill(2)
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-
-    # 1) Descobrir o id do local e a configuração (tarifas, potência, etc.)
-    c.execute('SELECT id, nome FROM locais WHERE nome = ?', (local,))
-    row_loc = c.fetchone()
-    local_id = row_loc['id'] if row_loc else None
-
-    # Valores padrão caso não haja cfg no locais_cfg
-    fator_mult     = 1.0
-    pot_contratada = 0.0
-    tarifa_ativa   = 4.780
-    tarifa_reativa = 1.430
-    tarifa_ponta   = 497.00
-    taxa_fixa      = 207.28
-    taxa_radio     = 297.00
-    taxa_lixo      = 150.00
-    iva_cfg        = 16.0  # só para referência, mas a regra EDM nova está abaixo
-
-    if local_id is not None:
-        c.execute('''
-            SELECT fator_mult,
-                   pot_contratada,
-                   tarifa_ativa,
-                   tarifa_reativa,
-                   tarifa_ponta,
-                   tarifa_perdas,
-                   taxa_fixa,
-                   taxa_radio,
-                   taxa_lixo,
-                   iva
-            FROM locais_cfg
-            WHERE local_id = ?
-        ''', (local_id,))
-        cfg = c.fetchone()
-        if cfg:
-            (fator_mult,
-             pot_contratada,
-             tarifa_ativa,
-             tarifa_reativa,
-             tarifa_ponta,
-             _tarifa_perdas_ignorar,
-             taxa_fixa,
-             taxa_radio,
-             taxa_lixo,
-             iva_cfg) = cfg
-
-    # Se a tarifa reativa não estiver configurada, usa-se a regra-base do tarifário:
-    # energia reativa excedente cobrada a 30% do preço da energia ativa.
-    if not tarifa_reativa and tarifa_ativa:
-        tarifa_reativa = tarifa_ativa * 0.30
-
-    # 2) Quantidades do mês a partir das leituras mensais.
-    #    A função central abaixo evita erros comuns: somar leituras acumuladas,
-    #    faturar a primeira leitura histórica quando não existe base anterior,
-    #    ou usar reativa acumulada como se fosse consumo do mês.
-    qfat = _quantidades_fatura_mensal(local, mes_str, ano_int)
-    kwh_ativa = qfat['kwh_ativa']
-    kvarh_reativa = qfat['kvarh_reativa']
-    limite_reativa = qfat['limite_reativa']
-    kvarh_excedente = qfat['kvarh_excedente']
-    kw_ponta_lida = qfat['kw_ponta_lida']
-    agua_total = qfat['agua_total']
-    kwh_delta_total = kwh_ativa
-    # 4) Demanda de ponta faturável (kW)
-    #    Fórmula que combinámos: 20% * P contratada + 80% * Ponta medida (máxima do mês)
-    demanda_ponta_kw = _ponta_faturavel_edm(pot_contratada, kw_ponta_lida)
-
-    # 5) Custos de energia (sem perdas)
-    valor_ativa   = kwh_ativa      * tarifa_ativa
-    valor_reativa = kvarh_excedente * tarifa_reativa
-    valor_ponta   = demanda_ponta_kw * tarifa_ponta
-    valor_perdas  = 0.0  # retirado do cálculo, contador do lado de MT
-
-    subtotal_energia = valor_ativa + valor_reativa + valor_ponta
-
-    # 6) Taxas fixas
-    subtotal_taxas = taxa_fixa + taxa_radio + taxa_lixo
-
-    # 7) Subtotal antes de IVA
-    subtotal = subtotal_energia + subtotal_taxas
-
-    # 8) IVA: 16% sobre 62% do subtotal
-    IVA_ALIQUOTA = 0.16
-    BASE_IVA_PERC = 0.62
-    base_iva  = subtotal * BASE_IVA_PERC
-    valor_iva = base_iva * IVA_ALIQUOTA
-
-    # 9) Total final
-    total = subtotal + valor_iva
-
-    # 10) Alguns indicadores extra (consumo específico médio, etc.)
-    consumo_especifico_medio = None
-    if agua_total > 0 and kwh_ativa > 0:
-        consumo_especifico_medio = kwh_ativa / agua_total
-
-    periodo_str = f"{mes_str}/{ano_int}"
-
-    invoice_ctx = dict(
-        local=local, periodo=periodo_str,
-        kwh_ativa=kwh_ativa, kvarh_reativa=kvarh_reativa, kvarh_excedente=kvarh_excedente,
-        kw_ponta_lida=kw_ponta_lida, demanda_ponta_kw=demanda_ponta_kw,
-        valor_ativa=valor_ativa, valor_reativa=valor_reativa, valor_ponta=valor_ponta, valor_perdas=valor_perdas,
-        subtotal_energia=subtotal_energia, taxa_fixa=taxa_fixa, taxa_radio=taxa_radio, taxa_lixo=taxa_lixo,
-        subtotal_taxas=subtotal_taxas, subtotal=subtotal, base_iva=base_iva, valor_iva=valor_iva, total=total,
-        total_extenso=_mzn_extenso(total), consumo_especifico_medio=consumo_especifico_medio, agua_total=agua_total,
-        pot_contratada=pot_contratada, tarifa_ativa=tarifa_ativa, tarifa_reativa=tarifa_reativa, tarifa_ponta=tarifa_ponta,
-        iva_percent=IVA_ALIQUOTA * 100, base_iva_percent=BASE_IVA_PERC * 100, limite_reativa=limite_reativa,
-        leitura_base_ativa=qfat.get('leitura_base_ativa', 0), leitura_final_ativa=qfat.get('leitura_final_ativa', 0),
-        leitura_base_reativa=qfat.get('leitura_base_reativa', 0), leitura_final_reativa=qfat.get('leitura_final_reativa', 0),
-        avisos_fatura=qfat.get('avisos', [])
-    )
-    invoice_id = _arquivar_fatura_mensal_snapshot(invoice_ctx)
-
-    return render_template(
-        'leituras_mensal_fatura_edm.html',
-        local=local,
-        periodo=periodo_str,
-        invoice_id=invoice_id,
-        kwh_ativa=kwh_ativa,
-        kvarh_reativa=kvarh_reativa,
-        kvarh_excedente=kvarh_excedente,
-        kw_ponta_lida=kw_ponta_lida,
-        demanda_ponta_kw=demanda_ponta_kw,
-        valor_ativa=valor_ativa,
-        valor_reativa=valor_reativa,
-        valor_ponta=valor_ponta,
-        valor_perdas=valor_perdas,
-        subtotal_energia=subtotal_energia,
-        taxa_fixa=taxa_fixa,
-        taxa_radio=taxa_radio,
-        taxa_lixo=taxa_lixo,
-        subtotal_taxas=subtotal_taxas,
-        subtotal=subtotal,
-        base_iva=base_iva,
-        valor_iva=valor_iva,
-        total=total,
-        total_extenso=_mzn_extenso(total),
-        consumo_especifico_medio=consumo_especifico_medio,
-        agua_total=agua_total,
-        pot_contratada=pot_contratada,
-        tarifa_ativa=tarifa_ativa,
-        tarifa_reativa=tarifa_reativa,
-        tarifa_ponta=tarifa_ponta,
-        iva_percent=IVA_ALIQUOTA * 100,
-        base_iva_percent=BASE_IVA_PERC * 100,
-        limite_reativa=limite_reativa,
-        leitura_base_ativa=qfat.get('leitura_base_ativa', 0),
-        leitura_final_ativa=qfat.get('leitura_final_ativa', 0),
-        leitura_base_reativa=qfat.get('leitura_base_reativa', 0),
-        leitura_final_reativa=qfat.get('leitura_final_reativa', 0),
-        avisos_fatura=qfat.get('avisos', []),
-    )
 
 @app.route('/leituras_mensal/financeiro')
 def leituras_mensal_financeiro():
     local = request.args.get('local','').strip()
     mes = (request.args.get('mes') or datetime.now().strftime('%m')).zfill(2)
     ano = int(request.args.get('ano') or datetime.now().year)
-
-    lid = None
-    for (lid_, nome) in get_locais():
-        if nome == local:
-            lid = lid_
-            break
-    cfg = get_local_cfg_full(lid) if lid is not None else {}
-
-    pot_contratada = float(cfg.get('pot_contratada', 0) or 0)
-    tarifa_ativa   = float(cfg.get('tarifa_ativa', 0) or 0)
-    tarifa_reativa = float(cfg.get('tarifa_reativa', 0) or 0)
-    tarifa_ponta   = float(cfg.get('tarifa_ponta', 0) or 0)
-    taxa_fixa      = float(cfg.get('taxa_fixa', 0) or 0)
-    taxa_radio     = float(cfg.get('taxa_radio', 0) or 0)
-    taxa_lixo      = float(cfg.get('taxa_lixo', 0) or 0)
-    if not tarifa_reativa and tarifa_ativa:
-        tarifa_reativa = tarifa_ativa * 0.30
-
-    qfat = _quantidades_fatura_mensal(local, mes, ano) if local else {}
-    kwh_ativa = qfat.get('kwh_ativa', 0)
-    kvarh_reativa = qfat.get('kvarh_reativa', 0)
-    limite_reativa = qfat.get('limite_reativa', 0)
-    kvarh_excedente = qfat.get('kvarh_excedente', 0)
-    kw_ponta_lida = qfat.get('kw_ponta_lida', 0)
-    demanda_ponta_kw = _ponta_faturavel_edm(pot_contratada, kw_ponta_lida)
-
-    valor_ativa = kwh_ativa * tarifa_ativa
-    valor_reativa = kvarh_excedente * tarifa_reativa
-    valor_ponta = demanda_ponta_kw * tarifa_ponta
-    subtotal_energia = valor_ativa + valor_reativa + valor_ponta
-    subtotal_taxas = taxa_fixa + taxa_radio + taxa_lixo
-    subtotal = subtotal_energia + subtotal_taxas
-    IVA_ALIQUOTA = 0.16
-    BASE_IVA_PERC = 0.62
-    base_iva = subtotal * BASE_IVA_PERC
-    valor_iva = base_iva * IVA_ALIQUOTA
-    total = subtotal + valor_iva
-
+    ctx = _montar_contexto_fatura_mensal(local, mes, ano)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    rows = c.execute('''SELECT data, ativa, reativa, ponta, fp, diferenca, agua, esp, valor
-                        FROM leituras_mensais WHERE local=? AND mes=? AND ano=?
-                        ORDER BY data''', (local, mes, ano)).fetchall()
+    rows = conn.execute(
+        """SELECT data, ativa, reativa, ponta, fp, diferenca, agua, esp, valor
+           FROM leituras_mensais WHERE local=? AND mes=? AND ano=? ORDER BY data""",
+        (local, mes, ano),
+    ).fetchall()
     conn.close()
-    fp_vals = [_safe_float(r['fp'], None) for r in rows if _safe_float(r['fp'], None) is not None and _safe_float(r['fp'], None) > 0]
-    fp_medio = (sum(fp_vals)/len(fp_vals)) if fp_vals else 0
-
-    resumo = {
-        'valor_total': total,
-        'total_extenso': _mzn_extenso(total),
-        'subtotal': subtotal,
-        'subtotal_energia': subtotal_energia,
-        'subtotal_taxas': subtotal_taxas,
-        'base_iva': base_iva,
-        'valor_iva': valor_iva,
-        'kwh_ativa': kwh_ativa,
-        'kvarh_reativa': kvarh_reativa,
-        'limite_reativa': limite_reativa,
-        'kvarh_excedente': kvarh_excedente,
-        'kw_ponta_lida': kw_ponta_lida,
-        'demanda_ponta_kw': demanda_ponta_kw,
-        'valor_ativa': valor_ativa,
-        'valor_reativa': valor_reativa,
-        'valor_ponta': valor_ponta,
-        'agua_total': qfat.get('agua_total', 0),
-        'consumo_especifico': qfat.get('consumo_especifico', None),
-        'fp_medio': fp_medio,
-        'leitura_base_ativa': qfat.get('leitura_base_ativa', 0),
-        'leitura_final_ativa': qfat.get('leitura_final_ativa', 0),
-        'leitura_base_reativa': qfat.get('leitura_base_reativa', 0),
-        'leitura_final_reativa': qfat.get('leitura_final_reativa', 0),
-        'avisos': qfat.get('avisos', []),
-        'iva_percent': IVA_ALIQUOTA * 100,
-        'base_iva_percent': BASE_IVA_PERC * 100,
-    }
-
-    return render_template('leituras_mensal_financeiro.html',
-        local=local, mes=mes, ano=ano, cfg=cfg, resumo=resumo, rows=rows, qfat=qfat,
-        tarifa_ativa=tarifa_ativa, tarifa_reativa=tarifa_reativa, tarifa_ponta=tarifa_ponta,
-        taxa_fixa=taxa_fixa, taxa_radio=taxa_radio, taxa_lixo=taxa_lixo,
-        pot_contratada=pot_contratada)
+    fp_values = [float(r['fp']) for r in rows if r['fp'] is not None and float(r['fp'] or 0) > 0]
+    resumo = dict(ctx)
+    resumo.update({
+        'valor_total': ctx['total'],
+        'fp_medio': (sum(fp_values) / len(fp_values)) if fp_values else 0.0,
+        'consumo_especifico': ctx['consumo_especifico_medio'],
+        'avisos': ctx['avisos_fatura'],
+    })
+    local_id = next((lid for lid, nome in get_locais() if nome == local), None)
+    return render_template(
+        'leituras_mensal_financeiro.html', local=local, mes=mes, ano=ano,
+        cfg=get_local_cfg_full(local_id) if local_id is not None else {},
+        resumo=resumo, rows=rows, qfat=ctx['qfat'],
+        tarifa_ativa=ctx['tarifa_ativa'], tarifa_reativa=ctx['tarifa_reativa'],
+        tarifa_ponta=ctx['tarifa_ponta'], taxa_fixa=ctx['taxa_fixa'],
+        taxa_radio=ctx['taxa_radio'], taxa_lixo=ctx['taxa_lixo'],
+        pot_contratada=ctx['pot_contratada'],
+    )
 
 
 @app.route('/leituras_mensal/faturas')
@@ -11069,12 +11289,12 @@ def _mt_init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS mt_config (
             id INTEGER PRIMARY KEY CHECK (id=1),
-            alfa_reativa REAL DEFAULT 0.50,
+            alfa_reativa REAL DEFAULT 0.75,
             iva_taxa REAL DEFAULT 0.16,
             iva_base REAL DEFAULT 0.62,
             tarifa_ativa REAL DEFAULT 4.780,
             tarifa_reativa REAL DEFAULT 1.430,
-            tarifa_potencia REAL DEFAULT 497.000
+            tarifa_potencia REAL DEFAULT 497.03
         )
     """)
     c.execute("INSERT OR IGNORE INTO mt_config (id) VALUES (1)")
@@ -11110,12 +11330,12 @@ def _mt_get_local_cfg(local_id: int):
                COALESCE(pot_contratada,0.0) AS pc,
                COALESCE(tarifa_ativa,4.780) AS t_ativa,
                COALESCE(tarifa_reativa,1.430) AS t_reat,
-               COALESCE(tarifa_ponta,497.000) AS t_pot
+               COALESCE(tarifa_ponta,497.03) AS t_pot
           FROM locais_cfg WHERE local_id=?
     """, (local_id,)).fetchone()
     conn.close()
     if not row:
-        return (1.0, 0.0, 4.780, 1.430, 497.000)
+        return (1.0, 0.0, 4.780, 1.430, 497.03)
     return (float(row["fm"]), float(row["pc"]), float(row["t_ativa"]), float(row["t_reat"]), float(row["t_pot"]))
 
 def _mt_month_bounds(ano: int, mes: int):
@@ -11126,59 +11346,10 @@ def _mt_month_bounds(ano: int, mes: int):
     return first.isoformat(), last.isoformat()
 
 # --------- Rotas: Configuração MT ---------
-@app.route("/mt/config", methods=["GET","POST"])
+@app.route("/mt/config", methods=["GET"])
 def mt_config():
-    if request.method == "POST":
-        alfa = float(request.form.get("alfa_reativa", 0.50) or 0.50)
-        iva_taxa = float(request.form.get("iva_taxa", 0.16) or 0.16)
-        iva_base = float(request.form.get("iva_base", 0.62) or 0.62)
-        t_ativa = float(request.form.get("tarifa_ativa", 4.780) or 4.780)
-        t_reat = float(request.form.get("tarifa_reativa", 1.430) or 1.430)
-        t_pot = float(request.form.get("tarifa_potencia", 497.000) or 497.000)
-        conn = _mt_conn()
-        _mt_exec(conn, """UPDATE mt_config SET alfa_reativa=?, iva_taxa=?, iva_base=?, 
-                          tarifa_ativa=?, tarifa_reativa=?, tarifa_potencia=? WHERE id=1""",
-                 (alfa, iva_taxa, iva_base, t_ativa, t_reat, t_pot))
-        conn.close()
-        flash("Configuração MT atualizada.", "success")
-        return redirect(url_for("mt_config"))
     cfg = _mt_cfg()
-    return render_template_string("""
-    {% extends "base.html" %}
-    {% block content %}
-    <h3>Configuração MT (Global)</h3>
-    <form method="post" class="row g-3">
-      <div class="col-md-2">
-        <label class="form-label">α Reativa</label>
-        <input name="alfa_reativa" type="number" step="0.01" class="form-control" value="{{ '%.2f'|format(cfg['alfa_reativa']) }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">IVA (taxa)</label>
-        <input name="iva_taxa" type="number" step="0.01" class="form-control" value="{{ '%.2f'|format(cfg['iva_taxa']) }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Base IVA (fator)</label>
-        <input name="iva_base" type="number" step="0.01" class="form-control" value="{{ '%.2f'|format(cfg['iva_base']) }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Tarifa ativa (MZN/kWh)</label>
-        <input name="tarifa_ativa" type="number" step="0.001" class="form-control" value="{{ '%.3f'|format(cfg['tarifa_ativa']) }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Tarifa reativa (MZN/kVArh)</label>
-        <input name="tarifa_reativa" type="number" step="0.001" class="form-control" value="{{ '%.3f'|format(cfg['tarifa_reativa']) }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Tarifa potência (MZN/kVA)</label>
-        <input name="tarifa_potencia" type="number" step="0.001" class="form-control" value="{{ '%.3f'|format(cfg['tarifa_potencia']) }}">
-      </div>
-      <div class="col-12">
-        <button class="btn btn-primary mt-2">Guardar</button>
-      </div>
-    </form>
-    <p class="mt-3 text-muted">IVA efetivo = taxa × base. Ex.: 0,16 × 0,62 = 0,0992 (9,92%).</p>
-    {% endblock %}
-    """, cfg=cfg)
+    return render_template("config_mt.html", cfg=cfg)
 
 # --------- Rotas: Leituras MT ---------
 @app.route("/mt/<int:local_id>/leituras")
@@ -11201,8 +11372,8 @@ def mt_leituras(local_id):
         WHERE local_id=? AND date(data) BETWEEN ? AND ?
         ORDER BY date(data), time(hora)
     """, (local_id, first, last)).fetchall()
-    cfg = _mt_cfg()
     fm, Pc, t_ativa_l, t_reat_l, t_pot_l = _mt_get_local_cfg(local_id)
+    tarifas_periodo = _tarifas_local_periodo(local_id, mes, ano)
     conn.close()
 
     # última leitura do dia
@@ -11230,7 +11401,7 @@ def mt_leituras(local_id):
             dea = max(0.0, ea_aj - prev_ea)
             der = max(0.0, er_aj - prev_er)
 
-        custo_ativo_d = dea * float(cfg["tarifa_ativa"])
+        custo_ativo_d = dea * float(tarifas_periodo["tarifa_ativa"])
 
         # indicadores simples
         P_d = (dea/24.0) if dea>0 else 0.0
@@ -11251,17 +11422,29 @@ def mt_leituras(local_id):
         Dmax = max(Dmax, demanda_aj)
         prev_ea, prev_er = ea_aj, er_aj
 
-    alfa = float(cfg["alfa_reativa"])
-    ER_exced = max(0.0, ER_total - alfa * EA_total)
-
-    C_ativo = EA_total * float(cfg["tarifa_ativa"])
-    C_reativa = ER_exced * float(cfg["tarifa_reativa"])
-    P_fat = 0.2 * Pc + 0.8 * Dmax
-    C_pot = P_fat * float(cfg["tarifa_potencia"])
-
-    subtotal = C_ativo + C_reativa + C_pot
-    iva = float(cfg["iva_taxa"]) * float(cfg["iva_base"]) * subtotal
-    total = subtotal + iva
+    fatura = calculate_invoice(
+        active_kwh=EA_total,
+        reactive_kvarh=ER_total,
+        measured_peak_kw=Dmax,
+        contracted_power_kw=Pc,
+        tariffs={
+            **tarifas_periodo,
+            # Este resumo MT legado nunca incluiu taxas fixas; preserva-se essa
+            # apresentação, mantendo as mesmas regras centrais de energia e IVA.
+            "taxa_fixa": 0.0,
+            "taxa_radio": 0.0,
+            "taxa_lixo": 0.0,
+        },
+    )
+    alfa = REACTIVE_LIMIT_FACTOR
+    ER_exced = fatura["reactive_excess_kvarh"]
+    C_ativo = fatura["active_cost_mzn"]
+    C_reativa = fatura["reactive_cost_mzn"]
+    P_fat = fatura["billing_demand_kw"]
+    C_pot = fatura["demand_cost_mzn"]
+    subtotal = fatura["subtotal_mzn"]
+    iva = fatura["vat_mzn"]
+    total = fatura["total_mzn"]
 
     resumo = {
         "EA_total": EA_total, "ER_total": ER_total,
@@ -11269,10 +11452,10 @@ def mt_leituras(local_id):
         "Dmax": Dmax, "Pc": Pc, "P_fat": P_fat, "C_pot": C_pot,
         "subtotal": subtotal, "iva": iva, "total": total,
         "alfa": alfa,
-        "iva_taxa": float(cfg["iva_taxa"]), "iva_base": float(cfg["iva_base"]),
-        "tarifa_ativa": float(cfg["tarifa_ativa"]),
-        "tarifa_reativa": float(cfg["tarifa_reativa"]),
-        "tarifa_potencia": float(cfg["tarifa_potencia"]),
+        "iva_taxa": VAT_RATE, "iva_base": VAT_BASE_FACTOR,
+        "tarifa_ativa": float(tarifas_periodo["tarifa_ativa"]),
+        "tarifa_reativa": float(tarifas_periodo["tarifa_reativa"]),
+        "tarifa_potencia": float(tarifas_periodo["tarifa_ponta"]),
         "ano": ano, "mes": mes
     }
 
@@ -11470,7 +11653,8 @@ def api_local_cfg_by_id(local_id):
     keys = ["id","nome","pot_contratada","pot_instalada","fator_mult",
             "tarifa_ativa","tarifa_reativa","tarifa_ponta","tarifa_perdas",
             "taxa_fixa","taxa_radio","taxa_lixo","iva"]
-    return jsonify(dict(zip(keys,row)))
+    payload = dict(zip(keys, row)); payload['iva'] = 16.0
+    return jsonify(payload)
 
 
 # === API: Calcular Fatura (Leituras Mensais) ===
@@ -11495,11 +11679,11 @@ def api_local_cfg_by_name(local_name):
     keys = ["id","nome","pot_contratada","pot_instalada","fator_mult",
             "tarifa_ativa","tarifa_reativa","tarifa_ponta","tarifa_perdas",
             "taxa_fixa","taxa_radio","taxa_lixo","iva"]
-    return jsonify(dict(zip(keys,row)))
+    payload = dict(zip(keys, row)); payload['iva'] = 16.0
+    return jsonify(payload)
 
 @app.route('/api/leituras_mensal/calcular', methods=['POST'])
 def api_calc_fatura_leituras():
-    from flask import request, jsonify, g
     data = request.get_json(silent=True) or {}
     local = (data.get('local') or '').strip()
     mes   = str(data.get('mes') or '').zfill(2)
@@ -11512,16 +11696,6 @@ def api_calc_fatura_leituras():
         if nome == local:
             lid = lid_
             break
-    cfg = get_local_cfg_full(lid) if lid is not None else {}
-    t_ativa   = float(cfg.get('tarifa_ativa', 0) or 0)
-    t_reativa = float(cfg.get('tarifa_reativa', 0) or 0)
-    t_ponta   = float(cfg.get('tarifa_ponta', 0) or 0)
-    t_perdas  = float(cfg.get('tarifa_perdas', 0) or 0)
-    taxa_fixa = float(cfg.get('taxa_fixa', 0) or 0)
-    taxa_radio= float(cfg.get('taxa_radio', 0) or 0)
-    taxa_lixo = float(cfg.get('taxa_lixo', 0) or 0)
-    iva       = float(cfg.get('iva', 0) or 0)
-
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     rows = c.execute(
         "SELECT IFNULL(ativa,0), IFNULL(reativa,0), IFNULL(ponta,0) "
@@ -11532,27 +11706,20 @@ def api_calc_fatura_leituras():
     if not rows:
         return jsonify({'erro':'Sem dados de leituras para o período selecionado.'}), 404
 
-    kwh_total   = sum((r[0] or 0) for r in rows)
-    kvarh_total = sum((r[1] or 0) for r in rows)
-    demanda_max = max((r[2] or 0) for r in rows)
-
-    sub_ativa   = kwh_total   * t_ativa
-    sub_reativa = kvarh_total * t_reativa
-    sub_ponta   = demanda_max * t_ponta
-    sub_perdas  = kwh_total   * t_perdas
-    sub_energia = sub_ativa + sub_reativa + sub_ponta + sub_perdas
-    sub_taxas   = taxa_fixa + taxa_radio + taxa_lixo
-    total_siva  = sub_energia + sub_taxas
-    total_civa  = total_siva * (1 + (iva/100.0))
+    ctx = _montar_contexto_fatura_mensal(local, mes, ano)
 
     return jsonify({
         'local': local, 'mes': mes, 'ano': ano,
-        'totais': {'kwh': kwh_total, 'kvarh': kvarh_total, 'demanda_kw': demanda_max},
-        'tarifas': {'ativa': t_ativa, 'reativa': t_reativa, 'ponta': t_ponta, 'perdas': t_perdas},
-        'taxas': {'fixa': taxa_fixa, 'radio': taxa_radio, 'lixo': taxa_lixo, 'iva_percent': iva},
-        'subtotal': {'ativa': sub_ativa, 'reativa': sub_reativa, 'ponta': sub_ponta, 'perdas': sub_perdas,
-                     'energia': sub_energia, 'taxas': sub_taxas},
-        'total': {'sem_iva': total_siva, 'com_iva': total_civa}
+        'totais': {'kwh': ctx['kwh_ativa'], 'kvarh': ctx['kvarh_reativa'], 'demanda_kw': ctx['kw_ponta_lida']},
+        'tarifas': {'ativa': ctx['tarifa_ativa'], 'reativa': ctx['tarifa_reativa'],
+                    'ponta': ctx['tarifa_ponta'], 'perdas': ctx['tarifa_perdas']},
+        'taxas': {'fixa': ctx['taxa_fixa'], 'radio': ctx['taxa_radio'], 'lixo': ctx['taxa_lixo'],
+                  'iva_percent': VAT_RATE * 100, 'iva_base_percent': VAT_BASE_FACTOR * 100},
+        'subtotal': {'ativa': ctx['valor_ativa'], 'reativa': ctx['valor_reativa'],
+                     'ponta': ctx['valor_ponta'], 'perdas': ctx['valor_perdas'],
+                     'energia': ctx['subtotal_energia'], 'taxas': ctx['subtotal_taxas']},
+        'iva': {'base': ctx['base_iva'], 'valor': ctx['valor_iva']},
+        'total': {'sem_iva': ctx['subtotal'], 'com_iva': ctx['total']}
     })
 
 
@@ -11911,7 +12078,7 @@ def _dashboard_get_cfg_map():
                    COALESCE(lc.pot_contratada, l.potencia_contratada, l.potencia_contratada_kva, 0.0) AS pot_contratada,
                    COALESCE(lc.tarifa_ativa, 4.78) AS tarifa_ativa,
                    COALESCE(lc.tarifa_reativa, 0) AS tarifa_reativa,
-                   COALESCE(lc.tarifa_ponta, 497.0) AS tarifa_ponta,
+                   COALESCE(lc.tarifa_ponta, 497.03) AS tarifa_ponta,
                    COALESCE(lc.taxa_fixa, 0) AS taxa_fixa,
                    COALESCE(lc.taxa_radio, 0) AS taxa_radio,
                    COALESCE(lc.taxa_lixo, 0) AS taxa_lixo,
@@ -11934,35 +12101,31 @@ def _dashboard_get_cfg_map():
 def _dashboard_month_finance(local_nome, mes, ano, cfg):
     """Calcula valores do dashboard usando a mesma filosofia da fatura EDM mensal."""
     try:
-        q = _quantidades_fatura_mensal(local_nome, str(mes).zfill(2), int(ano))
+        ctx = _montar_contexto_fatura_mensal(local_nome, str(mes).zfill(2), int(ano))
+        q = ctx['qfat']
     except Exception:
         q = {'kwh_ativa':0.0,'kvarh_reativa':0.0,'kvarh_excedente':0.0,'kw_ponta_lida':0.0,'agua_total':0.0,'consumo_especifico':None,'avisos':[]}
-    tarifa_ativa = float(cfg.get('tarifa_ativa') or 0)
-    tarifa_reativa = float(cfg.get('tarifa_reativa') or (tarifa_ativa * 0.30 if tarifa_ativa else 0))
-    tarifa_ponta = float(cfg.get('tarifa_ponta') or 0)
-    pot_contratada = float(cfg.get('pot_contratada') or 0)
-    taxa_fixa = float(cfg.get('taxa_fixa') or 0)
-    taxa_radio = float(cfg.get('taxa_radio') or 0)
-    taxa_lixo = float(cfg.get('taxa_lixo') or 0)
-    ponta_faturavel = _ponta_faturavel_edm(pot_contratada, float(q.get('kw_ponta_lida') or 0))
-    valor_ativa = float(q.get('kwh_ativa') or 0) * tarifa_ativa
-    valor_reativa = float(q.get('kvarh_excedente') or 0) * tarifa_reativa
-    valor_ponta = ponta_faturavel * tarifa_ponta
-    subtotal = valor_ativa + valor_reativa + valor_ponta + taxa_fixa + taxa_radio + taxa_lixo
-    valor_iva = subtotal * 0.62 * 0.16
-    total = subtotal + valor_iva
+        tariffs = normalise_tariffs(cfg)
+        bill = calculate_invoice(active_kwh=0, tariffs=tariffs)
+        ctx = {
+            'demanda_ponta_kw': bill['billing_demand_kw'], 'valor_ativa': bill['active_cost_mzn'],
+            'valor_reativa': bill['reactive_cost_mzn'], 'valor_ponta': bill['demand_cost_mzn'],
+            'subtotal': bill['subtotal_mzn'], 'valor_iva': bill['vat_mzn'], 'total': bill['total_mzn'],
+            'tarifa_ativa': tariffs['tarifa_ativa'], 'tarifa_reativa': tariffs['tarifa_reativa'],
+            'tarifa_ponta': tariffs['tarifa_ponta'],
+        }
     return {
         'qfat': q,
-        'ponta_faturavel': ponta_faturavel,
-        'valor_ativa': valor_ativa,
-        'valor_reativa': valor_reativa,
-        'valor_ponta': valor_ponta,
-        'subtotal': subtotal,
-        'valor_iva': valor_iva,
-        'total': total,
-        'tarifa_ativa': tarifa_ativa,
-        'tarifa_reativa': tarifa_reativa,
-        'tarifa_ponta': tarifa_ponta,
+        'ponta_faturavel': ctx['demanda_ponta_kw'],
+        'valor_ativa': ctx['valor_ativa'],
+        'valor_reativa': ctx['valor_reativa'],
+        'valor_ponta': ctx['valor_ponta'],
+        'subtotal': ctx['subtotal'],
+        'valor_iva': ctx['valor_iva'],
+        'total': ctx['total'],
+        'tarifa_ativa': ctx['tarifa_ativa'],
+        'tarifa_reativa': ctx['tarifa_reativa'],
+        'tarifa_ponta': ctx['tarifa_ponta'],
     }
 
 
