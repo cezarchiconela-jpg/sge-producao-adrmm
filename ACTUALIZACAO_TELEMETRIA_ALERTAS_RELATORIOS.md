@@ -52,6 +52,30 @@ Estes limites pertencem ao SGE e não modificam as protecções do F650.
 - O painel inclui vistas rápidas para tensões, correntes, potências, factor de
   potência e frequência, com escalas separadas quando as unidades diferem.
 
+## Consumo, custos e eficiência energética
+
+- A potência activa e reactiva é integrada pelos intervalos reais entre
+  leituras, usando o método trapezoidal.
+- Lacunas superiores a 10 minutos ficam fora do consumo e do custo, evitando
+  estimativas artificiais durante uma falha de comunicação.
+- Os dados do F650 já representam valores reais no primário. O factor
+  multiplicativo usado nas leituras manuais/facturas nunca é aplicado neste
+  módulo.
+- As tarifas são lidas da configuração do local associado ao relé.
+- O painel calcula energia activa, energia reactiva, reactiva excedente, custo
+  activo, custo de reactiva e custo energético total.
+- Estão disponíveis períodos de calendário e móveis: última hora, hoje, dia
+  escolhido, semana, mês, últimas 24 horas, 7 dias e 30 dias.
+- O sistema compara o período com o anterior de duração equivalente e mostra a
+  variação de consumo, custo e pico de potência.
+- O custo por hora no regime actual usa a potência instantânea do F650 e a
+  tarifa activa, indicando quanto custaria manter a carga actual por uma hora.
+- O resumo mensal apresenta realizado, projecção e estimativa de factura. A
+  factura permanece identificada como estimativa porque demanda, taxas, IVA e
+  fecho do ciclo precisam de validação.
+- Um gráfico adicional distribui energia e custo por hora ou por dia, conforme
+  a duração do período escolhido.
+
 ## Relatório PDF
 
 O botão **Relatório PDF** gera um documento profissional para o período
@@ -59,6 +83,7 @@ seleccionado contendo:
 
 - estado operacional e alertas activos;
 - energia estimada, pico, factor de potência e faixa de tensão;
+- consumo activo/reactivo, custos, tarifas, comparação e projecção mensal;
 - disponibilidade, cobertura e duração de cortes;
 - tabela de mínimo, média e máximo;
 - histórico de ocorrências;

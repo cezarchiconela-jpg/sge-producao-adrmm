@@ -16,6 +16,28 @@ class TelemetryAlertsTest(unittest.TestCase):
         conn = sqlite3.connect(self.db_path)
         conn.execute("CREATE TABLE locais (id INTEGER PRIMARY KEY, nome TEXT NOT NULL)")
         conn.execute("INSERT INTO locais(id, nome) VALUES(1, 'ETA DE UMBELUZI')")
+        conn.execute(
+            """
+            CREATE TABLE locais_cfg (
+                local_id INTEGER PRIMARY KEY,
+                fator_mult REAL,
+                pot_contratada REAL,
+                tarifa_ativa REAL,
+                tarifa_reativa REAL,
+                tarifa_ponta REAL,
+                taxa_fixa REAL,
+                taxa_radio REAL,
+                taxa_lixo REAL,
+                iva REAL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO locais_cfg VALUES(1, 300.0, 3500.0, 4.780, 1.430,
+                                           4.970, 207.28, 297.0, 150.0, 16.0)
+            """
+        )
         conn.commit()
         conn.close()
 
@@ -88,6 +110,17 @@ class TelemetryAlertsTest(unittest.TestCase):
             factor_potencia_total=0.0,
         )
         self.assertEqual(cut.status_code, 200)
+        cut_confirmed = self._post(
+            now - timedelta(milliseconds=1500),
+            tensao_ab_kv=0.0,
+            tensao_bc_kv=0.0,
+            tensao_ca_kv=0.0,
+            frequencia_hz=0.0,
+            potencia_activa_total_mw=0.0,
+            potencia_reactiva_total_mvar=0.0,
+            factor_potencia_total=0.0,
+        )
+        self.assertEqual(cut_confirmed.status_code, 200)
         alerts = self.client.get(
             f"/telemetria/api/alerts?device={DEVICE_CODE_F650}&hours=24"
         ).get_json()["alerts"]
@@ -97,6 +130,8 @@ class TelemetryAlertsTest(unittest.TestCase):
 
         restored = self._post(now - timedelta(seconds=1))
         self.assertEqual(restored.status_code, 200)
+        restored_confirmed = self._post(now - timedelta(milliseconds=500))
+        self.assertEqual(restored_confirmed.status_code, 200)
         alerts = self.client.get(
             f"/telemetria/api/alerts?device={DEVICE_CODE_F650}&hours=24"
         ).get_json()["alerts"]
@@ -116,12 +151,55 @@ class TelemetryAlertsTest(unittest.TestCase):
         self.assertGreater(summary["energy_kwh"], 0)
         self.assertEqual(summary["measured_flow_direction"], "reverso")
 
+        analysis = response.get_json()["analysis"]
+        finance = analysis["finance"]
+        self.assertAlmostEqual(
+            finance["active_cost_mzn"],
+            finance["active_energy_kwh"] * 4.780,
+            delta=0.15,
+        )
+        self.assertFalse(finance["tariffs"]["factor_multiplicative_applied"])
+        # O factor 300 configurado para leituras manuais não pode escalar a
+        # energia real já convertida no F650.
+        self.assertLess(finance["active_energy_kwh"], 1000)
+
         pdf = self.client.get(
             f"/telemetria/relatorio.pdf?device={DEVICE_CODE_F650}&hours=24"
         )
         self.assertEqual(pdf.status_code, 200)
         self.assertEqual(pdf.mimetype, "application/pdf")
         self.assertTrue(pdf.data.startswith(b"%PDF"))
+
+    def test_calendar_periods_and_specific_day(self):
+        now = datetime.now(timezone.utc)
+        self.assertEqual(self._post(now - timedelta(seconds=65)).status_code, 200)
+        self.assertEqual(self._post(now - timedelta(seconds=5)).status_code, 200)
+
+        today = self.client.get(
+            f"/telemetria/api/analysis?device={DEVICE_CODE_F650}&period=today"
+        )
+        self.assertEqual(today.status_code, 200)
+        today_data = today.get_json()["analysis"]
+        self.assertEqual(today_data["period"]["key"], "today")
+        self.assertGreater(today_data["finance"]["energy_cost_mzn"], 0)
+        self.assertTrue(today_data["energy_profile"]["points"])
+
+        maputo_day = (now + timedelta(hours=2)).strftime("%Y-%m-%d")
+        selected = self.client.get(
+            f"/telemetria/api/analysis?device={DEVICE_CODE_F650}&period=day&date={maputo_day}"
+        )
+        self.assertEqual(selected.status_code, 200)
+        self.assertEqual(selected.get_json()["analysis"]["period"]["key"], "day")
+
+    def test_long_gap_is_not_billed(self):
+        now = datetime.now(timezone.utc)
+        self.assertEqual(self._post(now - timedelta(minutes=25)).status_code, 200)
+        self.assertEqual(self._post(now - timedelta(seconds=5)).status_code, 200)
+        analysis = self.client.get(
+            f"/telemetria/api/analysis?device={DEVICE_CODE_F650}&hours=24"
+        ).get_json()["analysis"]
+        self.assertEqual(analysis["finance"]["active_energy_kwh"], 0)
+        self.assertGreaterEqual(analysis["summary"]["ignored_data_gaps"], 1)
 
     def test_communication_loss_does_not_claim_power_cut(self):
         now = datetime.now(timezone.utc)

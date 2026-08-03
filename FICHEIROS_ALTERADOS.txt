@@ -1,5 +1,17 @@
 SGE - ACTUALIZAÇÃO TELEMETRIA, ALERTAS E RELATÓRIOS
 
+MELHORIA DE EFICIÊNCIA ENERGÉTICA E CUSTOS:
+- telemetria.py
+- templates/telemetria.html
+- static/telemetria.css
+- static/telemetria.js
+- tests/test_telemetry_alerts.py
+- ACTUALIZACAO_TELEMETRIA_ALERTAS_RELATORIOS.md
+
+Inclui cálculo de energia e custo por hora/dia/semana/mês, tarifas do local,
+comparação, projecção, gráfico financeiro e relatório PDF actualizado. Não
+altera a API, o PC de aquisição, o token nem a configuração do F650.
+
 VERSÃO COMPLETA:
 - telemetria.py
 - templates/telemetria.html

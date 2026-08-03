@@ -14,10 +14,10 @@
       <p class="text-muted mb-0">Leituras recebidas directamente dos instrumentos de campo, sem substituir as leituras manuais e de facturação.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-      <a id="telemetryReport" class="btn btn-outline-dark" href="/telemetria/relatorio.pdf?device={{ selected_device }}&hours=24">
+      <a id="telemetryReport" class="btn btn-outline-dark" href="/telemetria/relatorio.pdf?device={{ selected_device }}&period=today">
         <i class="bi bi-file-earmark-pdf me-1"></i>Relatório PDF
       </a>
-      <a id="telemetryExport" class="btn btn-outline-primary" href="/telemetria/export.csv?device={{ selected_device }}&hours=24">
+      <a id="telemetryExport" class="btn btn-outline-primary" href="/telemetria/export.csv?device={{ selected_device }}&period=today">
         <i class="bi bi-filetype-csv me-1"></i>Exportar CSV
       </a>
       <button id="telemetryRefresh" type="button" class="btn btn-primary">
@@ -71,6 +71,81 @@
     </div>
   </div>
 
+  <div class="card telemetry-finance-panel shadow-sm border-0 mb-4">
+    <div class="card-header bg-white border-0 pt-4 px-3 px-lg-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+          <div class="text-uppercase small fw-semibold text-success mb-1">Eficiência energética</div>
+          <h2 class="h5 mb-1">Consumo e custo da energia</h2>
+          <p class="small text-muted mb-0">Cálculo directo pelas potências reais do F650, sem aplicar novamente TC, TP ou factor multiplicativo.</p>
+        </div>
+        <div class="telemetry-period-controls">
+          <div>
+            <label for="historyPeriod" class="form-label small fw-semibold mb-1">Período</label>
+            <select id="historyPeriod" class="form-select form-select-sm telemetry-period-select" aria-label="Período da análise">
+              <option value="last_hour">Última hora</option>
+              <option value="today" selected>Hoje</option>
+              <option value="day">Escolher um dia</option>
+              <option value="week">Esta semana</option>
+              <option value="month">Este mês</option>
+              <option value="rolling_24h">Últimas 24 horas</option>
+              <option value="rolling_7d">Últimos 7 dias</option>
+              <option value="rolling_30d">Últimos 30 dias</option>
+            </select>
+          </div>
+          <div id="historyDateWrap" class="d-none">
+            <label for="historyDate" class="form-label small fw-semibold mb-1">Dia</label>
+            <input id="historyDate" type="date" class="form-control form-control-sm" aria-label="Dia específico">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body px-3 px-lg-4 pb-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <span id="analysisPeriodLabel" class="telemetry-period-label">Hoje</span>
+        <span id="tariffContext" class="small text-muted">A carregar tarifas…</span>
+      </div>
+      <div id="energyFinanceCards" class="row g-3">
+        <div class="col-12 text-center py-4 text-muted">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>A calcular consumo e custos…
+        </div>
+      </div>
+
+      <div class="row g-3 mt-1">
+        <div class="col-xl-8">
+          <div class="telemetry-energy-chart h-100">
+            <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+              <div>
+                <div class="fw-semibold">Energia e custo por intervalo</div>
+                <div id="energyChartSubtitle" class="small text-muted">Valores horários ou diários conforme o período.</div>
+              </div>
+              <div class="small text-muted">Custo activo em MZN</div>
+            </div>
+            <div class="telemetry-energy-chart-wrap">
+              <canvas id="energyCostChart" aria-label="Gráfico de energia e custo"></canvas>
+              <div id="energyChartEmpty" class="telemetry-empty d-none">
+                <i class="bi bi-bar-chart fs-1"></i>
+                <strong>Sem intervalos completos neste período.</strong>
+                <span>O gráfico aparecerá após duas leituras válidas e consecutivas.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-4">
+          <div class="telemetry-finance-summary h-100">
+            <div class="telemetry-mini-label mb-2">Resumo do mês actual</div>
+            <div id="monthFinanceSummary" class="text-muted small">A calcular…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-light border small mt-3 mb-0">
+        <i class="bi bi-calculator me-1"></i>
+        O custo do período considera energia activa e, quando existir, reactiva excedente. A factura mensal inclui ainda demanda, taxas e IVA e por isso é apresentada apenas como estimativa.
+      </div>
+    </div>
+  </div>
+
   <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white border-0 pt-4 px-4">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -115,15 +190,7 @@
               <h2 class="h5 mb-1">Tendência das medições</h2>
               <p class="small text-muted mb-0">Escolha as grandezas e o período para análise.</p>
             </div>
-            <div class="d-flex gap-2">
-              <select id="historyPeriod" class="form-select form-select-sm telemetry-period-select" aria-label="Período do histórico">
-                <option value="1">Última hora</option>
-                <option value="6">Últimas 6 horas</option>
-                <option value="24" selected>Últimas 24 horas</option>
-                <option value="168">Últimos 7 dias</option>
-                <option value="720">Últimos 30 dias</option>
-              </select>
-            </div>
+            <span class="small text-muted">O período acompanha a análise de consumo acima.</span>
           </div>
           <div class="telemetry-presets mt-3" aria-label="Vistas rápidas do gráfico">
             <button type="button" class="telemetry-preset active" data-preset="voltage"><i class="bi bi-lightning me-1"></i>Tensões</button>

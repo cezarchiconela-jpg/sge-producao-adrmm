@@ -25,7 +25,23 @@ from werkzeug.security import check_password_hash, generate_password_hash
 DEVICE_CODE_F650 = "F650_ENTRADA_GERAL_33KV"
 DEFAULT_ONLINE_SECONDS = 180
 DEFAULT_DELAYED_SECONDS = 900
+MAX_INTEGRATION_GAP_SECONDS = 600
 LOCAL_TIMEZONE = timezone(timedelta(hours=2))
+
+# Tarifas de recurso apenas quando o local ainda não possui configuração.
+# O factor multiplicativo não faz parte desta estrutura de propósito: os
+# valores do F650 já chegam convertidos para o primário e nunca são escalados
+# novamente dentro da telemetria.
+DEFAULT_ENERGY_TARIFFS = {
+    "tarifa_ativa": 4.780,
+    "tarifa_reativa": 1.430,
+    "tarifa_ponta": 4.970,
+    "taxa_fixa": 207.28,
+    "taxa_radio": 297.00,
+    "taxa_lixo": 150.00,
+    "iva": 16.0,
+    "pot_contratada": 0.0,
+}
 
 # Os valores abaixo são limites de supervisão do SGE. Não alteram ajustes,
 # protecções ou a programação do F650. Foram escolhidos para uma rede nominal
@@ -49,6 +65,10 @@ DEFAULT_ALERT_CONFIG = {
     "current_unbalance_critical_pct": 20.0,
     "current_limit_a": 0.0,
     "minimum_power_for_pf_mw": 0.10,
+    # Confirmação e reposição por amostras consecutivas reduzem alarmes
+    # provocados por uma única leitura instável, sem esconder eventos reais.
+    "alert_confirm_samples": 2,
+    "alert_clear_samples": 2,
 }
 
 POWER_CHANNELS = {
@@ -152,7 +172,25 @@ def _safe_float(value: Any) -> float:
     return number
 
 
-def _device_state(last_seen: str | None) -> tuple[str, int | None]:
+def _device_timeouts(device: sqlite3.Row | dict[str, Any] | None) -> tuple[int, int]:
+    """Obtém os tempos de supervisão próprios de cada ponto monitorizado."""
+    online = DEFAULT_ONLINE_SECONDS
+    delayed = DEFAULT_DELAYED_SECONDS
+    if device is not None:
+        item = dict(device)
+        try:
+            online = max(30, int(item.get("online_timeout_seconds") or online))
+            delayed = max(online + 30, int(item.get("offline_timeout_seconds") or delayed))
+        except (TypeError, ValueError):
+            online, delayed = DEFAULT_ONLINE_SECONDS, DEFAULT_DELAYED_SECONDS
+    return online, delayed
+
+
+def _device_state(
+    last_seen: str | None,
+    online_seconds: int = DEFAULT_ONLINE_SECONDS,
+    delayed_seconds: int = DEFAULT_DELAYED_SECONDS,
+) -> tuple[str, int | None]:
     if not last_seen:
         return "offline", None
     try:
@@ -160,9 +198,9 @@ def _device_state(last_seen: str | None) -> tuple[str, int | None]:
     except ValueError:
         return "offline", None
     age = max(0, int((_utc_now() - dt).total_seconds()))
-    if age <= DEFAULT_ONLINE_SECONDS:
+    if age <= online_seconds:
         return "online", age
-    if age <= DEFAULT_DELAYED_SECONDS:
+    if age <= delayed_seconds:
         return "atrasado", age
     return "offline", age
 
@@ -214,6 +252,164 @@ def _format_local_datetime(value: str | None) -> str:
         return str(value)
 
 
+def _month_start(value: datetime) -> datetime:
+    return value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _next_month(value: datetime) -> datetime:
+    if value.month == 12:
+        return value.replace(year=value.year + 1, month=1, day=1)
+    return value.replace(month=value.month + 1, day=1)
+
+
+def _previous_month(value: datetime) -> datetime:
+    if value.month == 1:
+        return value.replace(year=value.year - 1, month=12, day=1)
+    return value.replace(month=value.month - 1, day=1)
+
+
+def _resolve_period(
+    period: str | None = None,
+    date_text: str | None = None,
+    hours: int | None = None,
+) -> dict[str, Any]:
+    """Resolve períodos operacionais em hora local de Moçambique.
+
+    ``hours`` mantém compatibilidade integral com os links e clientes da
+    versão anterior. Os novos períodos usam limites de calendário, permitindo
+    que "hoje" e "este mês" não sejam confundidos com janelas móveis.
+    """
+    now_utc = _utc_now()
+    now_local = now_utc.astimezone(LOCAL_TIMEZONE)
+    key = (period or "").strip().lower()
+
+    if not key:
+        safe_hours = max(1, min(24 * 366, int(hours or 24)))
+        start_utc = now_utc - timedelta(hours=safe_hours)
+        duration = now_utc - start_utc
+        return {
+            "key": f"rolling_{safe_hours}h",
+            "label": f"Últimas {safe_hours} horas" if safe_hours != 1 else "Última hora",
+            "start": start_utc,
+            "end": now_utc,
+            "full_end": now_utc,
+            "comparison_start": start_utc - duration,
+            "comparison_end": start_utc,
+            "is_current": True,
+        }
+
+    rolling_hours = {
+        "last_hour": 1,
+        "rolling_24h": 24,
+        "rolling_7d": 24 * 7,
+        "rolling_30d": 24 * 30,
+    }
+    if key in rolling_hours:
+        safe_hours = rolling_hours[key]
+        start_utc = now_utc - timedelta(hours=safe_hours)
+        duration = now_utc - start_utc
+        labels = {
+            "last_hour": "Última hora",
+            "rolling_24h": "Últimas 24 horas",
+            "rolling_7d": "Últimos 7 dias",
+            "rolling_30d": "Últimos 30 dias",
+        }
+        return {
+            "key": key,
+            "label": labels[key],
+            "start": start_utc,
+            "end": now_utc,
+            "full_end": now_utc,
+            "comparison_start": start_utc - duration,
+            "comparison_end": start_utc,
+            "is_current": True,
+        }
+
+    if key in ("today", "day"):
+        if key == "day":
+            try:
+                selected_date = datetime.strptime(str(date_text or ""), "%Y-%m-%d").date()
+            except ValueError as exc:
+                raise ValueError("data inválida; use AAAA-MM-DD") from exc
+        else:
+            selected_date = now_local.date()
+        start_local = datetime(
+            selected_date.year,
+            selected_date.month,
+            selected_date.day,
+            tzinfo=LOCAL_TIMEZONE,
+        )
+        full_end_local = start_local + timedelta(days=1)
+        if start_local > now_local:
+            raise ValueError("não é possível analisar uma data futura")
+        is_current = start_local <= now_local < full_end_local
+        end_local = now_local if is_current else full_end_local
+        elapsed = end_local - start_local
+        comparison_start_local = start_local - timedelta(days=1)
+        comparison_end_local = comparison_start_local + elapsed
+        return {
+            "key": key,
+            "label": "Hoje" if key == "today" else start_local.strftime("Dia %d/%m/%Y"),
+            "start": start_local.astimezone(timezone.utc),
+            "end": end_local.astimezone(timezone.utc),
+            "full_end": full_end_local.astimezone(timezone.utc),
+            "comparison_start": comparison_start_local.astimezone(timezone.utc),
+            "comparison_end": comparison_end_local.astimezone(timezone.utc),
+            "is_current": is_current,
+        }
+
+    if key == "week":
+        start_local = (now_local - timedelta(days=now_local.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        full_end_local = start_local + timedelta(days=7)
+        elapsed = now_local - start_local
+        previous_start = start_local - timedelta(days=7)
+        return {
+            "key": key,
+            "label": "Esta semana",
+            "start": start_local.astimezone(timezone.utc),
+            "end": now_utc,
+            "full_end": full_end_local.astimezone(timezone.utc),
+            "comparison_start": previous_start.astimezone(timezone.utc),
+            "comparison_end": (previous_start + elapsed).astimezone(timezone.utc),
+            "is_current": True,
+        }
+
+    if key == "month":
+        start_local = _month_start(now_local)
+        full_end_local = _next_month(start_local)
+        previous_start = _previous_month(start_local)
+        previous_full_end = start_local
+        elapsed = now_local - start_local
+        previous_end = min(previous_start + elapsed, previous_full_end)
+        return {
+            "key": key,
+            "label": now_local.strftime("Este mês · %m/%Y"),
+            "start": start_local.astimezone(timezone.utc),
+            "end": now_utc,
+            "full_end": full_end_local.astimezone(timezone.utc),
+            "comparison_start": previous_start.astimezone(timezone.utc),
+            "comparison_end": previous_end.astimezone(timezone.utc),
+            "is_current": True,
+        }
+
+    raise ValueError("período inválido")
+
+
+def _public_period(window: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "key": window["key"],
+        "label": window["label"],
+        "start_at": _iso_utc(window["start"]),
+        "end_at": _iso_utc(window["end"]),
+        "full_end_at": _iso_utc(window["full_end"]),
+        "is_current": bool(window["is_current"]),
+        "elapsed_seconds": max(0, int((window["end"] - window["start"]).total_seconds())),
+        "full_seconds": max(0, int((window["full_end"] - window["start"]).total_seconds())),
+    }
+
+
 def _token_from_request() -> str:
     auth = (request.headers.get("Authorization") or "").strip()
     if auth.lower().startswith("bearer "):
@@ -232,6 +428,17 @@ def _token_matches(device: sqlite3.Row, token: str) -> bool:
             return False
     fallback = os.environ.get("SGE_F650_API_TOKEN") or os.environ.get("SGE_TELEMETRY_TOKEN")
     return bool(fallback and secrets.compare_digest(fallback, token))
+
+
+def _ensure_column(
+    conn: sqlite3.Connection,
+    table: str,
+    column: str,
+    declaration: str,
+) -> None:
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
 
 
 def _migrate(db_path: str) -> None:
@@ -255,6 +462,8 @@ def _migrate(db_path: str) -> None:
                 last_measurement_at TEXT,
                 last_status TEXT DEFAULT 'offline',
                 last_remote_ip TEXT,
+                online_timeout_seconds INTEGER NOT NULL DEFAULT 180,
+                offline_timeout_seconds INTEGER NOT NULL DEFAULT 900,
                 created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
                 updated_at TEXT,
                 FOREIGN KEY(local_id) REFERENCES locais(id)
@@ -327,6 +536,8 @@ def _migrate(db_path: str) -> None:
                 current_unbalance_critical_pct REAL NOT NULL DEFAULT 20.0,
                 current_limit_a REAL NOT NULL DEFAULT 0.0,
                 minimum_power_for_pf_mw REAL NOT NULL DEFAULT 0.10,
+                alert_confirm_samples INTEGER NOT NULL DEFAULT 2,
+                alert_clear_samples INTEGER NOT NULL DEFAULT 2,
                 updated_at TEXT,
                 FOREIGN KEY(device_id) REFERENCES telemetry_devices(id) ON DELETE CASCADE
             );
@@ -353,6 +564,17 @@ def _migrate(db_path: str) -> None:
                 FOREIGN KEY(device_id) REFERENCES telemetry_devices(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS telemetry_condition_state (
+                device_id INTEGER NOT NULL,
+                alert_type TEXT NOT NULL,
+                active_samples INTEGER NOT NULL DEFAULT 0,
+                clear_samples INTEGER NOT NULL DEFAULT 0,
+                pending_since TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(device_id, alert_type),
+                FOREIGN KEY(device_id) REFERENCES telemetry_devices(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_telemetry_readings_device_time
                 ON telemetry_readings(device_id, measured_at DESC);
             CREATE INDEX IF NOT EXISTS idx_telemetry_readings_channel_time
@@ -366,6 +588,32 @@ def _migrate(db_path: str) -> None:
             CREATE INDEX IF NOT EXISTS idx_telemetry_alerts_type
                 ON telemetry_alerts(device_id, alert_type, id DESC);
             """
+        )
+        # As instalações que já possuem telemetria recebem apenas as novas
+        # colunas; nenhuma leitura, dispositivo ou configuração é recriada.
+        _ensure_column(
+            conn,
+            "telemetry_devices",
+            "online_timeout_seconds",
+            "INTEGER NOT NULL DEFAULT 180",
+        )
+        _ensure_column(
+            conn,
+            "telemetry_devices",
+            "offline_timeout_seconds",
+            "INTEGER NOT NULL DEFAULT 900",
+        )
+        _ensure_column(
+            conn,
+            "telemetry_alert_config",
+            "alert_confirm_samples",
+            "INTEGER NOT NULL DEFAULT 2",
+        )
+        _ensure_column(
+            conn,
+            "telemetry_alert_config",
+            "alert_clear_samples",
+            "INTEGER NOT NULL DEFAULT 2",
         )
         conn.commit()
     finally:
@@ -551,7 +799,7 @@ def _set_alert(
                 """
                 UPDATE telemetry_alerts
                 SET severity=?, title=?, message=?, last_detected_at=?, value=?,
-                    unit=?, threshold=?, occurrences=occurrences+1
+                    unit=?, threshold=?
                 WHERE id=?
                 """,
                 (
@@ -601,15 +849,107 @@ def _set_alert(
         )
 
 
+def _set_measurement_alert(
+    conn: sqlite3.Connection,
+    device_id: int,
+    alert_type: str,
+    active: bool,
+    event_at: str,
+    *,
+    config: dict[str, float],
+    severity: str = "warning",
+    title: str = "",
+    message: str = "",
+    value: float | None = None,
+    unit: str = "",
+    threshold: str = "",
+) -> None:
+    """Confirma e limpa condições por leituras consecutivas.
+
+    O início do evento preserva a hora da primeira leitura anormal. Uma leitura
+    isolada fica apenas como condição pendente e não aparece como ocorrência.
+    """
+    state = conn.execute(
+        """
+        SELECT active_samples, clear_samples, pending_since
+        FROM telemetry_condition_state
+        WHERE device_id=? AND alert_type=?
+        """,
+        (device_id, alert_type),
+    ).fetchone()
+    active_samples = int(state["active_samples"] or 0) if state else 0
+    clear_samples = int(state["clear_samples"] or 0) if state else 0
+    pending_since = state["pending_since"] if state else None
+    current = conn.execute(
+        """
+        SELECT id FROM telemetry_alerts
+        WHERE device_id=? AND alert_type=? AND status IN ('open','acknowledged')
+        ORDER BY id DESC LIMIT 1
+        """,
+        (device_id, alert_type),
+    ).fetchone()
+    confirm_samples = max(1, int(config.get("alert_confirm_samples") or 2))
+    clear_required = max(1, int(config.get("alert_clear_samples") or 2))
+
+    if active:
+        active_samples += 1
+        clear_samples = 0
+        pending_since = pending_since or event_at
+        if current or active_samples >= confirm_samples:
+            _set_alert(
+                conn,
+                device_id,
+                alert_type,
+                True,
+                event_at if current else str(pending_since),
+                severity=severity,
+                title=title,
+                message=message,
+                value=value,
+                unit=unit,
+                threshold=threshold,
+            )
+    else:
+        active_samples = 0
+        pending_since = None
+        clear_samples = clear_samples + 1 if current else 0
+        if current and clear_samples >= clear_required:
+            _set_alert(conn, device_id, alert_type, False, event_at)
+            clear_samples = 0
+
+    conn.execute(
+        """
+        INSERT INTO telemetry_condition_state(
+            device_id, alert_type, active_samples, clear_samples,
+            pending_since, updated_at
+        ) VALUES(?,?,?,?,?,?)
+        ON CONFLICT(device_id, alert_type) DO UPDATE SET
+            active_samples=excluded.active_samples,
+            clear_samples=excluded.clear_samples,
+            pending_since=excluded.pending_since,
+            updated_at=excluded.updated_at
+        """,
+        (
+            device_id,
+            alert_type,
+            active_samples,
+            clear_samples,
+            pending_since,
+            event_at,
+        ),
+    )
+
+
 def _reconcile_communication_alert(conn: sqlite3.Connection, device: sqlite3.Row) -> None:
     """Mantém alertas de comunicação separados de um corte confirmado por tensão."""
-    state, age = _device_state(device["last_seen"])
+    online_seconds, delayed_seconds = _device_timeouts(device)
+    state, age = _device_state(device["last_seen"], online_seconds, delayed_seconds)
     now = _iso_utc()
     if not device["last_seen"]:
         return
     if state == "offline":
         started_at = _iso_utc(
-            _parse_timestamp(device["last_seen"]) + timedelta(seconds=DEFAULT_DELAYED_SECONDS)
+            _parse_timestamp(device["last_seen"]) + timedelta(seconds=delayed_seconds)
         )
         _set_alert(
             conn,
@@ -618,19 +958,19 @@ def _reconcile_communication_alert(conn: sqlite3.Connection, device: sqlite3.Row
             True,
             started_at,
             severity="critical",
-            title="Perda de comunicação com o F650",
+            title=f"Perda de comunicação — {device['name']}",
             message=(
                 "O servidor deixou de receber dados. Isto não confirma corte de energia; "
-                "verifique o PC de aquisição, Internet e serviço de envio."
+                "verifique a aquisição, Internet e serviço de envio."
             ),
             value=float(age or 0),
             unit="s",
-            threshold=f"> {DEFAULT_DELAYED_SECONDS} s",
+            threshold=f"> {delayed_seconds} s",
         )
         _set_alert(conn, device["id"], "dados_atrasados", False, started_at)
     elif state == "atrasado":
         started_at = _iso_utc(
-            _parse_timestamp(device["last_seen"]) + timedelta(seconds=DEFAULT_ONLINE_SECONDS)
+            _parse_timestamp(device["last_seen"]) + timedelta(seconds=online_seconds)
         )
         _set_alert(
             conn,
@@ -643,7 +983,7 @@ def _reconcile_communication_alert(conn: sqlite3.Connection, device: sqlite3.Row
             message="Não chegam novas leituras dentro do intervalo normal de supervisão.",
             value=float(age or 0),
             unit="s",
-            threshold=f"> {DEFAULT_ONLINE_SECONDS} s",
+            threshold=f"> {online_seconds} s",
         )
         _set_alert(conn, device["id"], "sem_comunicacao", False, now)
     else:
@@ -669,17 +1009,18 @@ def _evaluate_measurement_alerts(
     if has_voltages:
         voltage_values = [abs(float(value)) for value in voltages.values() if value is not None]
         outage = max(voltage_values) <= config["outage_voltage_kv"]
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "corte_energia",
             outage,
             now,
+            config=config,
             severity="critical",
             title="Corte de energia confirmado",
             message=(
                 "As três tensões entre fases encontram-se próximas de zero. "
-                "O evento foi confirmado pelas medições do F650."
+                "O evento foi confirmado por leituras consecutivas do instrumento."
             ),
             value=max(voltage_values),
             unit="kV",
@@ -698,14 +1039,15 @@ def _evaluate_measurement_alerts(
             high = {}
         low_critical = any(value < config["voltage_critical_low_kv"] for value in low.values())
         high_critical = any(value > config["voltage_critical_high_kv"] for value in high.values())
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "subtensao",
             bool(low),
             now,
+            config=config,
             severity="critical" if low_critical else "warning",
-            title="Subtensão na entrada geral",
+            title="Subtensão no ponto monitorizado",
             message="Fase(s) abaixo do limite: " + ", ".join(
                 f"{phase_names[code]} {value:.2f} kV" for code, value in low.items()
             ),
@@ -713,14 +1055,15 @@ def _evaluate_measurement_alerts(
             unit="kV",
             threshold=f"atenção < {config['voltage_warning_low_kv']:.2f}; crítico < {config['voltage_critical_low_kv']:.2f}",
         )
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "sobretensao",
             bool(high),
             now,
+            config=config,
             severity="critical" if high_critical else "warning",
-            title="Sobretensão na entrada geral",
+            title="Sobretensão no ponto monitorizado",
             message="Fase(s) acima do limite: " + ", ".join(
                 f"{phase_names[code]} {value:.2f} kV" for code, value in high.items()
             ),
@@ -734,12 +1077,13 @@ def _evaluate_measurement_alerts(
             and voltage_unbalance is not None
             and voltage_unbalance > config["voltage_unbalance_warning_pct"]
         )
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "desequilibrio_tensao",
             voltage_unbalance_active,
             now,
+            config=config,
             severity=(
                 "critical"
                 if voltage_unbalance is not None
@@ -763,12 +1107,13 @@ def _evaluate_measurement_alerts(
             and current_unbalance is not None
             and current_unbalance > config["current_unbalance_warning_pct"]
         )
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "desequilibrio_corrente",
             unbalance_active,
             now,
+            config=config,
             severity=(
                 "critical"
                 if current_unbalance is not None
@@ -782,12 +1127,13 @@ def _evaluate_measurement_alerts(
             threshold=f"> {config['current_unbalance_warning_pct']:.1f}%",
         )
         current_limit = config["current_limit_a"]
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "sobrecorrente",
             bool(current_limit > 0 and max(current_values) > current_limit),
             now,
+            config=config,
             severity="critical",
             title="Corrente acima do limite configurado",
             message="Uma ou mais fases ultrapassaram a corrente operacional definida no SGE.",
@@ -801,12 +1147,13 @@ def _evaluate_measurement_alerts(
     pf_value = abs(float(power_factor)) if power_factor is not None else None
     enough_load = active_power is None or abs(float(active_power)) >= config["minimum_power_for_pf_mw"]
     pf_active = bool(not outage and enough_load and pf_value is not None and pf_value < config["pf_warning"])
-    _set_alert(
+    _set_measurement_alert(
         conn,
         device_id,
         "factor_potencia_baixo",
         pf_active,
         now,
+        config=config,
         severity="critical" if pf_value is not None and pf_value < config["pf_critical"] else "warning",
         title="Factor de potência baixo",
         message="O módulo do factor de potência está abaixo do nível recomendado.",
@@ -829,15 +1176,16 @@ def _evaluate_measurement_alerts(
             frequency < config["frequency_critical_low_hz"]
             or frequency > config["frequency_critical_high_hz"]
         )
-        _set_alert(
+        _set_measurement_alert(
             conn,
             device_id,
             "frequencia_fora_faixa",
             frequency_active,
             now,
+            config=config,
             severity="critical" if frequency_critical else "warning",
             title="Frequência fora da faixa",
-            message="A frequência medida na entrada geral ultrapassou o limite operacional.",
+            message="A frequência medida no ponto monitorizado ultrapassou o limite operacional.",
             value=frequency,
             unit="Hz",
             threshold=(
@@ -861,30 +1209,263 @@ def _query_alerts(
     device_id: int,
     cutoff: str,
     limit: int = 100,
+    end_at: str | None = None,
 ) -> list[dict[str, Any]]:
+    end_value = end_at or _iso_utc()
     rows = conn.execute(
         """
         SELECT * FROM telemetry_alerts
         WHERE device_id=?
-          AND (started_at>=? OR resolved_at>=? OR status IN ('open','acknowledged'))
+          AND started_at<=?
+          AND (
+              status IN ('open','acknowledged')
+              OR COALESCE(resolved_at, last_detected_at, started_at)>=?
+          )
         ORDER BY CASE severity WHEN 'critical' THEN 0 ELSE 1 END,
                  CASE status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
                  started_at DESC
         LIMIT ?
         """,
-        (device_id, cutoff, cutoff, limit),
+        (device_id, end_value, cutoff, limit),
     ).fetchall()
     return [_public_alert(row) for row in rows]
+
+
+def _load_energy_tariffs(
+    conn: sqlite3.Connection,
+    device: sqlite3.Row | dict[str, Any],
+) -> dict[str, Any]:
+    """Lê tarifas do local sem aplicar o factor multiplicativo das facturas."""
+    tariffs: dict[str, Any] = dict(DEFAULT_ENERGY_TARIFFS)
+    tariffs.update(
+        {
+            "configured": False,
+            "source": "Valores-padrão do SGE",
+            "factor_multiplicative_applied": False,
+        }
+    )
+    item = dict(device)
+    local_id = item.get("local_id")
+    if not local_id:
+        return tariffs
+    table_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='locais_cfg'"
+    ).fetchone()
+    if not table_exists:
+        return tariffs
+    available = {
+        row["name"] for row in conn.execute("PRAGMA table_info(locais_cfg)").fetchall()
+    }
+    wanted = [key for key in DEFAULT_ENERGY_TARIFFS if key in available]
+    if not wanted or "local_id" not in available:
+        return tariffs
+    row = conn.execute(
+        f"SELECT {', '.join(wanted)} FROM locais_cfg WHERE local_id=? LIMIT 1",
+        (local_id,),
+    ).fetchone()
+    if not row:
+        return tariffs
+    for key in wanted:
+        if row[key] is not None:
+            try:
+                tariffs[key] = max(0.0, float(row[key]))
+            except (TypeError, ValueError):
+                pass
+    tariffs["configured"] = True
+    tariffs["source"] = "Configuração tarifária do local"
+    return tariffs
+
+
+def _bucket_floor(value: datetime, bucket_kind: str) -> datetime:
+    local = value.astimezone(LOCAL_TIMEZONE)
+    if bucket_kind == "hour":
+        local = local.replace(minute=0, second=0, microsecond=0)
+    else:
+        local = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return local.astimezone(timezone.utc)
+
+
+def _next_bucket(value: datetime, bucket_kind: str) -> datetime:
+    local = value.astimezone(LOCAL_TIMEZONE)
+    step = timedelta(hours=1) if bucket_kind == "hour" else timedelta(days=1)
+    return (local + step).astimezone(timezone.utc)
+
+
+def _integrate_power_channel(
+    conn: sqlite3.Connection,
+    device_id: int,
+    channel_code: str,
+    start: datetime,
+    end: datetime,
+    *,
+    bucket_kind: str | None = None,
+) -> dict[str, Any]:
+    """Integra potência pelo método trapezoidal usando os intervalos reais.
+
+    Segmentos superiores a dez minutos são lacunas e não geram energia. Pontos
+    imediatamente antes/depois do período são usados apenas para recortar com
+    precisão o primeiro e o último segmento.
+    """
+    expanded_start = start - timedelta(seconds=MAX_INTEGRATION_GAP_SECONDS)
+    expanded_end = end + timedelta(seconds=MAX_INTEGRATION_GAP_SECONDS)
+    rows = conn.execute(
+        """
+        SELECT r.measured_at, ABS(r.value) AS value
+        FROM telemetry_readings r
+        JOIN telemetry_channels c ON c.id=r.channel_id
+        WHERE r.device_id=? AND c.code=? AND r.quality!='bad'
+          AND r.measured_at>=? AND r.measured_at<=?
+        ORDER BY r.measured_at, r.id
+        """,
+        (device_id, channel_code, _iso_utc(expanded_start), _iso_utc(expanded_end)),
+    ).fetchall()
+    points: list[tuple[datetime, float, str]] = []
+    for row in rows:
+        try:
+            measured = _parse_timestamp(row["measured_at"])
+            points.append((measured, abs(float(row["value"] or 0.0)), row["measured_at"]))
+        except (TypeError, ValueError):
+            continue
+
+    sample_count = sum(1 for measured, _, _ in points if start <= measured <= end)
+    peak_value = 0.0
+    peak_at = None
+    for measured, value, original in points:
+        if start <= measured <= end and value >= peak_value:
+            peak_value = value
+            peak_at = original
+
+    energy = 0.0
+    covered_seconds = 0.0
+    ignored_gaps = 0
+    buckets: dict[str, float] = {}
+
+    def interpolated(t0: datetime, v0: float, t1: datetime, v1: float, at: datetime) -> float:
+        total = (t1 - t0).total_seconds()
+        if total <= 0:
+            return v0
+        ratio = (at - t0).total_seconds() / total
+        return v0 + (v1 - v0) * ratio
+
+    def contribution(t0: datetime, v0: float, t1: datetime, v1: float) -> float:
+        # MW/MVAr -> kW/kVAr antes de multiplicar pelas horas.
+        return ((v0 + v1) / 2.0) * 1000.0 * (t1 - t0).total_seconds() / 3600.0
+
+    for left, right in zip(points, points[1:]):
+        left_at, left_value, _ = left
+        right_at, right_value, _ = right
+        gap_seconds = (right_at - left_at).total_seconds()
+        overlaps = right_at > start and left_at < end
+        if not overlaps or gap_seconds <= 0:
+            continue
+        if gap_seconds > MAX_INTEGRATION_GAP_SECONDS:
+            ignored_gaps += 1
+            continue
+        segment_start = max(left_at, start)
+        segment_end = min(right_at, end)
+        if segment_end <= segment_start:
+            continue
+        start_value = interpolated(left_at, left_value, right_at, right_value, segment_start)
+        end_value = interpolated(left_at, left_value, right_at, right_value, segment_end)
+        segment_energy = contribution(segment_start, start_value, segment_end, end_value)
+        energy += segment_energy
+        covered_seconds += (segment_end - segment_start).total_seconds()
+        if max(start_value, end_value) >= peak_value:
+            peak_value = max(start_value, end_value)
+            peak_at = _iso_utc(segment_start if start_value >= end_value else segment_end)
+
+        if bucket_kind:
+            cursor = segment_start
+            while cursor < segment_end:
+                bucket_start = _bucket_floor(cursor, bucket_kind)
+                boundary = min(_next_bucket(bucket_start, bucket_kind), segment_end)
+                cursor_value = interpolated(left_at, left_value, right_at, right_value, cursor)
+                boundary_value = interpolated(left_at, left_value, right_at, right_value, boundary)
+                key = _iso_utc(bucket_start)
+                buckets[key] = buckets.get(key, 0.0) + contribution(
+                    cursor, cursor_value, boundary, boundary_value
+                )
+                cursor = boundary
+
+    return {
+        "energy": energy,
+        "covered_seconds": covered_seconds,
+        "ignored_gaps": ignored_gaps,
+        "samples": sample_count,
+        "peak": peak_value,
+        "peak_at": peak_at,
+        "buckets": buckets,
+    }
+
+
+def _energy_cost_breakdown(
+    active_kwh: float,
+    reactive_kvarh: float,
+    tariffs: dict[str, Any],
+) -> dict[str, float]:
+    active = max(0.0, float(active_kwh or 0.0))
+    reactive = max(0.0, float(reactive_kvarh or 0.0))
+    reactive_limit = 0.75 * active
+    reactive_excess = max(0.0, reactive - reactive_limit)
+    active_cost = active * float(tariffs["tarifa_ativa"])
+    reactive_cost = reactive_excess * float(tariffs["tarifa_reativa"])
+    return {
+        "active_energy_kwh": active,
+        "reactive_energy_kvarh": reactive,
+        "reactive_limit_kvarh": reactive_limit,
+        "reactive_excess_kvarh": reactive_excess,
+        "active_cost_mzn": active_cost,
+        "reactive_cost_mzn": reactive_cost,
+        "energy_cost_mzn": active_cost + reactive_cost,
+    }
+
+
+def _invoice_estimate(
+    energy: dict[str, float],
+    peak_kw: float,
+    tariffs: dict[str, Any],
+) -> dict[str, Any]:
+    contracted = max(0.0, float(tariffs.get("pot_contratada") or 0.0))
+    billing_demand = 0.20 * contracted + 0.80 * max(0.0, peak_kw)
+    demand_cost = billing_demand * float(tariffs["tarifa_ponta"])
+    fees = sum(float(tariffs[key]) for key in ("taxa_fixa", "taxa_radio", "taxa_lixo"))
+    subtotal_energy = energy["energy_cost_mzn"] + demand_cost
+    subtotal = subtotal_energy + fees
+    iva_value = subtotal * 0.62 * float(tariffs["iva"]) / 100.0
+    return {
+        "peak_kw": peak_kw,
+        "contracted_power_kw": contracted,
+        "billing_demand_kw": billing_demand,
+        "demand_cost_mzn": demand_cost,
+        "fees_mzn": fees,
+        "subtotal_energy_mzn": subtotal_energy,
+        "subtotal_mzn": subtotal,
+        "iva_mzn": iva_value,
+        "estimated_total_mzn": subtotal + iva_value,
+        "contracted_power_configured": contracted > 0,
+    }
+
+
+def _percentage_change(current: float, previous: float) -> float | None:
+    if abs(float(previous or 0.0)) < 1e-9:
+        return None
+    return (float(current) - float(previous)) / abs(float(previous)) * 100.0
 
 
 def _build_analysis(
     conn: sqlite3.Connection,
     device: sqlite3.Row,
-    hours: int,
+    hours: int = 24,
+    *,
+    period: str | None = None,
+    date_text: str | None = None,
 ) -> dict[str, Any]:
-    cutoff_dt = _utc_now() - timedelta(hours=hours)
-    cutoff = _iso_utc(cutoff_dt)
-    period_seconds = max(1, int((_utc_now() - cutoff_dt).total_seconds()))
+    window = _resolve_period(period=period, date_text=date_text, hours=hours)
+    start_dt = window["start"]
+    end_dt = window["end"]
+    cutoff = _iso_utc(start_dt)
+    end_at = _iso_utc(end_dt)
+    period_seconds = max(1, int((end_dt - start_dt).total_seconds()))
     key_channels = [
         *VOLTAGE_CHANNELS,
         *CURRENT_CHANNELS,
@@ -902,49 +1483,59 @@ def _build_analysis(
                MAX(ABS(r.value)) AS maximum
         FROM telemetry_readings r
         JOIN telemetry_channels c ON c.id=r.channel_id
-        WHERE r.device_id=? AND r.measured_at>=? AND c.code IN ({placeholders})
+        WHERE r.device_id=? AND r.measured_at>=? AND r.measured_at<=?
+          AND c.code IN ({placeholders})
         GROUP BY c.id
         ORDER BY c.sort_order
         """,
-        [device["id"], cutoff, *key_channels],
+        [device["id"], cutoff, end_at, *key_channels],
     ).fetchall()
     stats = [dict(row) for row in stats_rows]
     stats_by_code = {row["code"]: row for row in stats}
 
-    power_rows = conn.execute(
-        """
-        SELECT r.measured_at, ABS(r.value) AS value
-        FROM telemetry_readings r
-        JOIN telemetry_channels c ON c.id=r.channel_id
-        WHERE r.device_id=? AND c.code='potencia_activa_total_mw'
-          AND r.measured_at>=? AND r.quality!='bad'
-        ORDER BY r.measured_at, r.id
-        """,
-        (device["id"], cutoff),
-    ).fetchall()
-    energy_kwh = 0.0
-    covered_seconds = 0.0
-    ignored_gaps = 0
-    peak_mw = 0.0
-    peak_at = None
-    previous = None
-    for row in power_rows:
-        try:
-            current_dt = _parse_timestamp(row["measured_at"])
-        except ValueError:
-            continue
-        value = abs(float(row["value"] or 0))
-        if value >= peak_mw:
-            peak_mw = value
-            peak_at = row["measured_at"]
-        if previous:
-            delta_seconds = (current_dt - previous[0]).total_seconds()
-            if 0 < delta_seconds <= 600:
-                energy_kwh += ((previous[1] + value) / 2.0) * 1000.0 * delta_seconds / 3600.0
-                covered_seconds += delta_seconds
-            elif delta_seconds > 600:
-                ignored_gaps += 1
-        previous = (current_dt, value)
+    bucket_kind = "hour" if period_seconds <= 48 * 3600 else "day"
+    active_result = _integrate_power_channel(
+        conn,
+        device["id"],
+        "potencia_activa_total_mw",
+        start_dt,
+        end_dt,
+        bucket_kind=bucket_kind,
+    )
+    reactive_result = _integrate_power_channel(
+        conn,
+        device["id"],
+        "potencia_reactiva_total_mvar",
+        start_dt,
+        end_dt,
+        bucket_kind=bucket_kind,
+    )
+    energy_kwh = float(active_result["energy"])
+    reactive_kvarh = float(reactive_result["energy"])
+    covered_seconds = float(active_result["covered_seconds"])
+    ignored_gaps = int(active_result["ignored_gaps"])
+    peak_mw = float(active_result["peak"])
+    peak_at = active_result["peak_at"]
+    tariffs = _load_energy_tariffs(conn, device)
+    finance = _energy_cost_breakdown(energy_kwh, reactive_kvarh, tariffs)
+
+    previous_active = _integrate_power_channel(
+        conn,
+        device["id"],
+        "potencia_activa_total_mw",
+        window["comparison_start"],
+        window["comparison_end"],
+    )
+    previous_reactive = _integrate_power_channel(
+        conn,
+        device["id"],
+        "potencia_reactiva_total_mvar",
+        window["comparison_start"],
+        window["comparison_end"],
+    )
+    previous_finance = _energy_cost_breakdown(
+        previous_active["energy"], previous_reactive["energy"], tariffs
+    )
 
     phase_rows = conn.execute(
         """
@@ -957,13 +1548,13 @@ def _build_analysis(
                MAX(CASE WHEN c.code='corrente_fase_c_a' THEN ABS(r.value) END) AS ic
         FROM telemetry_readings r
         JOIN telemetry_channels c ON c.id=r.channel_id
-        WHERE r.device_id=? AND r.measured_at>=?
+        WHERE r.device_id=? AND r.measured_at>=? AND r.measured_at<=?
           AND c.code IN ('tensao_ab_kv','tensao_bc_kv','tensao_ca_kv',
                          'corrente_fase_a_a','corrente_fase_b_a','corrente_fase_c_a')
         GROUP BY r.measured_at
         ORDER BY r.measured_at
         """,
-        (device["id"], cutoff),
+        (device["id"], cutoff, end_at),
     ).fetchall()
     voltage_unbalances = []
     current_unbalances = []
@@ -973,16 +1564,16 @@ def _build_analysis(
         if all(row[key] is not None for key in ("ia", "ib", "ic")):
             current_unbalances.append(_phase_unbalance([row["ia"], row["ib"], row["ic"]]) or 0.0)
 
-    alerts = _query_alerts(conn, device["id"], cutoff, 100)
+    alerts = _query_alerts(conn, device["id"], cutoff, 100, end_at=end_at)
     open_alerts = [item for item in alerts if item["status"] in ("open", "acknowledged")]
     outage_seconds = 0
     comm_seconds = 0
     for item in alerts:
         try:
-            started = max(_parse_timestamp(item["started_at"]), cutoff_dt)
+            started = max(_parse_timestamp(item["started_at"]), start_dt)
             ended = min(
-                _parse_timestamp(item["resolved_at"]) if item.get("resolved_at") else _utc_now(),
-                _utc_now(),
+                _parse_timestamp(item["resolved_at"]) if item.get("resolved_at") else end_dt,
+                end_dt,
             )
         except ValueError:
             continue
@@ -1011,6 +1602,110 @@ def _build_analysis(
     energy_availability_pct = max(0.0, 100.0 - outage_seconds / period_seconds * 100.0)
     communication_availability_pct = max(0.0, 100.0 - comm_seconds / period_seconds * 100.0)
 
+    observed_hours = covered_seconds / 3600.0
+    online_seconds, delayed_seconds = _device_timeouts(device)
+    current_device_state, _ = _device_state(
+        device["last_seen"], online_seconds, delayed_seconds
+    )
+    current_cost_rate = (
+        abs(float(latest_p)) * 1000.0 * float(tariffs["tarifa_ativa"])
+        if latest_p is not None and current_device_state == "online"
+        else None
+    )
+    comparison = {
+        "label": "Período anterior equivalente",
+        "active_energy_kwh": round(previous_finance["active_energy_kwh"], 2),
+        "energy_cost_mzn": round(previous_finance["energy_cost_mzn"], 2),
+        "peak_mw": round(float(previous_active["peak"]), 3),
+        "energy_change_pct": (
+            round(value, 1)
+            if (value := _percentage_change(energy_kwh, previous_finance["active_energy_kwh"])) is not None
+            else None
+        ),
+        "cost_change_pct": (
+            round(value, 1)
+            if (value := _percentage_change(finance["energy_cost_mzn"], previous_finance["energy_cost_mzn"])) is not None
+            else None
+        ),
+        "peak_change_pct": (
+            round(value, 1)
+            if (value := _percentage_change(peak_mw, previous_active["peak"])) is not None
+            else None
+        ),
+    }
+
+    elapsed_seconds = max(1.0, (end_dt - start_dt).total_seconds())
+    full_seconds = max(elapsed_seconds, (window["full_end"] - start_dt).total_seconds())
+    projection_factor = full_seconds / elapsed_seconds if window["is_current"] else 1.0
+    period_projection = _energy_cost_breakdown(
+        energy_kwh * projection_factor,
+        reactive_kvarh * projection_factor,
+        tariffs,
+    )
+    period_projection.update(
+        {
+            "available": bool(window["is_current"] and full_seconds > elapsed_seconds + 60),
+            "reliable": data_coverage_pct >= 90.0,
+            "factor": projection_factor,
+        }
+    )
+
+    month_window = _resolve_period(period="month")
+    if window["key"] == "month":
+        month_active = active_result
+        month_reactive = reactive_result
+        month_coverage_pct = data_coverage_pct
+    else:
+        month_active = _integrate_power_channel(
+            conn,
+            device["id"],
+            "potencia_activa_total_mw",
+            month_window["start"],
+            month_window["end"],
+        )
+        month_reactive = _integrate_power_channel(
+            conn,
+            device["id"],
+            "potencia_reactiva_total_mvar",
+            month_window["start"],
+            month_window["end"],
+        )
+        month_elapsed = max(1.0, (month_window["end"] - month_window["start"]).total_seconds())
+        month_coverage_pct = min(
+            100.0, float(month_active["covered_seconds"]) / month_elapsed * 100.0
+        )
+    month_finance = _energy_cost_breakdown(
+        month_active["energy"], month_reactive["energy"], tariffs
+    )
+    month_invoice = _invoice_estimate(
+        month_finance, float(month_active["peak"]) * 1000.0, tariffs
+    )
+    month_elapsed = max(1.0, (month_window["end"] - month_window["start"]).total_seconds())
+    month_full = max(month_elapsed, (month_window["full_end"] - month_window["start"]).total_seconds())
+    month_factor = month_full / month_elapsed
+    month_projected_finance = _energy_cost_breakdown(
+        month_finance["active_energy_kwh"] * month_factor,
+        month_finance["reactive_energy_kvarh"] * month_factor,
+        tariffs,
+    )
+    month_projected_invoice = _invoice_estimate(
+        month_projected_finance, float(month_active["peak"]) * 1000.0, tariffs
+    )
+
+    profile = []
+    all_buckets = sorted(set(active_result["buckets"]) | set(reactive_result["buckets"]))
+    for bucket in all_buckets:
+        active_bucket = float(active_result["buckets"].get(bucket, 0.0))
+        reactive_bucket = float(reactive_result["buckets"].get(bucket, 0.0))
+        profile.append(
+            {
+                "start_at": bucket,
+                "active_energy_kwh": round(active_bucket, 3),
+                "reactive_energy_kvarh": round(reactive_bucket, 3),
+                "active_cost_mzn": round(active_bucket * float(tariffs["tarifa_ativa"]), 2),
+            }
+        )
+
     recommendations = []
     active_types = {item["alert_type"] for item in open_alerts}
     if "corte_energia" in active_types:
@@ -1019,9 +1714,18 @@ def _build_analysis(
         recommendations.append("Verificar o serviço de aquisição no PC, a ligação à Internet e o último envio; não alterar o F650.")
     if active_types & {"subtensao", "sobretensao"}:
         recommendations.append("Comparar as três fases, confirmar o nível da rede e acompanhar a duração antes de intervir nos equipamentos.")
-    if float(pf_stats.get("average") or 1.0) < DEFAULT_ALERT_CONFIG["pf_warning"]:
+    alert_cfg = _alert_config(conn, device["id"])
+    if float(pf_stats.get("average") or 1.0) < alert_cfg["pf_warning"]:
         recommendations.append("Avaliar a compensação de energia reactiva e o regime de funcionamento das cargas.")
-    if max(voltage_unbalances or [0.0]) > DEFAULT_ALERT_CONFIG["voltage_unbalance_warning_pct"]:
+    if finance["reactive_excess_kvarh"] > 0:
+        recommendations.append(
+            "Há energia reactiva acima do limite de referência; verificar a compensação para reduzir o custo associado."
+        )
+    if comparison["cost_change_pct"] is not None and comparison["cost_change_pct"] > 10:
+        recommendations.append(
+            "O custo energético aumentou mais de 10% face ao período anterior equivalente; verificar cargas e horários responsáveis."
+        )
+    if max(voltage_unbalances or [0.0]) > alert_cfg["voltage_unbalance_warning_pct"]:
         recommendations.append("Investigar assimetria da alimentação e distribuição das cargas entre fases.")
     if data_coverage_pct < 90.0:
         recommendations.append("A cobertura de dados do período está incompleta; interpretar energia estimada e médias com cautela.")
@@ -1049,6 +1753,7 @@ def _build_analysis(
         "summary": {
             "operational_state": operational_state,
             "energy_kwh": round(energy_kwh, 2),
+            "reactive_energy_kvarh": round(reactive_kvarh, 2),
             "peak_mw": round(peak_mw, 3),
             "peak_at": peak_at,
             "power_factor_avg": round(float(pf_stats.get("average") or 0), 3),
@@ -1071,6 +1776,69 @@ def _build_analysis(
             "latest_apparent_power_mva": round(latest_s, 3) if latest_s is not None else None,
             "measured_flow_direction": _flow_direction(latest_p),
         },
+        "period": _public_period(window),
+        "finance": {
+            "active_energy_kwh": round(finance["active_energy_kwh"], 2),
+            "reactive_energy_kvarh": round(finance["reactive_energy_kvarh"], 2),
+            "reactive_limit_kvarh": round(finance["reactive_limit_kvarh"], 2),
+            "reactive_excess_kvarh": round(finance["reactive_excess_kvarh"], 2),
+            "active_cost_mzn": round(finance["active_cost_mzn"], 2),
+            "reactive_cost_mzn": round(finance["reactive_cost_mzn"], 2),
+            "energy_cost_mzn": round(finance["energy_cost_mzn"], 2),
+            "current_cost_rate_mzn_per_hour": (
+                round(current_cost_rate, 2) if current_cost_rate is not None else None
+            ),
+            "current_cost_rate_state": current_device_state,
+            "average_cost_per_observed_hour_mzn": (
+                round(finance["energy_cost_mzn"] / observed_hours, 2)
+                if observed_hours > 0
+                else None
+            ),
+            "tariffs": {
+                key: (
+                    value
+                    if isinstance(value, bool)
+                    else round(float(value), 4)
+                    if isinstance(value, (int, float))
+                    else value
+                )
+                for key, value in tariffs.items()
+            },
+            "comparison": comparison,
+            "projection": {
+                "available": period_projection["available"],
+                "reliable": period_projection["reliable"],
+                "active_energy_kwh": round(period_projection["active_energy_kwh"], 2),
+                "energy_cost_mzn": round(period_projection["energy_cost_mzn"], 2),
+            },
+            "month_to_date": {
+                "active_energy_kwh": round(month_finance["active_energy_kwh"], 2),
+                "reactive_energy_kvarh": round(month_finance["reactive_energy_kvarh"], 2),
+                "energy_cost_mzn": round(month_finance["energy_cost_mzn"], 2),
+                "coverage_pct": round(month_coverage_pct, 1),
+                "invoice_estimate": {
+                    key: (
+                        value
+                        if isinstance(value, bool)
+                        else round(value, 2)
+                        if isinstance(value, float)
+                        else value
+                    )
+                    for key, value in month_invoice.items()
+                },
+                "projected_active_energy_kwh": round(
+                    month_projected_finance["active_energy_kwh"], 2
+                ),
+                "projected_energy_cost_mzn": round(
+                    month_projected_finance["energy_cost_mzn"], 2
+                ),
+                "projected_invoice_estimate_mzn": round(
+                    month_projected_invoice["estimated_total_mzn"], 2
+                ),
+                "projection_reliable": month_coverage_pct >= 90.0,
+            },
+        },
+        "energy_profile": {"bucket": bucket_kind, "points": profile},
         "stats": stats,
         "alerts": alerts,
         "recommendations": recommendations,
@@ -1181,6 +1949,8 @@ def _build_pdf_report(analysis: dict[str, Any]) -> bytes:
 
     device = analysis["device"]
     summary = analysis["summary"]
+    finance = analysis.get("finance") or {}
+    period_info = analysis.get("period") or {}
     state_color = {
         "Crítico": colors.HexColor("#B42318"),
         "Atenção": colors.HexColor("#B54708"),
@@ -1191,7 +1961,9 @@ def _build_pdf_report(analysis: dict[str, Any]) -> bytes:
         Paragraph("Relatório de Telemetria e Qualidade de Energia", styles["SGETitle"]),
         Paragraph(
             f"{device.get('name') or device.get('code')} · {device.get('local_name') or 'Local não associado'}<br/>"
-            f"Período analisado: últimas {analysis['hours']} horas · Emitido em {_format_local_datetime(analysis['generated_at'])}",
+            f"Período analisado: {period_info.get('label') or str(analysis.get('hours')) + ' horas'} "
+            f"({_format_local_datetime(period_info.get('start_at'))} a {_format_local_datetime(period_info.get('end_at'))})"
+            f" · Emitido em {_format_local_datetime(analysis['generated_at'])}",
             styles["SGESubtitle"],
         ),
     ]
@@ -1270,6 +2042,77 @@ def _build_pdf_report(analysis: dict[str, Any]) -> bytes:
         )
     )
     story.append(indicators)
+
+    if finance:
+        comparison = finance.get("comparison") or {}
+        projection = finance.get("projection") or {}
+        month = finance.get("month_to_date") or {}
+        invoice = month.get("invoice_estimate") or {}
+        cost_change = comparison.get("cost_change_pct")
+        cost_change_text = (
+            f"{float(cost_change):+.1f}%" if cost_change is not None else "Sem base comparável"
+        )
+        projection_text = (
+            f"{_format_pt_number(projection.get('energy_cost_mzn'), 2)} MZN"
+            if projection.get("available")
+            else "Não aplicável"
+        )
+        story.append(Paragraph("Consumo, custo e eficiência energética", styles["SGESection"]))
+        financial_data = [
+            ["Energia activa", "Custo energético", "Custo no regime actual"],
+            [
+                f"{_format_pt_number(finance.get('active_energy_kwh'), 1)} kWh",
+                f"{_format_pt_number(finance.get('energy_cost_mzn'), 2)} MZN",
+                f"{_format_pt_number(finance.get('current_cost_rate_mzn_per_hour'), 2)} MZN/h",
+            ],
+            ["Reactiva total / excedente", "Custo de reactiva", "Variação de custo"],
+            [
+                f"{_format_pt_number(finance.get('reactive_energy_kvarh'), 1)} / "
+                f"{_format_pt_number(finance.get('reactive_excess_kvarh'), 1)} kVArh",
+                f"{_format_pt_number(finance.get('reactive_cost_mzn'), 2)} MZN",
+                cost_change_text,
+            ],
+            ["Energia do mês até agora", "Custo energético do mês", "Projecção deste período"],
+            [
+                f"{_format_pt_number(month.get('active_energy_kwh'), 1)} kWh",
+                f"{_format_pt_number(month.get('energy_cost_mzn'), 2)} MZN",
+                projection_text,
+            ],
+        ]
+        financial_table = Table(financial_data, colWidths=[58.7 * mm] * 3)
+        financial_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E9F8EF")),
+                    ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#E9F8EF")),
+                    ("BACKGROUND", (0, 4), (-1, 4), colors.HexColor("#E9F8EF")),
+                    ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 5), (-1, 5), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7.8),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#027A48")),
+                    ("TEXTCOLOR", (0, 2), (-1, 2), colors.HexColor("#027A48")),
+                    ("TEXTCOLOR", (0, 4), (-1, 4), colors.HexColor("#027A48")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#B7DEC7")),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D6EADF")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.append(financial_table)
+        story.append(Spacer(1, 2 * mm))
+        story.append(
+            Paragraph(
+                f"Estimativa da factura até ao momento: <b>{_format_pt_number(invoice.get('estimated_total_mzn'), 2)} MZN</b>. "
+                f"Factura mensal projectada: <b>{_format_pt_number(month.get('projected_invoice_estimate_mzn'), 2)} MZN</b>. "
+                f"Tarifa activa usada: {_format_pt_number((finance.get('tariffs') or {}).get('tarifa_ativa'), 4)} MZN/kWh. "
+                "Esta estimativa inclui a demanda medida, taxas e IVA; deve ser confirmada no fecho do ciclo de facturação.",
+                styles["SGENote"],
+            )
+        )
 
     story.append(Paragraph("Mínimo, média e máximo por grandeza", styles["SGESection"]))
     stats_data = [["Grandeza", "Mínimo", "Média", "Máximo", "Amostras"]]
@@ -1354,6 +2197,7 @@ def _build_pdf_report(analysis: dict[str, Any]) -> bytes:
             Paragraph(
                 "Nota: potências e factor de potência são apresentados em módulo para representar o consumo. "
                 "O sinal bruto e o sentido medido pelo relé continuam preservados nos dados exportados. "
+                "A energia resulta da integração temporal das potências reais e não recebe factor multiplicativo. "
                 "Os limites deste relatório são de supervisão e não modificam as protecções do F650.",
                 styles["SGENote"],
             ),
@@ -1445,7 +2289,10 @@ def register_telemetry(app, db_path: str) -> None:
                 "SELECT COUNT(*) AS total FROM telemetry_channels WHERE device_id=? AND active=1",
                 (device["id"],),
             ).fetchone()["total"]
-            state, age_seconds = _device_state(device["last_seen"])
+            online_seconds, delayed_seconds = _device_timeouts(device)
+            state, age_seconds = _device_state(
+                device["last_seen"], online_seconds, delayed_seconds
+            )
             return jsonify(
                 success=True,
                 service="sge-telemetria",
@@ -1656,8 +2503,13 @@ def register_telemetry(app, db_path: str) -> None:
         device_rows = []
         for row in devices:
             item = dict(row)
-            item["state"], item["age_seconds"] = _device_state(item.get("last_seen"))
+            online_seconds, delayed_seconds = _device_timeouts(item)
+            item["state"], item["age_seconds"] = _device_state(
+                item.get("last_seen"), online_seconds, delayed_seconds
+            )
             device_rows.append(item)
+        if device_rows and selected not in {item["code"] for item in device_rows}:
+            selected = device_rows[0]["code"]
         return render_template(
             "telemetria.html",
             devices=device_rows,
@@ -1683,7 +2535,10 @@ def register_telemetry(app, db_path: str) -> None:
                 return jsonify(success=False, error="not_found"), 404
             _reconcile_communication_alert(conn, device)
             conn.commit()
-            state, age_seconds = _device_state(device["last_seen"])
+            online_seconds, delayed_seconds = _device_timeouts(device)
+            state, age_seconds = _device_state(
+                device["last_seen"], online_seconds, delayed_seconds
+            )
             rows = conn.execute(
                 """
                 SELECT c.code, c.name, c.unit, c.min_value, c.max_value,
@@ -1729,6 +2584,41 @@ def register_telemetry(app, db_path: str) -> None:
                 """,
                 (device["id"],),
             ).fetchone()
+            leading_alert = conn.execute(
+                """
+                SELECT title, message, severity, started_at
+                FROM telemetry_alerts
+                WHERE device_id=? AND status IN ('open','acknowledged')
+                ORDER BY CASE severity WHEN 'critical' THEN 0 ELSE 1 END,
+                         started_at ASC LIMIT 1
+                """,
+                (device["id"],),
+            ).fetchone()
+            total_alerts = int(active_alert_count["total"] or 0)
+            critical_alerts = int(active_alert_count["critical"] or 0)
+            if critical_alerts:
+                operational_state = "Crítico"
+            elif total_alerts or state == "atrasado":
+                operational_state = "Atenção"
+            elif not device["last_seen"]:
+                operational_state = "Aguardando dados"
+            elif state == "offline":
+                operational_state = "Crítico"
+            else:
+                operational_state = "Normal"
+            if leading_alert:
+                operational_message = leading_alert["message"] or leading_alert["title"]
+                operational_since = leading_alert["started_at"]
+            elif operational_state == "Normal":
+                operational_message = "Comunicação activa e nenhuma ocorrência confirmada."
+                operational_since = device["last_measurement_at"]
+            elif operational_state == "Aguardando dados":
+                operational_message = "O ponto está cadastrado, mas ainda não enviou a primeira leitura."
+                operational_since = None
+            else:
+                operational_message = "O ponto requer verificação operacional."
+                operational_since = device["last_seen"]
+            supervision = _alert_config(conn, device["id"])
             public_device = {
                 "id": device["id"],
                 "local_id": device["local_id"],
@@ -1745,9 +2635,28 @@ def register_telemetry(app, db_path: str) -> None:
                 "last_remote_ip": device["last_remote_ip"],
                 "state": state,
                 "age_seconds": age_seconds,
+                "online_timeout_seconds": online_seconds,
+                "offline_timeout_seconds": delayed_seconds,
                 "warning_count": warning_count,
-                "active_alert_count": int(active_alert_count["total"] or 0),
-                "critical_alert_count": int(active_alert_count["critical"] or 0),
+                "active_alert_count": total_alerts,
+                "critical_alert_count": critical_alerts,
+                "operational_state": operational_state,
+                "operational_message": operational_message,
+                "operational_since": operational_since,
+                "supervision": {
+                    key: supervision[key]
+                    for key in (
+                        "nominal_voltage_kv",
+                        "outage_voltage_kv",
+                        "voltage_warning_low_kv",
+                        "voltage_warning_high_kv",
+                        "pf_warning",
+                        "frequency_warning_low_hz",
+                        "frequency_warning_high_hz",
+                        "alert_confirm_samples",
+                        "alert_clear_samples",
+                    )
+                },
                 "token_configured": bool(device["token_hash"]),
             }
             return jsonify(
@@ -1766,20 +2675,25 @@ def register_telemetry(app, db_path: str) -> None:
             part.strip() for part in (request.args.get("channels") or "").split(",") if part.strip()
         ]
         try:
-            hours = max(1, min(24 * 31, int(request.args.get("hours") or 24)))
+            requested_period = (request.args.get("period") or "").strip() or None
+            requested_date = (request.args.get("date") or "").strip() or None
+            hours = max(1, min(24 * 366, int(request.args.get("hours") or 24)))
             limit = max(10, min(10000, int(request.args.get("limit") or 6000)))
+            window = _resolve_period(requested_period, requested_date, hours)
         except ValueError:
             return jsonify(success=False, error="invalid_parameters"), 400
-        cutoff = _iso_utc(_utc_now() - timedelta(hours=hours))
+        cutoff = _iso_utc(window["start"])
+        end_at = _iso_utc(window["end"])
+        period_hours = max(1, int((window["end"] - window["start"]).total_seconds() / 3600))
         # Reduz automaticamente a quantidade de pontos para manter o painel rápido.
-        bucket_seconds = 60 if hours <= 24 else (300 if hours <= 168 else 1800)
+        bucket_seconds = 60 if period_hours <= 24 else (300 if period_hours <= 168 else 1800)
 
         conn = _connect(db_path)
         try:
             device = _load_device(conn, code)
             if not device:
                 return jsonify(success=False, error="not_found"), 404
-            params: list[Any] = [bucket_seconds, bucket_seconds, device["id"], cutoff]
+            params: list[Any] = [bucket_seconds, bucket_seconds, device["id"], cutoff, end_at]
             channel_clause = ""
             if requested_channels:
                 placeholders = ",".join("?" for _ in requested_channels)
@@ -1800,7 +2714,7 @@ def register_telemetry(app, db_path: str) -> None:
                        END AS quality
                 FROM telemetry_readings r
                 JOIN telemetry_channels c ON c.id=r.channel_id
-                WHERE r.device_id=? AND r.measured_at>=? {channel_clause}
+                WHERE r.device_id=? AND r.measured_at>=? AND r.measured_at<=? {channel_clause}
                 GROUP BY c.id, (CAST(strftime('%s', r.measured_at) AS INTEGER) / ?)
                 ORDER BY measured_at ASC, c.sort_order ASC
                 LIMIT ?
@@ -1815,7 +2729,13 @@ def register_telemetry(app, db_path: str) -> None:
                     row["code"],
                     {"code": row["code"], "name": row["name"], "unit": row["unit"], "points": []},
                 )["points"].append([row["measured_at"], value, row["quality"], raw_value])
-            return jsonify(success=True, device=code, hours=hours, series=list(series.values()))
+            return jsonify(
+                success=True,
+                device=code,
+                hours=period_hours,
+                period=_public_period(window),
+                series=list(series.values()),
+            )
         finally:
             conn.close()
 
@@ -1823,10 +2743,14 @@ def register_telemetry(app, db_path: str) -> None:
     def export_csv():
         code = (request.args.get("device") or DEVICE_CODE_F650).strip()
         try:
+            requested_period = (request.args.get("period") or "").strip() or None
+            requested_date = (request.args.get("date") or "").strip() or None
             hours = max(1, min(24 * 366, int(request.args.get("hours") or 24)))
+            window = _resolve_period(requested_period, requested_date, hours)
         except ValueError:
-            hours = 24
-        cutoff = _iso_utc(_utc_now() - timedelta(hours=hours))
+            return jsonify(success=False, error="invalid_parameters"), 400
+        cutoff = _iso_utc(window["start"])
+        end_at = _iso_utc(window["end"])
         conn = _connect(db_path)
         try:
             rows = conn.execute(
@@ -1838,10 +2762,10 @@ def register_telemetry(app, db_path: str) -> None:
                 JOIN telemetry_devices d ON d.id=r.device_id
                 LEFT JOIN locais l ON l.id=d.local_id
                 JOIN telemetry_channels c ON c.id=r.channel_id
-                WHERE d.code=? AND r.measured_at>=?
+                WHERE d.code=? AND r.measured_at>=? AND r.measured_at<=?
                 ORDER BY r.measured_at, c.sort_order
                 """,
-                (code, cutoff),
+                (code, cutoff, end_at),
             ).fetchall()
         finally:
             conn.close()
@@ -1881,7 +2805,8 @@ def register_telemetry(app, db_path: str) -> None:
                     row["delayed"],
                 ]
             )
-        filename = f"telemetria_{code}_{hours}h.csv"
+        period_slug = str(window["key"]).replace("/", "-")
+        filename = f"telemetria_{code}_{period_slug}.csv"
         return Response(
             "\ufeff" + stream.getvalue(),
             mimetype="text/csv; charset=utf-8",
@@ -1913,7 +2838,10 @@ def register_telemetry(app, db_path: str) -> None:
     def analysis_api():
         code = (request.args.get("device") or DEVICE_CODE_F650).strip()
         try:
+            requested_period = (request.args.get("period") or "").strip() or None
+            requested_date = (request.args.get("date") or "").strip() or None
             hours = max(1, min(24 * 366, int(request.args.get("hours") or 24)))
+            _resolve_period(requested_period, requested_date, hours)
         except ValueError:
             return jsonify(success=False, error="invalid_parameters"), 400
         conn = _connect(db_path)
@@ -1931,7 +2859,16 @@ def register_telemetry(app, db_path: str) -> None:
                 return jsonify(success=False, error="not_found"), 404
             _reconcile_communication_alert(conn, device)
             conn.commit()
-            return jsonify(success=True, analysis=_build_analysis(conn, device, hours))
+            return jsonify(
+                success=True,
+                analysis=_build_analysis(
+                    conn,
+                    device,
+                    hours,
+                    period=requested_period,
+                    date_text=requested_date,
+                ),
+            )
         finally:
             conn.close()
 
@@ -1939,10 +2876,13 @@ def register_telemetry(app, db_path: str) -> None:
     def alerts_api():
         code = (request.args.get("device") or DEVICE_CODE_F650).strip()
         try:
+            requested_period = (request.args.get("period") or "").strip() or None
+            requested_date = (request.args.get("date") or "").strip() or None
             hours = max(1, min(24 * 366, int(request.args.get("hours") or 168)))
+            window = _resolve_period(requested_period, requested_date, hours)
         except ValueError:
             return jsonify(success=False, error="invalid_parameters"), 400
-        cutoff = _iso_utc(_utc_now() - timedelta(hours=hours))
+        cutoff = _iso_utc(window["start"])
         conn = _connect(db_path)
         try:
             device = _load_device(conn, code)
@@ -1950,7 +2890,13 @@ def register_telemetry(app, db_path: str) -> None:
                 return jsonify(success=False, error="not_found"), 404
             _reconcile_communication_alert(conn, device)
             conn.commit()
-            alerts = _query_alerts(conn, device["id"], cutoff, 100)
+            alerts = _query_alerts(
+                conn,
+                device["id"],
+                cutoff,
+                100,
+                end_at=_iso_utc(window["end"]),
+            )
             active = [item for item in alerts if item["status"] in ("open", "acknowledged")]
             return jsonify(
                 success=True,
@@ -1994,9 +2940,12 @@ def register_telemetry(app, db_path: str) -> None:
     def telemetry_report_pdf():
         code = (request.args.get("device") or DEVICE_CODE_F650).strip()
         try:
+            requested_period = (request.args.get("period") or "").strip() or None
+            requested_date = (request.args.get("date") or "").strip() or None
             hours = max(1, min(24 * 366, int(request.args.get("hours") or 24)))
+            _resolve_period(requested_period, requested_date, hours)
         except ValueError:
-            hours = 24
+            return jsonify(success=False, error="invalid_parameters"), 400
         conn = _connect(db_path)
         try:
             device = conn.execute(
@@ -2012,10 +2961,19 @@ def register_telemetry(app, db_path: str) -> None:
                 return jsonify(success=False, error="not_found"), 404
             _reconcile_communication_alert(conn, device)
             conn.commit()
-            report = _build_pdf_report(_build_analysis(conn, device, hours))
+            report = _build_pdf_report(
+                _build_analysis(
+                    conn,
+                    device,
+                    hours,
+                    period=requested_period,
+                    date_text=requested_date,
+                )
+            )
         finally:
             conn.close()
-        filename = f"relatorio_telemetria_{code}_{hours}h.pdf"
+        period_slug = (requested_period or f"{hours}h").replace("/", "-")
+        filename = f"relatorio_telemetria_{code}_{period_slug}.pdf"
         return Response(
             report,
             mimetype="application/pdf",

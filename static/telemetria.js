@@ -25,6 +25,15 @@
     activeAlerts: document.getElementById('deviceActiveAlerts'),
     logs: document.getElementById('ingestLogs'),
     period: document.getElementById('historyPeriod'),
+    dateWrap: document.getElementById('historyDateWrap'),
+    date: document.getElementById('historyDate'),
+    periodLabel: document.getElementById('analysisPeriodLabel'),
+    tariffContext: document.getElementById('tariffContext'),
+    financeCards: document.getElementById('energyFinanceCards'),
+    monthFinance: document.getElementById('monthFinanceSummary'),
+    energyChartCanvas: document.getElementById('energyCostChart'),
+    energyChartEmpty: document.getElementById('energyChartEmpty'),
+    energyChartSubtitle: document.getElementById('energyChartSubtitle'),
     channelButtons: document.getElementById('historyChannelButtons'),
     presetButtons: [...document.querySelectorAll('.telemetry-preset')],
     chartCanvas: document.getElementById('telemetryChart'),
@@ -50,6 +59,7 @@
   let selectedChannels = [...presets.voltage];
   let overviewData = null;
   let chart = null;
+  let energyChart = null;
 
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'
@@ -70,6 +80,33 @@
       maximumFractionDigits: digits
     }).format(n);
   };
+
+  const formatCurrency = value => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return `${new Intl.NumberFormat('pt-PT', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n)} MZN`;
+  };
+
+  const maputoToday = () => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone:'Africa/Maputo', year:'numeric', month:'2-digit', day:'2-digit'
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  const periodQuery = () => {
+    const period = els.period?.value || 'today';
+    const params = new URLSearchParams({period});
+    if (period === 'day') params.set('date', els.date?.value || maputoToday());
+    return params.toString();
+  };
+
+  function syncPeriodControls() {
+    const specificDay = els.period?.value === 'day';
+    els.dateWrap?.classList.toggle('d-none', !specificDay);
+    if (specificDay && els.date && !els.date.value) els.date.value = maputoToday();
+  }
 
   const formatValue = (value, code) => {
     let digits = 2;
@@ -195,6 +232,154 @@
     loadHistory().catch(error => showError(error.message));
   }
 
+  function renderEnergyChart(analysis) {
+    const profile = analysis.energy_profile || {bucket:'hour', points:[]};
+    const points = profile.points || [];
+    const hasPoints = points.some(point => Number(point.active_energy_kwh) > 0);
+    els.energyChartCanvas?.classList.toggle('d-none', !hasPoints);
+    els.energyChartEmpty?.classList.toggle('d-none', hasPoints);
+    if (energyChart) energyChart.destroy();
+    if (els.energyChartSubtitle) {
+      els.energyChartSubtitle.textContent = profile.bucket === 'hour'
+        ? 'Consumo e custo activo distribuídos por hora.'
+        : 'Consumo e custo activo distribuídos por dia.';
+    }
+    if (!hasPoints || !els.energyChartCanvas) return;
+
+    energyChart = new Chart(els.energyChartCanvas, {
+      data:{
+        labels:points.map(point => new Date(point.start_at)),
+        datasets:[
+          {
+            type:'bar',
+            label:'Energia activa (kWh)',
+            data:points.map(point => Number(point.active_energy_kwh)),
+            yAxisID:'yEnergy',
+            backgroundColor:'rgba(13, 110, 253, .55)',
+            borderColor:'#0d6efd',
+            borderWidth:1,
+            borderRadius:4
+          },
+          {
+            type:'line',
+            label:'Custo activo (MZN)',
+            data:points.map(point => Number(point.active_cost_mzn)),
+            yAxisID:'yCost',
+            borderColor:'#198754',
+            backgroundColor:'#198754',
+            pointRadius:2,
+            pointHoverRadius:4,
+            borderWidth:2,
+            tension:.2
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:'index', intersect:false},
+        plugins:{
+          legend:{position:'bottom'},
+          tooltip:{
+            callbacks:{
+              title:items => items[0] ? new Intl.DateTimeFormat('pt-PT', {
+                dateStyle:'short',
+                timeStyle:profile.bucket === 'hour' ? 'short' : undefined
+              }).format(new Date(points[items[0].dataIndex].start_at)) : ''
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{
+              maxTicksLimit:10,
+              callback:(value, index) => new Intl.DateTimeFormat('pt-PT', profile.bucket === 'hour'
+                ? {day:'2-digit', month:'2-digit', hour:'2-digit'}
+                : {day:'2-digit', month:'2-digit'}
+              ).format(points[index] ? new Date(points[index].start_at) : new Date())
+            },
+            grid:{display:false}
+          },
+          yEnergy:{
+            type:'linear', position:'left', beginAtZero:true,
+            title:{display:true, text:'kWh'}
+          },
+          yCost:{
+            type:'linear', position:'right', beginAtZero:true,
+            title:{display:true, text:'MZN'},
+            grid:{drawOnChartArea:false}
+          }
+        }
+      }
+    });
+  }
+
+  function renderFinance(analysis) {
+    const finance = analysis.finance || {};
+    const comparison = finance.comparison || {};
+    const projection = finance.projection || {};
+    const month = finance.month_to_date || {};
+    const tariffs = finance.tariffs || {};
+    const summary = analysis.summary || {};
+    if (els.periodLabel) els.periodLabel.textContent = analysis.period?.label || 'Período seleccionado';
+    if (els.tariffContext) {
+      els.tariffContext.textContent = `Tarifa activa: ${formatNumber(tariffs.tarifa_ativa, 4)} MZN/kWh · ${tariffs.source || 'SGE'}`;
+    }
+
+    const changeValue = comparison.cost_change_pct;
+    const changeText = changeValue === null || changeValue === undefined
+      ? 'Sem base comparável'
+      : `${changeValue > 0 ? '+' : ''}${formatNumber(changeValue, 1)}%`;
+    const changeNote = changeValue === null || changeValue === undefined
+      ? 'Ainda não há dados no período anterior equivalente'
+      : `${changeValue > 0 ? 'Aumento' : changeValue < 0 ? 'Redução' : 'Sem variação'} face ao período anterior`;
+    const projectionValue = projection.available ? formatCurrency(projection.energy_cost_mzn) : '—';
+    const projectionNote = projection.available
+      ? `${projection.reliable ? 'Projecção com boa cobertura' : 'Projecção indicativa: cobertura incompleta'}`
+      : 'Período fechado ou janela móvel';
+    const cards = [
+      ['Energia activa', `${formatNumber(finance.active_energy_kwh, 1)} kWh`, 'Integrada pelos intervalos reais', 'bi-lightning-charge'],
+      ['Custo energético', formatCurrency(finance.energy_cost_mzn), `Activa ${formatCurrency(finance.active_cost_mzn)}`, 'bi-cash-coin'],
+      ['Custo no regime actual', formatCurrency(finance.current_cost_rate_mzn_per_hour), finance.current_cost_rate_state === 'online' ? 'Por hora, se a potência actual se mantiver' : 'Indisponível enquanto os dados não estão online', 'bi-speedometer2'],
+      ['Pico de potência', `${formatNumber(summary.peak_mw, 3)} MW`, summary.peak_at ? formatDate(summary.peak_at) : 'Sem pico registado', 'bi-graph-up-arrow'],
+      ['Energia reactiva', `${formatNumber(finance.reactive_energy_kvarh, 1)} kVArh`, `Excedente: ${formatNumber(finance.reactive_excess_kvarh, 1)} kVArh`, 'bi-activity'],
+      ['Custo de reactiva', formatCurrency(finance.reactive_cost_mzn), finance.reactive_excess_kvarh > 0 ? 'Há excedente no período' : 'Sem excedente calculado', 'bi-exclamation-circle'],
+      ['Comparação de custo', changeText, changeNote, 'bi-arrow-left-right'],
+      ['Projecção do período', projectionValue, projectionNote, 'bi-calendar2-check']
+    ];
+    if (els.financeCards) {
+      els.financeCards.innerHTML = cards.map(([label, value, note, icon]) => `
+        <div class="col-sm-6 col-xl-3">
+          <article class="telemetry-finance-card h-100">
+            <div class="d-flex justify-content-between gap-2">
+              <div class="telemetry-mini-label">${escapeHtml(label)}</div>
+              <i class="bi ${escapeHtml(icon)} text-primary"></i>
+            </div>
+            <div class="telemetry-finance-value">${escapeHtml(value)}</div>
+            <div class="telemetry-analysis-note">${escapeHtml(note)}</div>
+          </article>
+        </div>`).join('');
+    }
+
+    const invoice = month.invoice_estimate || {};
+    const coverageWarning = Number(month.coverage_pct) < 90
+      ? `<div class="telemetry-finance-warning"><i class="bi bi-exclamation-triangle me-1"></i>Cobertura mensal: ${formatNumber(month.coverage_pct, 1)}%. Projecção indicativa.</div>`
+      : `<div class="telemetry-finance-ok"><i class="bi bi-check-circle me-1"></i>Cobertura mensal: ${formatNumber(month.coverage_pct, 1)}%</div>`;
+    if (els.monthFinance) {
+      els.monthFinance.innerHTML = `
+        <div class="telemetry-month-row"><span>Energia até agora</span><strong>${formatNumber(month.active_energy_kwh, 1)} kWh</strong></div>
+        <div class="telemetry-month-row"><span>Custo energético</span><strong>${formatCurrency(month.energy_cost_mzn)}</strong></div>
+        <div class="telemetry-month-row"><span>Estimativa da factura até agora</span><strong>${formatCurrency(invoice.estimated_total_mzn)}</strong></div>
+        <hr>
+        <div class="telemetry-month-row"><span>Energia projectada</span><strong>${formatNumber(month.projected_active_energy_kwh, 1)} kWh</strong></div>
+        <div class="telemetry-month-row"><span>Custo energético projectado</span><strong>${formatCurrency(month.projected_energy_cost_mzn)}</strong></div>
+        <div class="telemetry-month-row is-total"><span>Factura mensal projectada</span><strong>${formatCurrency(month.projected_invoice_estimate_mzn)}</strong></div>
+        ${coverageWarning}
+        ${invoice.contracted_power_configured ? '' : '<div class="small text-muted mt-2">Potência contratada não configurada; validar a componente de demanda.</div>'}`;
+    }
+    renderEnergyChart(analysis);
+  }
+
   function renderAnalysis(analysis) {
     const summary = analysis.summary;
     const stateClass = summary.operational_state === 'Crítico'
@@ -204,6 +389,7 @@
         : summary.operational_state === 'Normal' ? 'is-normal' : 'is-neutral';
     els.analysisState.className = `telemetry-analysis-state ${stateClass}`;
     els.analysisState.textContent = summary.operational_state;
+    renderFinance(analysis);
 
     const voltageRange = summary.voltage_min_kv !== null && summary.voltage_max_kv !== null
       ? `${formatNumber(summary.voltage_min_kv, 2)}–${formatNumber(summary.voltage_max_kv, 2)} kV`
@@ -233,7 +419,8 @@
     const coverage = summary.data_coverage_pct < 90
       ? ` A cobertura do período é de ${formatNumber(summary.data_coverage_pct, 1)}%, por isso a energia estimada deve ser interpretada com cautela.`
       : ' A cobertura do período é adequada para análise operacional.';
-    els.analysisDiagnosis.textContent = `${direction}${coverage}`;
+    const financial = ` No período, o consumo calculado foi ${formatNumber(analysis.finance?.active_energy_kwh, 1)} kWh, com custo energético de ${formatCurrency(analysis.finance?.energy_cost_mzn)}.`;
+    els.analysisDiagnosis.textContent = `${direction}${coverage}${financial}`;
     els.recommendations.innerHTML = analysis.recommendations.map(item => `<li>${escapeHtml(item)}</li>`).join('');
 
     if (!analysis.stats.length) {
@@ -343,26 +530,24 @@
   }
 
   async function loadAnalysis() {
-    const hours = els.period.value;
-    els.export.href = `/telemetria/export.csv?device=${encodeURIComponent(currentDevice)}&hours=${hours}`;
-    els.report.href = `/telemetria/relatorio.pdf?device=${encodeURIComponent(currentDevice)}&hours=${hours}`;
-    const response = await fetch(`/telemetria/api/analysis?device=${encodeURIComponent(currentDevice)}&hours=${hours}`, {headers:{'Accept':'application/json'}});
+    const query = periodQuery();
+    els.export.href = `/telemetria/export.csv?device=${encodeURIComponent(currentDevice)}&${query}`;
+    els.report.href = `/telemetria/relatorio.pdf?device=${encodeURIComponent(currentDevice)}&${query}`;
+    const response = await fetch(`/telemetria/api/analysis?device=${encodeURIComponent(currentDevice)}&${query}`, {headers:{'Accept':'application/json'}});
     if (!response.ok) throw new Error('Não foi possível calcular os indicadores do período.');
     const data = await response.json();
     renderAnalysis(data.analysis);
   }
 
   async function loadAlerts() {
-    const hours = Math.max(Number(els.period.value) || 24, 168);
-    const response = await fetch(`/telemetria/api/alerts?device=${encodeURIComponent(currentDevice)}&hours=${hours}`, {headers:{'Accept':'application/json'}});
+    const response = await fetch(`/telemetria/api/alerts?device=${encodeURIComponent(currentDevice)}&${periodQuery()}`, {headers:{'Accept':'application/json'}});
     if (!response.ok) throw new Error('Não foi possível carregar os alertas.');
     renderAlerts(await response.json());
   }
 
   async function loadHistory() {
-    const hours = els.period.value;
     const channels = selectedChannels.join(',');
-    const response = await fetch(`/telemetria/api/history?device=${encodeURIComponent(currentDevice)}&hours=${hours}&channels=${encodeURIComponent(channels)}`, {headers:{'Accept':'application/json'}});
+    const response = await fetch(`/telemetria/api/history?device=${encodeURIComponent(currentDevice)}&${periodQuery()}&channels=${encodeURIComponent(channels)}`, {headers:{'Accept':'application/json'}});
     if (!response.ok) throw new Error('Não foi possível carregar o histórico.');
     const data = await response.json();
     const hasPoints = data.series?.some(series => series.points?.length);
@@ -443,10 +628,17 @@
   });
   els.refresh?.addEventListener('click', refreshAll);
   els.period?.addEventListener('change', () => {
+    syncPeriodControls();
     Promise.all([loadHistory(), loadAnalysis(), loadAlerts()]).catch(error => showError(error.message));
+  });
+  els.date?.addEventListener('change', () => {
+    if (els.period?.value === 'day') {
+      Promise.all([loadHistory(), loadAnalysis(), loadAlerts()]).catch(error => showError(error.message));
+    }
   });
   els.presetButtons.forEach(button => button.addEventListener('click', () => applyPreset(button.dataset.preset)));
 
+  syncPeriodControls();
   refreshAll();
   window.setInterval(() => {
     Promise.all([loadOverview(), loadAlerts()]).catch(() => {});

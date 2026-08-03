@@ -5,3 +5,33 @@
 @media(max-width:767.98px){.telemetry-chart-wrap{min-height:340px;height:52vh}.telemetry-kpi-value{font-size:1.25rem}.telemetry-details>div{display:block}.telemetry-details dd{text-align:left;margin-top:.2rem}.telemetry-alert-banner{align-items:flex-start;flex-wrap:wrap}.telemetry-alert-banner .btn{margin-left:0!important}.telemetry-analysis-value{font-size:1.05rem}}
 
 .telemetry-spin{animation:telemetry-spin .8s linear infinite}@keyframes telemetry-spin{to{transform:rotate(360deg)}}
+
+.telemetry-finance-panel{background:linear-gradient(145deg,#fff 0%,#f7fbff 62%,#f3fbf7 100%)}
+.telemetry-period-controls{display:grid;grid-template-columns:minmax(180px,1fr) minmax(150px,.8fr);align-items:end;gap:.65rem;min-width:min(100%,350px)}
+.telemetry-period-label{display:inline-flex;align-items:center;border-radius:999px;background:#eaf2f8;color:#123b69;padding:.3rem .68rem;font-size:.76rem;font-weight:800}
+.telemetry-finance-card{border:1px solid #dfe7ef;border-radius:.9rem;padding:.9rem;background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(16,24,40,.035)}
+.telemetry-finance-value{font-size:1.2rem;line-height:1.22;font-weight:800;color:#101828;margin-top:.34rem;overflow-wrap:anywhere}
+.telemetry-energy-chart,.telemetry-finance-summary{border:1px solid #dfe7ef;border-radius:.9rem;padding:1rem;background:#fff}
+.telemetry-energy-chart-wrap{position:relative;height:330px;min-height:280px}
+.telemetry-energy-chart-wrap .telemetry-empty{min-height:280px;height:100%}
+.telemetry-finance-summary{background:linear-gradient(160deg,#123b69,#0f4f78);color:#fff}
+.telemetry-finance-summary .telemetry-mini-label{color:#c8dced}
+.telemetry-finance-summary .text-muted{color:#d7e4ee!important}
+.telemetry-month-row{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.48rem 0;border-bottom:1px solid rgba(255,255,255,.14)}
+.telemetry-month-row span{font-size:.75rem;color:#d7e4ee}
+.telemetry-month-row strong{font-size:.8rem;text-align:right;color:#fff}
+.telemetry-month-row.is-total{border-bottom:0;padding-top:.7rem}
+.telemetry-month-row.is-total strong{color:#b7f3ce;font-size:.9rem}
+.telemetry-finance-summary hr{border-color:rgba(255,255,255,.3);margin:.65rem 0}
+.telemetry-finance-warning,.telemetry-finance-ok{margin-top:.75rem;border-radius:.55rem;padding:.55rem .65rem;font-size:.7rem}
+.telemetry-finance-warning{background:rgba(247,144,9,.18);color:#ffdf9e}
+.telemetry-finance-ok{background:rgba(18,183,106,.18);color:#b7f3ce}
+
+@media(max-width:767.98px){
+  .telemetry-period-controls{grid-template-columns:1fr;width:100%;min-width:0}
+  .telemetry-period-select{width:100%;min-width:0}
+  .telemetry-finance-value{font-size:1.08rem}
+  .telemetry-energy-chart-wrap{height:300px;min-height:250px}
+  .telemetry-energy-chart-wrap .telemetry-empty{min-height:250px}
+  .telemetry-month-row{gap:.65rem}
+}
