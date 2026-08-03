@@ -14,8 +14,11 @@
       <p class="text-muted mb-0">Leituras recebidas directamente dos instrumentos de campo, sem substituir as leituras manuais e de facturação.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+      <a id="telemetryReport" class="btn btn-outline-dark" href="/telemetria/relatorio.pdf?device={{ selected_device }}&hours=24">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Relatório PDF
+      </a>
       <a id="telemetryExport" class="btn btn-outline-primary" href="/telemetria/export.csv?device={{ selected_device }}&hours=24">
-        <i class="bi bi-download me-1"></i>Exportar 24 h
+        <i class="bi bi-filetype-csv me-1"></i>Exportar CSV
       </a>
       <button id="telemetryRefresh" type="button" class="btn btn-primary">
         <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
@@ -60,10 +63,46 @@
   </div>
 
   <div id="telemetryError" class="alert alert-danger d-none" role="alert"></div>
+  <div id="telemetryAlertBanner" class="telemetry-alert-banner d-none" role="alert"></div>
 
   <div class="row g-3 mb-4" id="telemetryKpis">
     <div class="col-12 text-center py-5 text-muted">
       <div class="spinner-border spinner-border-sm me-2" role="status"></div>A carregar leituras…
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white border-0 pt-4 px-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h2 class="h5 mb-1">Resumo operacional do período</h2>
+          <p class="small text-muted mb-0">Indicadores calculados automaticamente a partir da telemetria recebida.</p>
+        </div>
+        <span id="analysisState" class="telemetry-analysis-state is-neutral">A calcular…</span>
+      </div>
+    </div>
+    <div class="card-body px-4 pb-4">
+      <div id="analysisCards" class="row g-3">
+        <div class="col-12 text-center py-3 text-muted">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>A analisar dados…
+        </div>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-lg-7">
+          <div class="telemetry-diagnosis h-100">
+            <div class="telemetry-mini-label mb-2">Leitura operacional</div>
+            <div id="analysisDiagnosis" class="small text-muted">A aguardar dados suficientes para o diagnóstico.</div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="telemetry-diagnosis h-100">
+            <div class="telemetry-mini-label mb-2">Acção recomendada</div>
+            <ul id="analysisRecommendations" class="small mb-0 ps-3 text-muted">
+              <li>Manter a monitoria activa.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -85,6 +124,12 @@
                 <option value="720">Últimos 30 dias</option>
               </select>
             </div>
+          </div>
+          <div class="telemetry-presets mt-3" aria-label="Vistas rápidas do gráfico">
+            <button type="button" class="telemetry-preset active" data-preset="voltage"><i class="bi bi-lightning me-1"></i>Tensões</button>
+            <button type="button" class="telemetry-preset" data-preset="current"><i class="bi bi-speedometer me-1"></i>Correntes</button>
+            <button type="button" class="telemetry-preset" data-preset="power"><i class="bi bi-bar-chart-line me-1"></i>Potências</button>
+            <button type="button" class="telemetry-preset" data-preset="quality"><i class="bi bi-activity me-1"></i>FP e frequência</button>
           </div>
           <div id="historyChannelButtons" class="telemetry-channel-buttons mt-3"></div>
         </div>
@@ -116,6 +161,7 @@
             <div><dt>IP no campo</dt><dd id="deviceIp">—</dd></div>
             <div><dt>Último emissor</dt><dd id="deviceRemoteIp">—</dd></div>
             <div><dt>Alertas de limite</dt><dd id="deviceWarnings">0</dd></div>
+            <div><dt>Ocorrências activas</dt><dd id="deviceActiveAlerts">0</dd></div>
           </dl>
         </div>
       </div>
@@ -131,6 +177,50 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mt-4" id="telemetryAlertsCard">
+    <div class="card-header bg-white border-0 pt-4 px-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h2 class="h5 mb-1">Alertas e ocorrências</h2>
+          <p class="small text-muted mb-0">Cortes, qualidade de energia e comunicação, com início, duração e resolução.</p>
+        </div>
+        <div id="alertCounts" class="small text-muted">A carregar…</div>
+      </div>
+    </div>
+    <div class="card-body px-4 pb-4">
+      <div class="alert alert-light border small mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Corte de energia</strong> é confirmado pelas três tensões próximas de zero. <strong>Sem comunicação</strong> significa apenas que o servidor deixou de receber dados.
+      </div>
+      <div id="telemetryAlertsList" class="telemetry-alert-list">
+        <div class="text-muted small">Ainda não existem ocorrências registadas.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mt-4">
+    <div class="card-header bg-white border-0 pt-4 px-4">
+      <h2 class="h5 mb-1">Estatística do período</h2>
+      <p class="small text-muted mb-0">Mínimo, média e máximo para as grandezas principais.</p>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Grandeza</th>
+            <th class="text-end">Mínimo</th>
+            <th class="text-end">Média</th>
+            <th class="text-end">Máximo</th>
+            <th class="text-end">Amostras</th>
+          </tr>
+        </thead>
+        <tbody id="analysisStats">
+          <tr><td colspan="5" class="text-center text-muted py-4">A calcular…</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 

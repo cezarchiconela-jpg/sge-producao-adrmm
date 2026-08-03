@@ -2,6 +2,17 @@
 
 Esta actualização acrescenta ao SGE uma camada de telemetria automática, mantendo intactos os módulos de leituras manuais, importação Excel, facturação, equipamentos, motores, alertas e energia solar.
 
+## Actualização actual — análise, alertas e relatórios
+
+Esta versão mantém o mesmo endpoint, dispositivo, token e formato JSON já usado
+pelo PC ligado ao F650. Basta publicar o projecto no servidor: **não é necessário
+alterar nada no PC de aquisição nem no relé**.
+
+Foram acrescentados tratamento dos sinais negativos, energia estimada em kWh,
+estatísticas, gráficos por grupo, alertas persistentes, distinção entre corte de
+energia e perda de comunicação e relatório PDF profissional. Consulte
+`ACTUALIZACAO_TELEMETRIA_ALERTAS_RELATORIOS.md` para os limites e a validação.
+
 ## Ficheiros a substituir no GitHub
 
 - `app.py`
@@ -25,6 +36,8 @@ No primeiro arranque, o SGE cria tabelas idempotentes:
 - `telemetry_channels`
 - `telemetry_readings`
 - `telemetry_ingest_log`
+- `telemetry_alert_config`
+- `telemetry_alerts`
 
 Também regista automaticamente o dispositivo piloto:
 

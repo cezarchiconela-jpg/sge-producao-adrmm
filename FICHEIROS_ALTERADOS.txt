@@ -1,21 +1,24 @@
-SGE - ACTUALIZACAO TELEMETRIA F650
+SGE - ACTUALIZAÇÃO TELEMETRIA, ALERTAS E RELATÓRIOS
 
-SUBSTITUIR NO GITHUB:
-- app.py
-- .env.example
-- render.yaml
-- templates/base.html
-
-ADICIONAR AO GITHUB:
+VERSÃO COMPLETA:
 - telemetria.py
 - templates/telemetria.html
+- templates/base.html
+- templates/alertas.html
 - static/telemetria.css
 - static/telemetria.js
+- tests/smoke_routes.py
+- tests/test_telemetry_alerts.py
 - README_TELEMETRIA_F650_GITHUB.md
+- ACTUALIZACAO_TELEMETRIA_ALERTAS_RELATORIOS.md
 
-NAO CARREGAR NO GITHUB:
+INSTALAÇÃO:
+- Publicar esta versão completa no GitHub/Render.
+- Não é necessário alterar o PC de aquisição nem a configuração do F650.
+- Manter exactamente o mesmo SGE_F650_API_TOKEN já usado em produção.
+- A base de dados é actualizada automaticamente e sem apagar dados existentes.
+
+NÃO CARREGAR PUBLICAMENTE:
 - tokens
 - ficheiros .env
-- base de dados local
-
-Depois do upload, configurar SGE_F650_API_TOKEN no Render e fazer deploy.
+- cópias privadas da base de dados de produção
