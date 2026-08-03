@@ -21,6 +21,7 @@ class MigrationsAndBackupsTest(unittest.TestCase):
                 "locais", "locais_cfg", "equipamentos", "leituras", "leituras_mensais",
                 "motor_medicoes", "solar_projetos", "tarifas_historico",
                 "security_audit", "backup_history", "mt_config",
+                "eficiencia_baselines", "eficiencia_metas", "eficiencia_medidas",
             }
             self.assertFalse(required - tables)
             self.assertEqual(integrity, "ok")

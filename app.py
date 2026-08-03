@@ -178,6 +178,9 @@ _load_sge_feature('daily_readings_api', globals())
 # Domínio modular: compatibility
 _load_sge_feature('compatibility', globals())
 
+# Domínio modular: efficiency
+_load_sge_feature('efficiency', globals())
+
 # Domínio modular: dashboard_executive
 _load_sge_feature('dashboard_executive', globals())
 

@@ -1,0 +1,32 @@
+PACOTE: EFICIÊNCIA ENERGÉTICA E DESEMPENHO OPERACIONAL
+DATA: 03/08/2026
+
+Ficheiros alterados:
+- app.py
+- migrations.py
+- sge_modules/security.py
+- templates/base.html
+- templates/index.html
+- tests/smoke_routes.py
+- tests/test_migrations_backups.py
+- tests/test_modular_structure.py
+- tests/test_security_permissions.py
+
+Ficheiros novos:
+- efficiency_service.py
+- sge_modules/efficiency.py
+- templates/eficiencia_dashboard.html
+- templates/eficiencia_baselines.html
+- templates/eficiencia_medidas.html
+- tests/test_efficiency.py
+- EFICIENCIA_ENERGETICA_DESEMPENHO_OPERACIONAL.md
+- FICHEIROS_MODIFICADOS_EFICIENCIA_ENERGETICA.txt
+
+Não incluídos:
+- sge.db e qualquer outra base de dados
+- uploads, backups e logs
+- credenciais ou variáveis de ambiente
+- ficheiros temporários e dependências de teste
+
+Aplicação:
+Extrair na raiz do projeto depois do pacote de Reestruturação Modular e substituir os ficheiros existentes, preservando a estrutura das pastas.

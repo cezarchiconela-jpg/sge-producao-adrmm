@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date
 
 
-SCHEMA_VERSION = 20260803
+SCHEMA_VERSION = 2026080302
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -287,6 +287,88 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             UNIQUE(local_id, data, hora),
             FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS eficiencia_baselines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            local_id INTEGER NOT NULL,
+            nome TEXT NOT NULL,
+            periodo_inicio TEXT NOT NULL,
+            periodo_fim TEXT NOT NULL,
+            metodo TEXT NOT NULL DEFAULT 'normalizacao_por_volume',
+            cobertura_minima_pct REAL NOT NULL DEFAULT 80.0,
+            meses_elegiveis INTEGER NOT NULL DEFAULT 0,
+            energia_total_kwh REAL NOT NULL DEFAULT 0,
+            agua_total_m3 REAL NOT NULL DEFAULT 0,
+            custo_total_mzn REAL NOT NULL DEFAULT 0,
+            energia_media_mensal_kwh REAL NOT NULL DEFAULT 0,
+            agua_media_mensal_m3 REAL NOT NULL DEFAULT 0,
+            custo_medio_mensal_mzn REAL NOT NULL DEFAULT 0,
+            consumo_especifico_kwh_m3 REAL NOT NULL DEFAULT 0,
+            custo_especifico_mzn_m3 REAL NOT NULL DEFAULT 0,
+            meses_json TEXT NOT NULL DEFAULT '[]',
+            estado TEXT NOT NULL DEFAULT 'rascunho',
+            observacoes TEXT,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            aprovado_por TEXT,
+            aprovado_em TEXT,
+            arquivado_em TEXT,
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS eficiencia_metas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            local_id INTEGER NOT NULL,
+            ano INTEGER NOT NULL,
+            baseline_id INTEGER,
+            reducao_percentual REAL NOT NULL DEFAULT 0,
+            meta_kwh_m3 REAL,
+            meta_mzn_m3 REAL,
+            observacoes TEXT,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            atualizado_em TEXT,
+            UNIQUE(local_id, ano),
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE CASCADE,
+            FOREIGN KEY(baseline_id) REFERENCES eficiencia_baselines(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS eficiencia_medidas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            local_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            categoria TEXT NOT NULL DEFAULT 'Operacional',
+            descricao TEXT,
+            responsavel TEXT,
+            estado TEXT NOT NULL DEFAULT 'Planeada',
+            prioridade TEXT NOT NULL DEFAULT 'Média',
+            data_inicio TEXT,
+            data_conclusao_prevista TEXT,
+            data_implementacao TEXT,
+            investimento_mzn REAL NOT NULL DEFAULT 0,
+            poupanca_prevista_kwh_ano REAL NOT NULL DEFAULT 0,
+            poupanca_prevista_mzn_ano REAL NOT NULL DEFAULT 0,
+            poupanca_verificada_kwh REAL,
+            poupanca_verificada_mzn REAL,
+            baseline_id INTEGER,
+            observacoes TEXT,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            atualizado_por TEXT,
+            atualizado_em TEXT,
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE CASCADE,
+            FOREIGN KEY(baseline_id) REFERENCES eficiencia_baselines(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS eficiencia_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidade TEXT NOT NULL,
+            entidade_id INTEGER,
+            acao TEXT NOT NULL,
+            detalhe TEXT,
+            actor TEXT,
+            ts TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
         """
     )
 
@@ -427,6 +509,10 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_security_audit_time ON security_audit(occurred_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
         "CREATE INDEX IF NOT EXISTS idx_users_ativo ON users(ativo)",
+        "CREATE INDEX IF NOT EXISTS idx_eficiencia_baselines_local_estado ON eficiencia_baselines(local_id, estado, aprovado_em DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_eficiencia_metas_local_ano ON eficiencia_metas(local_id, ano)",
+        "CREATE INDEX IF NOT EXISTS idx_eficiencia_medidas_local_estado ON eficiencia_medidas(local_id, estado, prioridade)",
+        "CREATE INDEX IF NOT EXISTS idx_eficiencia_audit_time ON eficiencia_audit(ts DESC)",
     )
     for statement in statements:
         conn.execute(statement)
@@ -446,7 +532,7 @@ def run_migrations(db_path: str) -> int:
         _create_indexes(conn)
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES(?,?)",
-            (SCHEMA_VERSION, "Consolidação, Segurança e Confiabilidade do SGE"),
+            (SCHEMA_VERSION, "Eficiência Energética e Desempenho Operacional"),
         )
         conn.commit()
         return SCHEMA_VERSION

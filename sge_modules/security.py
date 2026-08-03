@@ -265,8 +265,8 @@ def _user_has_role(*roles):
 
 ROLE_CAPABILITIES = {
     'admin': {'*'},
-    'gestor': {'locais', 'configuracao', 'equipamentos', 'leituras', 'alertas', 'motores', 'solar', 'telemetria', 'calculo'},
-    'tecnico': {'equipamentos', 'leituras', 'monitoria', 'alertas', 'motores', 'solar', 'calculo'},
+    'gestor': {'locais', 'configuracao', 'equipamentos', 'leituras', 'alertas', 'motores', 'solar', 'telemetria', 'calculo', 'eficiencia'},
+    'tecnico': {'equipamentos', 'leituras', 'monitoria', 'alertas', 'motores', 'solar', 'calculo', 'eficiencia'},
     'leitura': {'leituras', 'monitoria', 'calculo'},
     'consulta': {'calculo'},
 }
@@ -303,6 +303,8 @@ def _request_scope():
         return 'solar'
     if path.startswith('/telemetria'):
         return 'telemetria'
+    if path.startswith('/eficiencia'):
+        return 'eficiencia'
     if endpoint in {'calcular_fatura', 'fatura_mes', 'api_calc_fatura_mensal_v2'}:
         return 'calculo'
     return 'configuracao'
@@ -650,4 +652,3 @@ def healthz():
         db_ok = False
     status = 200 if db_ok else 503
     return jsonify(status='ok' if db_ok else 'degraded', app='SGE', database=db_ok), status
-

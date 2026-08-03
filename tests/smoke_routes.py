@@ -24,6 +24,12 @@ def run():
     urls = [
         ('GET','/'),
         ('GET','/dashboard'),
+        ('GET','/eficiencia'),
+        ('GET','/eficiencia/api'),
+        ('GET','/eficiencia/linhas-base'),
+        ('GET','/eficiencia/medidas'),
+        ('GET','/eficiencia/export.xlsx'),
+        ('GET','/eficiencia/relatorio.pdf'),
         ('GET','/locais'),
         ('GET','/equipamentos'),
         ('GET','/motores'),

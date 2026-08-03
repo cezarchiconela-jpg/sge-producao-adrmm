@@ -127,6 +127,48 @@ class SecurityPermissionsTest(unittest.TestCase):
         self.assertEqual(current, (497.03, 16.0))
         self.assertEqual(future, (999.0, 16.0, 0.62))
 
+    def test_consulta_cannot_create_efficiency_measure(self):
+        response = self._client_for("consulta").post(
+            "/eficiencia/medidas",
+            data={
+                "_csrf_token": "csrf-teste", "local_id": self.local_id,
+                "titulo": "Medida não autorizada", "categoria": "Operacional",
+                "prioridade": "Média",
+            },
+        )
+        self.assertIn(response.status_code, (302, 403))
+        conn = sqlite3.connect(self.db)
+        count = conn.execute("SELECT COUNT(*) FROM eficiencia_medidas").fetchone()[0]
+        conn.close()
+        self.assertEqual(count, 0)
+
+    def test_tecnico_can_register_measure_but_cannot_create_baseline(self):
+        client = self._client_for("tecnico")
+        measure = client.post(
+            "/eficiencia/medidas",
+            data={
+                "_csrf_token": "csrf-teste", "local_id": self.local_id,
+                "titulo": "Otimizar horário de bombagem", "categoria": "Operacional",
+                "prioridade": "Alta",
+            },
+        )
+        self.assertEqual(measure.status_code, 302)
+        baseline = client.post(
+            "/eficiencia/linhas-base",
+            data={
+                "_csrf_token": "csrf-teste", "local_id": self.local_id,
+                "nome": "Base indevida", "periodo_inicio": "2026-01",
+                "periodo_fim": "2026-03", "cobertura_minima_pct": "80",
+            },
+        )
+        self.assertIn(baseline.status_code, (302, 403))
+        conn = sqlite3.connect(self.db)
+        measures = conn.execute("SELECT COUNT(*) FROM eficiencia_medidas").fetchone()[0]
+        baselines = conn.execute("SELECT COUNT(*) FROM eficiencia_baselines").fetchone()[0]
+        conn.close()
+        self.assertEqual(measures, 1)
+        self.assertEqual(baselines, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
