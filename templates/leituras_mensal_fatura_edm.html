@@ -21,15 +21,15 @@
   </div>
 </div>
 <div class="page">
-  <div class="watermark"><img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM"></div>
+  <div class="watermark"><img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="Águas e Saneamento de Maputo"></div>
   <div class="content">
     <header class="invoice-header">
       <div class="brand">
-        <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="ADRMM">
+        <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="Águas e Saneamento de Maputo">
         <div>
           <div class="doc-title">Modelo interno de faturação energética</div>
           <h1>Fatura de Energia - EDM</h1>
-          <div class="subtitle">Sistema de Gestão de Energia - Monitorização, análise e controlo energético</div>
+          <div class="subtitle">Águas e Saneamento de Maputo · Sistema de Gestão de Energia</div>
           <div><strong>Local:</strong> {{ local }}</div>
           <div><strong>Período:</strong> {{ periodo }}</div>
           {% if invoice_id %}<div class="saved-note">Arquivada no SGE · Registo #{{ invoice_id }}</div>{% endif %}
@@ -86,7 +86,7 @@
 
     <section class="indicators">
       <div class="panel"><h3>Indicadores</h3><table><tbody><tr><td>Água total medida</td><td class="num"><strong>{{ agua_total|fmt_mil(2) }} m³</strong></td></tr><tr><td>Consumo específico médio</td><td class="num">{% if consumo_especifico_medio is not none %}<strong>{{ consumo_especifico_medio|fmt_mil(3) }} kWh/m³</strong>{% else %}<strong>-</strong>{% endif %}</td></tr></tbody></table></div>
-      <div class="signature">Documento gerado pelo SGE / Equipa de Eficiência Energética.<br><strong>Águas da Região Metropolitana de Maputo, S.A.</strong><br><br>_____________________________<br>Conferência técnica</div>
+      <div class="signature">Documento gerado pelo SGE / Equipa de Eficiência Energética.<br><strong>Águas e Saneamento de Maputo</strong><br><br>_____________________________<br>Conferência técnica</div>
     </section>
     <div class="footer">Documento interno de apoio à conferência da fatura EDM. Os valores devem ser validados com a fatura oficial e os parâmetros tarifários vigentes.</div>
   </div>

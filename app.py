@@ -77,6 +77,32 @@ RATE_LIMIT_UPLOADS = {}
 
 app.secret_key = os.environ.get('SECRET_KEY') or os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTITUTION_NAME = 'Águas e Saneamento de Maputo'
+
+
+def _set_xlsx_identity(workbook, title):
+    """Aplica a identidade institucional aos metadados dos ficheiros Excel."""
+    try:
+        workbook.set_properties({
+            'title': title,
+            'subject': 'Documento produzido pelo Sistema de Gestão de Energia',
+            'author': INSTITUTION_NAME,
+            'company': INSTITUTION_NAME,
+            'comments': f'Gerado pelo SGE · {INSTITUTION_NAME}',
+        })
+    except Exception:
+        pass
+
+
+def _set_pdf_identity(pdf_canvas, title):
+    """Aplica a identidade institucional aos metadados dos ficheiros PDF."""
+    try:
+        pdf_canvas.setTitle(title)
+        pdf_canvas.setAuthor(INSTITUTION_NAME)
+        pdf_canvas.setSubject('Documento produzido pelo Sistema de Gestão de Energia')
+        pdf_canvas.setCreator(f'SGE · {INSTITUTION_NAME}')
+    except Exception:
+        pass
 
 # === LOGGING ESTRUTURADO ===
 import logging, uuid, time
@@ -2300,7 +2326,7 @@ def export_locais_template_csv():
     si = StringIO()
     w = csv.writer(si, delimiter=';')
     w.writerow(['nome','codigo','endereco','contato_nome','contato_tel','email','responsavel_alt','tipo_local','categoria_operacional','estado_tecnico','prioridade','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','iva','notas'])
-    w.writerow(['Ex.: ETA Umbeluzi','ETA-UMB','Umbeluzi, Maputo','Supervisor Local','84xxxxxxx','supervisor@adrmm.co.mz','Chefe de turno','ETA','Produção','Normal','Alta',1,1.0,6000,11750,4.780,1.430,4.970,4.780,207.28,297.00,150.00,16,'Local de referência'])
+    w.writerow(['Ex.: ETA Umbeluzi','ETA-UMB','Umbeluzi, Maputo','Supervisor Local','84xxxxxxx','supervisor@exemplo.co.mz','Chefe de turno','ETA','Produção','Normal','Alta',1,1.0,6000,11750,4.780,1.430,4.970,4.780,207.28,297.00,150.00,16,'Local de referência'])
     output = si.getvalue()
     return Response(output.encode('utf-8'), mimetype='text/csv; charset=utf-8', headers={"Content-Disposition": "attachment; filename=template_locais.csv"})
 
@@ -2345,6 +2371,7 @@ def export_locais_xlsx():
 
     output = BytesIO()
     wb = xlsxwriter.Workbook(output, {'in_memory': True})
+    _set_xlsx_identity(wb, 'Centros e Locais')
     ws = wb.add_worksheet('Locais')
     hdr = wb.add_format({'bold': True, 'bg_color': '#EAF4FF', 'font_color': '#174983', 'border': 1})
     txt = wb.add_format({'border': 1})
@@ -5043,6 +5070,7 @@ def _gravar_importacao_leituras_mensais(local_nome, selected_local_id, linhas, s
 def leituras_mensal_template_importacao_xlsx():
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    _set_xlsx_identity(workbook, 'Modelo de Importação de Leituras MT')
     ws = workbook.add_worksheet('MODELO_IMPORTACAO')
     fmt_title = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': '#073B78', 'align': 'center', 'valign': 'vcenter', 'font_size': 14})
     fmt_head = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': '#0F6FC6', 'align': 'center', 'valign': 'vcenter', 'border': 1})
@@ -8344,6 +8372,7 @@ def exportar_equipamentos_pdf():
     buffer = io.BytesIO()
     page_size = landscape(A4)
     cpdf = canvas.Canvas(buffer, pagesize=page_size)
+    _set_pdf_identity(cpdf, 'Relatório de Equipamentos')
     width, height = page_size
 
     title = f"Equipamentos - Relatório"
@@ -8646,6 +8675,7 @@ def equipamento_label(equipamento_id):
     _id, nome, tag = r
     buf = io.BytesIO()
     cpdf = canvas.Canvas(buf, pagesize=landscape(A7))
+    _set_pdf_identity(cpdf, 'Etiqueta de Equipamento')
     w, h = landscape(A7)
     cpdf.setFont("Helvetica-Bold", 10)
     cpdf.drawString(10*mm, h-10*mm, f"EQ #{_id}")
@@ -8783,6 +8813,7 @@ def equipamento_detalhe_pdf(equipamento_id):
 
     buf = io.BytesIO()
     cpdf = canvas.Canvas(buf, pagesize=A4)
+    _set_pdf_identity(cpdf, 'Ficha de Equipamento')
     w, h = A4
     cpdf.setFont("Helvetica-Bold", 14)
     cpdf.drawString(2*cm, h-2*cm, f"Ficha do Equipamento #{equipamento_id}")
@@ -8832,6 +8863,7 @@ def equipamentos_labels_pdf():
     from reportlab.graphics import renderPDF
     buf = io.BytesIO()
     cpdf = canvas.Canvas(buf, pagesize=A4)
+    _set_pdf_identity(cpdf, 'Etiquetas de Equipamentos')
     w, h = A4
 
     # grid 3x8 (aprox) de etiquetas
@@ -9126,6 +9158,7 @@ def equipamentos_import_json():
 def equipamentos_xlsx_template():
     out = io.BytesIO()
     wb = xlsxwriter.Workbook(out, {'in_memory': True})
+    _set_xlsx_identity(wb, 'Modelo de Importação de Equipamentos')
     ws = wb.add_worksheet('Equipamentos')
     headers = ["nome","local","tag","especificacao","ano","quantidade","categoria","fabricante","modelo","numero_serie","custo_aquisicao","vida_util_anos","criticidade"]
     for i,hx in enumerate(headers): ws.write(0, i, hx)
@@ -9172,6 +9205,7 @@ def equipamentos_export_xlsx():
 
     out = io.BytesIO()
     wb = xlsxwriter.Workbook(out, {'in_memory': True})
+    _set_xlsx_identity(wb, 'Exportação de Equipamentos')
     ws = wb.add_worksheet('Equipamentos')
     headers = ["nome","local","tag","especificacao","ano","quantidade","categoria","fabricante","modelo","numero_serie","custo_aquisicao","vida_util_anos","criticidade"]
     for i,hx in enumerate(headers): ws.write(0, i, hx)
@@ -9231,6 +9265,7 @@ def equipamentos_relatorio_pdf():
 
     buf = io.BytesIO()
     cpdf = canvas.Canvas(buf, pagesize=A4)
+    _set_pdf_identity(cpdf, 'Relatório Consolidado de Equipamentos')
     w, h = A4
     from reportlab.lib.units import cm
     cpdf.setFont("Helvetica-Bold", 14)
@@ -9611,6 +9646,7 @@ def equipamentos_labels_custom():
 
     buf = io.BytesIO()
     cpdf = canvas.Canvas(buf, pagesize=A4)
+    _set_pdf_identity(cpdf, 'Etiquetas Personalizadas de Equipamentos')
     w, h = A4
 
     cols, rows = (3,8) if layout=='A4_3x8' else (2,6)
@@ -9990,6 +10026,7 @@ def leituras_export_xlsx():
 
     out = io.BytesIO()
     wb = xlsxwriter.Workbook(out, {'in_memory': True})
+    _set_xlsx_identity(wb, 'Exportação de Leituras')
     ws = wb.add_worksheet('Leituras')
     header = ["id","datahora","local","equipamento","energia_ativa","energia_reativa","energia_aparente","pot_ativa","pot_reativa","pot_aparente","fp","ponta","caudal_elevada","corrente","tensao","observacoes"]
     for j,h in enumerate(header): ws.write(0,j,h)
@@ -10165,6 +10202,7 @@ def leituras_export_pdf():
 
     buffer = io.BytesIO()
     cpdf = canvas.Canvas(buffer, pagesize=A4)
+    _set_pdf_identity(cpdf, 'Relatório de Leituras')
     w, h = A4
     y = h - 30
     cpdf.setFont("Helvetica-Bold", 12)
@@ -10307,6 +10345,7 @@ def leituras_mensal_export_xlsx():
     conn.close()
     output = io.BytesIO()
     wb = xlsxwriter.Workbook(output, {'in_memory': True})
+    _set_xlsx_identity(wb, 'Exportação de Leituras Mensais')
     ws = wb.add_worksheet('Mensal')
     headers = ['Data','Hora','Ativa','Reativa','Ponta','FP','PotC','Anterior','Atual','Diferença','Água','Esp','Acum','Valor']
     for j,h in enumerate(headers): ws.write(0,j,h)
@@ -10916,6 +10955,7 @@ def leituras_mensal_fatura_edm_pdf():
     from reportlab.lib import colors
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    _set_pdf_identity(c, 'Fatura de Energia - EDM (Modelo Interno)')
     W, H = landscape(A4)
     margin = 28
     logo_path = os.path.join(BASE_DIR, 'static', 'adrmm_logo.png')
@@ -10935,7 +10975,7 @@ def leituras_mensal_fatura_edm_pdf():
     c.setFillColor(colors.HexColor('#073b78'))
     c.setFont('Helvetica-Bold', 17); c.drawString(margin+58, H-44, 'Fatura de Energia - EDM (Modelo Interno)')
     c.setFont('Helvetica', 8.5); c.setFillColor(colors.HexColor('#244f78'))
-    c.drawString(margin+58, H-58, 'Sistema de Gestão de Energia - Monitorização, análise e controlo energético')
+    c.drawString(margin+58, H-58, f'{INSTITUTION_NAME} · Sistema de Gestão de Energia')
     c.setFillColor(colors.black)
     _draw_right(c, W-margin, H-36, f"Local: {local}", 'Helvetica-Bold', 9)
     _draw_right(c, W-margin, H-50, f"Período: {ctx['periodo']}", 'Helvetica-Bold', 9)
@@ -12174,4 +12214,3 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', '5000'))
     debug = os.environ.get('FLASK_DEBUG', '0').lower() in ('1','true','yes')
     app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)
-
