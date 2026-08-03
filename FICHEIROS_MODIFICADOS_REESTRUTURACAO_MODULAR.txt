@@ -1,0 +1,38 @@
+PACOTE: REESTRUTURAÇÃO MODULAR E MANUTENIBILIDADE DO SGE
+
+Aplicação:
+- app.py
+- sge_loader.py
+
+Documentação e testes:
+- ARQUITETURA_MODULAR_SGE.md
+- tests/test_modular_structure.py
+
+Módulos funcionais novos:
+- sge_modules/__init__.py
+- sge_modules/security.py
+- sge_modules/bootstrap_runtime.py
+- sge_modules/locations_core.py
+- sge_modules/locations_routes.py
+- sge_modules/dashboard_core.py
+- sge_modules/dashboard_executive.py
+- sge_modules/equipment_core.py
+- sge_modules/equipment_extended.py
+- sge_modules/daily_readings_core.py
+- sge_modules/daily_readings_extended.py
+- sge_modules/daily_readings_api.py
+- sge_modules/monthly_readings_core.py
+- sge_modules/monthly_readings_api.py
+- sge_modules/monthly_readings_extended.py
+- sge_modules/motors.py
+- sge_modules/alerts.py
+- sge_modules/solar.py
+- sge_modules/administration.py
+- sge_modules/compatibility.py
+
+INSTALAÇÃO
+Extraia o conteúdo na raiz do projeto e substitua o app.py existente. As
+pastas e os ficheiros novos devem manter exatamente a estrutura deste pacote.
+
+Não são incluídos base de dados, uploads, backups, logs, credenciais ou
+ficheiros de configuração do ambiente.
