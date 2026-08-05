@@ -8,6 +8,29 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/instalar')
+def instalar_app():
+    """Página pública e partilhável para instalar o SGE como PWA."""
+    return render_template('instalar_app.html')
+
+
+@app.route('/service-worker.js')
+def service_worker():
+    response = send_from_directory(
+        os.path.join(BASE_DIR, 'static'),
+        'service-worker.js',
+        mimetype='application/javascript',
+    )
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
+@app.route('/offline')
+def offline():
+    return render_template('offline.html')
+
+
 
 # === MÓDULO UNIFICADO: GESTÃO DE LEITURAS, CONSUMO E FATURAÇÃO ===
 @app.route('/energia')
@@ -347,4 +370,3 @@ def dashboard_export():
         ])
     output = si.getvalue().encode("utf-8-sig")
     return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename=dashboard_{ano}-{mes}.csv"})# === LOCAIS ===
-

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}SGE · Sem ligação{% endblock %}
+{% block content %}
+<section class="sge-offline-card">
+  <i class="bi bi-wifi-off"></i><h1>Sem ligação à internet</h1>
+  <p>O aplicativo SGE está instalado, mas precisa de ligação à internet para apresentar dados atualizados e guardar operações.</p>
+  <button class="btn btn-primary" type="button" onclick="window.location.reload()"><i class="bi bi-arrow-clockwise me-2"></i>Tentar novamente</button>
+</section>
+{% endblock %}

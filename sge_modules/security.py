@@ -131,7 +131,10 @@ app.config.update(
 # Credenciais via variáveis de ambiente: SGE_ADMIN_USER e SGE_ADMIN_PASSWORD
 # Alternativa mais segura: SGE_ADMIN_PASSWORD_HASH com hash Werkzeug.
 AUTH_EXEMPT_PREFIXES = ('/static/', '/api/v1/telemetria')
-AUTH_EXEMPT_PATHS = {'/login', '/logout', '/healthz', '/robots.txt', '/favicon.ico'}
+AUTH_EXEMPT_PATHS = {
+    '/login', '/logout', '/healthz', '/robots.txt', '/favicon.ico',
+    '/instalar', '/offline', '/service-worker.js',
+}
 CSRF_EXEMPT_PREFIXES = ('/api/v1/telemetria',)
 LOGIN_FAILURES = {}
 

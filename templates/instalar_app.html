@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Instalar SGE · Águas e Saneamento de Maputo{% endblock %}
+{% block content %}
+<section class="sge-install-hero">
+  <div class="sge-install-copy">
+    <span class="sge-install-kicker"><i class="bi bi-phone"></i> Aplicativo oficial do SGE</span>
+    <h1>Instale o SGE no seu telemóvel</h1>
+    <p>Aceda à Telemetria Energética, Eficiência Energética, locais, activos, facturação e relatórios diretamente pelo ecrã principal.</p>
+    <div class="d-flex flex-wrap gap-2 mt-4">
+      <button class="btn btn-light btn-lg" type="button" data-pwa-install hidden><i class="bi bi-download me-2"></i>Instalar aplicativo</button>
+      <a class="btn btn-outline-light btn-lg" href="{{ url_for('login') }}"><i class="bi bi-box-arrow-in-right me-2"></i>Entrar no SGE</a>
+    </div>
+    <p class="sge-install-status mt-3 mb-0" data-pwa-status>Escolha abaixo o seu tipo de telemóvel e siga os passos.</p>
+  </div>
+  <div class="sge-install-mark"><img src="{{ url_for('static', filename='icons/sge-192.png') }}" alt="Ícone do SGE"><strong>SGE ASM</strong><small>Gestão de Energia</small></div>
+</section>
+
+<section class="sge-install-grid">
+  <article class="sge-install-card">
+    <span class="sge-install-number">1</span><i class="bi bi-android2 sge-install-platform"></i>
+    <h2>Android</h2>
+    <ol><li>Abra este link no Google Chrome.</li><li>Toque em <strong>Instalar aplicativo</strong>.</li><li>Confirme em <strong>Instalar</strong>.</li></ol>
+    <p>Se o botão não aparecer, abra o menu <strong>⋮</strong> do Chrome e escolha <strong>Instalar app</strong> ou <strong>Adicionar ao ecrã principal</strong>.</p>
+  </article>
+  <article class="sge-install-card">
+    <span class="sge-install-number">2</span><i class="bi bi-apple sge-install-platform"></i>
+    <h2>iPhone / iPad</h2>
+    <ol><li>Abra este link no Safari.</li><li>Toque no botão <strong>Partilhar</strong>.</li><li>Escolha <strong>Adicionar ao ecrã principal</strong> e confirme.</li></ol>
+    <p>No iPhone, a instalação é feita pelo menu Partilhar do Safari; o botão automático pode não ser apresentado.</p>
+  </article>
+  <article class="sge-install-card">
+    <span class="sge-install-number">3</span><i class="bi bi-shield-check sge-install-platform"></i>
+    <h2>Acesso seguro</h2>
+    <p>Depois de instalado, abra o ícone <strong>SGE ASM</strong> e entre com o seu utilizador e senha habituais.</p>
+    <p>O aplicativo respeita as mesmas permissões do sistema. É necessária internet para consultar e alterar os dados atualizados.</p>
+  </article>
+</section>
+{% endblock %}
