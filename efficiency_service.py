@@ -2,7 +2,7 @@
 
 O módulo mantém cálculos e critérios de qualidade fora das rotas Flask. Assim,
 dashboard, API, PDF, Excel e testes usam exatamente a mesma interpretação de
-energia, água, custo, linha de base e poupança.
+energia, água, custo, consumo de referência e poupança.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def iter_months(start: str, end: str, *, limit: int = 60) -> list[tuple[int, int
     sy, sm = parse_period(start)
     ey, em = parse_period(end)
     if (ey, em) < (sy, sm):
-        raise EfficiencyValidationError("O fim da linha de base não pode anteceder o início.")
+        raise EfficiencyValidationError("O fim do período de referência não pode anteceder o início.")
     months: list[tuple[int, int]] = []
     year, month = sy, sm
     while (year, month) <= (ey, em):
@@ -274,7 +274,7 @@ def build_baseline_snapshot(
     ]
     if len(eligible) < int(minimum_months):
         raise EfficiencyValidationError(
-            f"A linha de base exige pelo menos {minimum_months} meses com energia, água e cobertura mínima. "
+            f"O consumo específico de referência exige pelo menos {minimum_months} meses com energia, água e cobertura mínima. "
             f"Foram encontrados {len(eligible)} mês(es) elegível(eis)."
         )
     energy = sum(item["energia_kwh"] for item in eligible)
@@ -329,7 +329,7 @@ def evaluate_month(conn: sqlite3.Connection, local_id: int, year: int, month: in
     result.update({
         "baseline": baseline,
         "meta": target,
-        "estado_eficiencia": "Sem linha de base",
+        "estado_eficiencia": "Sem referência de consumo",
         "desvio_baseline_pct": None,
         "energia_esperada_kwh": None,
         "poupanca_energia_kwh": None,

@@ -80,9 +80,9 @@ def eficiencia_linhas_base():
     try:
         if request.method == "POST":
             if not _efficiency_manager():
-                return _deny_access("Apenas gestores e administradores podem criar linhas de base.")
+                return _deny_access("Apenas gestores e administradores podem criar referências de consumo.")
             local_id = request.form.get("local_id", type=int)
-            name = (request.form.get("nome") or "Linha de base operacional").strip()[:160]
+            name = (request.form.get("nome") or "Consumo específico de referência").strip()[:160]
             start = (request.form.get("periodo_inicio") or "").strip()
             end = (request.form.get("periodo_fim") or "").strip()
             coverage = request.form.get("cobertura_minima_pct", type=float)
@@ -115,14 +115,14 @@ def eficiencia_linhas_base():
                 )
                 efficiency_audit(conn, "baseline", cursor.lastrowid, "criada", f"{start} a {end}", _actor_name("sge"))
                 conn.commit()
-                flash("Linha de base calculada e guardada como rascunho. Revise antes de aprovar.", "success")
+                flash("Consumo específico de referência calculado e guardado como rascunho. Revise antes de aprovar.", "success")
                 return redirect(url_for("eficiencia_linhas_base"))
             except EfficiencyValidationError as exc:
                 conn.rollback()
                 flash(str(exc), "warning")
             except Exception:
                 conn.rollback()
-                flash("Não foi possível criar a linha de base. Verifique os dados e tente novamente.", "danger")
+                flash("Não foi possível criar a referência de consumo. Verifique os dados e tente novamente.", "danger")
 
         baselines = conn.execute(
             """
@@ -146,22 +146,22 @@ def eficiencia_linhas_base():
 @app.post("/eficiencia/linhas-base/<int:baseline_id>/estado")
 def eficiencia_linha_base_estado(baseline_id):
     if not _efficiency_manager():
-        return _deny_access("Apenas gestores e administradores podem aprovar ou arquivar linhas de base.")
+        return _deny_access("Apenas gestores e administradores podem aprovar ou arquivar referências de consumo.")
     action = (request.form.get("acao") or "").strip().lower()
     if action not in ("aprovar", "arquivar"):
-        flash("Ação de linha de base inválida.", "warning")
+        flash("Ação de referência de consumo inválida.", "warning")
         return redirect(url_for("eficiencia_linhas_base"))
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
         row = conn.execute("SELECT * FROM eficiencia_baselines WHERE id=?", (baseline_id,)).fetchone()
         if not row:
-            flash("Linha de base não encontrada.", "warning")
+            flash("Referência de consumo não encontrada.", "warning")
             return redirect(url_for("eficiencia_linhas_base"))
         actor = _actor_name("sge")
         if action == "aprovar":
             if int(row["meses_elegiveis"] or 0) < 3 or float(row["agua_total_m3"] or 0) <= 0:
-                flash("A linha de base não cumpre os requisitos mínimos para aprovação.", "warning")
+                flash("A referência de consumo não cumpre os requisitos mínimos para aprovação.", "warning")
                 return redirect(url_for("eficiencia_linhas_base"))
             conn.execute(
                 "UPDATE eficiencia_baselines SET estado='arquivada', arquivado_em=datetime('now','localtime') WHERE local_id=? AND estado='aprovada' AND id<>?",
@@ -171,13 +171,13 @@ def eficiencia_linha_base_estado(baseline_id):
                 "UPDATE eficiencia_baselines SET estado='aprovada', aprovado_por=?, aprovado_em=datetime('now','localtime'), arquivado_em=NULL WHERE id=?",
                 (actor, baseline_id),
             )
-            message = "Linha de base aprovada e ativada para o local."
+            message = "Referência de consumo aprovada e ativada para o local."
         else:
             conn.execute(
                 "UPDATE eficiencia_baselines SET estado='arquivada', arquivado_em=datetime('now','localtime') WHERE id=?",
                 (baseline_id,),
             )
-            message = "Linha de base arquivada."
+            message = "Referência de consumo arquivada."
         efficiency_audit(conn, "baseline", baseline_id, action, message, actor)
         conn.commit()
         flash(message, "success")
@@ -205,7 +205,7 @@ def eficiencia_meta_guardar():
             (local_id,),
         ).fetchone()
         if not baseline:
-            flash("Aprove uma linha de base antes de definir a meta.", "warning")
+            flash("Aprove uma referência de consumo antes de definir a meta.", "warning")
             return redirect(request.referrer or url_for("eficiencia_linhas_base"))
         target_specific = float(baseline["consumo_especifico_kwh_m3"]) * (1.0 - reduction / 100.0)
         target_cost = float(baseline["custo_especifico_mzn_m3"]) * (1.0 - reduction / 100.0)
@@ -337,7 +337,7 @@ def eficiencia_export_xlsx():
     ws.write("A2", f"Período: {year}-{month:02d}")
     columns = [
         "Local", "Energia (kWh)", "Água (m³)", "kWh/m³", "Custo (MZN)", "MZN/m³",
-        "Cobertura (%)", "Linha de base", "Desvio base (%)", "Poupança (kWh)",
+        "Cobertura (%)", "Consumo específico de referência", "Desvio da referência (%)", "Poupança (kWh)",
         "Poupança (MZN)", "Qualidade", "Estado",
     ]
     for col, value in enumerate(columns):
@@ -408,7 +408,7 @@ def eficiencia_relatorio_pdf():
     lines = [
         f"Energia: {summary['energia_kwh']:,.2f} kWh | Água: {summary['agua_m3']:,.2f} m³ | Custo: {summary['custo_mzn']:,.2f} MZN",
         f"Consumo específico: {summary['consumo_especifico_kwh_m3'] if summary['consumo_especifico_kwh_m3'] is not None else '—'} kWh/m³ | Custo específico: {summary['custo_especifico_mzn_m3'] if summary['custo_especifico_mzn_m3'] is not None else '—'} MZN/m³",
-        f"Locais com linha de base: {summary['locais_com_baseline']} | Críticos: {summary['locais_criticos']} | Medidas abertas: {summary['medidas_abertas']}",
+        f"Locais com referência de consumo: {summary['locais_com_baseline']} | Críticos: {summary['locais_criticos']} | Medidas abertas: {summary['medidas_abertas']}",
         f"Poupança verificada: {summary['poupanca_verificada_kwh']:,.2f} kWh | {summary['poupanca_verificada_mzn']:,.2f} MZN",
     ]
     for line in lines:
@@ -435,6 +435,6 @@ def eficiencia_relatorio_pdf():
         for x, value in zip(positions, row): pdf.drawString(x, y, value)
         y -= 13
     pdf.setFont("Helvetica-Oblique", 7.5)
-    pdf.drawString(36, 30, "Poupança verificada requer linha de base aprovada, água registada e cobertura mensal mínima de 80%. Valores financeiros excluem alterações de ponta e taxas fixas.")
+    pdf.drawString(36, 30, "Poupança verificada requer referência de consumo aprovada, água registada e cobertura mensal mínima de 80%. Valores financeiros excluem alterações de ponta e taxas fixas.")
     pdf.save(); output.seek(0)
     return send_file(output, as_attachment=True, download_name=f"relatorio_eficiencia_{year}-{month:02d}.pdf", mimetype="application/pdf")
