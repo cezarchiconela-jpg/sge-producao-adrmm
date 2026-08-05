@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block title %}SGE · Pré-visualização{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+  <div><div class="text-primary fw-bold text-uppercase small">Pré-visualização controlada</div><h1 class="h3 fw-bold mb-1">{{ batch.ficheiro_nome }}</h1><p class="text-muted mb-0">{{ batch.formato }} · {{ batch.periodo or 'vários períodos' }} · {{ rows|length }} linhas detetadas</p></div>
+  <a class="btn btn-outline-secondary" href="/eficiencia/dados">Sair sem confirmar</a>
+</div>
+<div class="alert alert-info">Confirme apenas linhas com o local correto. Linhas marcadas com divergência ficam desmarcadas até revisão.</div>
+<form method="post" action="/eficiencia/dados/confirmar/{{ batch.lote_uid }}">
+  <div class="card shadow-sm border-0"><div class="table-responsive" style="max-height:65vh"><table class="table table-sm align-middle mb-0">
+    <thead class="sticky-top bg-white"><tr><th>Usar</th><th>Data</th><th>Local identificado</th><th>Mapear para</th><th class="text-end">Energia kWh</th><th class="text-end">Água m³</th><th>Qualidade</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="{% if r.avisos %}table-warning{% endif %}">
+      <td><input class="form-check-input" type="checkbox" name="usar_{{ r.id }}" value="1" {% if r.local_id and r.energia_kwh is not none and r.volume_m3 is not none and not r.avisos %}checked{% endif %}></td>
+      <td>{{ r.data }}</td><td><strong>{{ r.local_origem }}</strong>{% if r.avisos %}<div class="small text-danger">{{ r.avisos }}</div>{% endif %}</td>
+      <td><select class="form-select form-select-sm" name="local_{{ r.id }}"><option value="">— não mapeado —</option>{% for l in locais %}<option value="{{ l.id }}" {% if l.id==r.local_id %}selected{% endif %}>{{ l.nome }}</option>{% endfor %}</select></td>
+      <td class="text-end">{{ '{:,.2f}'.format(r.energia_kwh) if r.energia_kwh is not none else '—' }}</td><td class="text-end">{{ '{:,.2f}'.format(r.volume_m3) if r.volume_m3 is not none else '—' }}</td>
+      <td><span class="badge {% if r.qualidade=='validavel' and not r.avisos %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ r.qualidade }}</span></td>
+    </tr>{% endfor %}</tbody>
+  </table></div><div class="card-footer bg-white d-flex justify-content-between align-items-center"><small class="text-muted">A confirmação cria dados operacionais validados e rastreáveis.</small>{% if can_confirm %}<button class="btn btn-success px-4">Confirmar linhas selecionadas</button>{% else %}<span class="badge text-bg-warning">Aguardar validação do gestor</span>{% endif %}</div></div>
+</form>{% endblock %}

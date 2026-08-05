@@ -1,0 +1,15 @@
+app.py
+efficiency_service.py
+migrations.py
+operational_import_service.py
+requirements.txt
+requirements-fixed.txt
+sge_modules/operational_imports.py
+templates/eficiencia_dashboard.html
+templates/eficiencia_dados.html
+templates/eficiencia_importar.html
+templates/eficiencia_import_preview.html
+tests/test_modular_structure.py
+tests/test_operational_imports.py
+INTEGRACAO_PIGI_DADOS_OPERACIONAIS.md
+FICHEIROS_MODIFICADOS_INTEGRACAO_PIGI.txt

@@ -8,4 +8,5 @@ XlsxWriter>=3.2
 qrcode>=7.4
 Werkzeug>=2.3
 pandas>=2.0
+pyxlsb>=1.0.10
 gunicorn>=21.2

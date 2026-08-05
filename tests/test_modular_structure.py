@@ -13,7 +13,7 @@ class ModularStructureTest(unittest.TestCase):
         "equipment_extended", "daily_readings_core", "daily_readings_extended",
         "daily_readings_api", "monthly_readings_core", "monthly_readings_api",
         "monthly_readings_extended", "motors", "alerts", "solar",
-        "administration", "compatibility", "efficiency", "asset_registry",
+        "administration", "compatibility", "efficiency", "operational_imports",
     }
 
     def test_app_is_a_small_composition_root(self):

@@ -94,6 +94,48 @@ def _last_reading_before(conn: sqlite3.Connection, local_name: str, year: int, m
     return _number(row[0], 0.0) if row else None
 
 
+def _operational_month(conn: sqlite3.Connection, local_id: int, year: int, month: int) -> dict[str, Any]:
+    """Seleciona uma fonte por grandeza, sem somar PIGI, EDM e outras fontes."""
+    try:
+        rows = conn.execute(
+            """SELECT data,fonte,energia_kwh,
+                      COALESCE(volume_distribuido_m3,volume_produzido_m3,volume_captado_m3) AS volume_m3,
+                      horas_operacao,tipo_dado,cobertura_pct
+               FROM operacional_dados
+               WHERE local_id=? AND estado='validado' AND substr(data,1,7)=?
+               ORDER BY data,id""",
+            (int(local_id), f"{int(year):04d}-{int(month):02d}"),
+        ).fetchall()
+    except sqlite3.Error:
+        return {}
+    if not rows:
+        return {}
+    energy_priority = {"TELEMETRIA": 5, "EDM_PLANILHA": 4, "PIGI": 3, "SCADA": 2, "MANUAL": 1}
+    water_priority = {"SCADA": 5, "PIGI": 4, "EDM_PLANILHA": 2, "MANUAL": 1}
+    grouped: dict[str, list[Any]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["fonte"] or "MANUAL").upper(), []).append(row)
+    def choose(field: str):
+        priority = water_priority if field == "volume_m3" else energy_priority
+        choices = []
+        for source, items in grouped.items():
+            valid = [item for item in items if _number(item[field]) is not None and _number(item[field]) >= 0]
+            if valid:
+                choices.append((priority.get(source, 0), len({x["data"] for x in valid}), source, valid))
+        return max(choices, default=None, key=lambda x: (x[0], x[1]))
+    energy_pick, water_pick = choose("energia_kwh"), choose("volume_m3")
+    days_energy = len({x["data"] for x in energy_pick[3]}) if energy_pick else 0
+    days_water = len({x["data"] for x in water_pick[3]}) if water_pick else 0
+    days = min(x for x in (days_energy, days_water) if x > 0) if days_energy and days_water else max(days_energy, days_water)
+    return {
+        "energia_kwh": sum(max(0.0, _number(x["energia_kwh"])) for x in energy_pick[3]) if energy_pick else None,
+        "agua_m3": sum(max(0.0, _number(x["volume_m3"])) for x in water_pick[3]) if water_pick else None,
+        "fonte_energia": energy_pick[2] if energy_pick else None,
+        "fonte_agua": water_pick[2] if water_pick else None,
+        "dias_energia": days_energy, "dias_agua": days_water, "dias_com_dados": days,
+    }
+
+
 def month_metrics(conn: sqlite3.Connection, local_id: int, year: int, month: int) -> dict[str, Any]:
     """Calcula os indicadores físicos e financeiros de um local/mês.
 
@@ -136,6 +178,23 @@ def month_metrics(conn: sqlite3.Connection, local_id: int, year: int, month: int
 
     days_in_month = calendar.monthrange(int(year), int(month))[1]
     days_with_data = len({row["data"] for row in rows if row["data"]})
+    energy_source = "LEITURA_MENSAL"
+    water_source = "LEITURA_MENSAL"
+    operational = _operational_month(conn, local_id, year, month)
+    if operational.get("energia_kwh") is not None:
+        energy_kwh = operational["energia_kwh"]
+        energy_source = operational["fonte_energia"]
+        # PIGI/EDM diário representa consumo já calculado, não leitura acumulada.
+        reactive_kvarh = 0.0
+    if operational.get("agua_m3") is not None:
+        water_m3 = operational["agua_m3"]
+        water_source = operational["fonte_agua"]
+    if operational:
+        relevant = [operational.get("dias_energia") if operational.get("energia_kwh") is not None else None,
+                    operational.get("dias_agua") if operational.get("agua_m3") is not None else None]
+        relevant = [value for value in relevant if value is not None]
+        if relevant:
+            days_with_data = min(relevant)
     coverage_pct = min(100.0, days_with_data * 100.0 / days_in_month) if days_in_month else 0.0
     tariffs = resolve_tariffs(conn, int(local_id), f"{int(year):04d}-{int(month):02d}-01")
     invoice = calculate_invoice(
@@ -149,7 +208,7 @@ def month_metrics(conn: sqlite3.Connection, local_id: int, year: int, month: int
     specific = energy_kwh / water_m3 if energy_kwh > 0 and water_m3 > 0 else None
     cost_specific = invoice["total_mzn"] / water_m3 if water_m3 > 0 else None
     warnings: list[str] = []
-    if not rows:
+    if not rows and not operational:
         warnings.append("Sem leituras no período.")
     if energy_kwh <= 0:
         warnings.append("Sem energia ativa faturável validada.")
@@ -159,6 +218,10 @@ def month_metrics(conn: sqlite3.Connection, local_id: int, year: int, month: int
         warnings.append("Cobertura de leituras inferior a 80%.")
     if active and previous_active is None:
         warnings.append("Sem leitura-base do mês anterior; a primeira leitura do mês foi usada como referência.")
+    if operational:
+        warnings.append(f"Energia: {energy_source}; água: {water_source}. As fontes não foram somadas.")
+        if energy_source in ("PIGI", "EDM_PLANILHA"):
+            warnings.append("O custo é estimado com as tarifas disponíveis; a fatura oficial continua separada.")
 
     return {
         "local_id": int(local["id"]),
@@ -185,6 +248,8 @@ def month_metrics(conn: sqlite3.Connection, local_id: int, year: int, month: int
         "leitura_final_ativa": active_final,
         "tarifa_ativa": tariffs["tarifa_ativa"],
         "tarifa_fonte": tariffs.get("source"),
+        "fonte_energia": energy_source,
+        "fonte_agua": water_source,
         "avisos": warnings,
     }
 

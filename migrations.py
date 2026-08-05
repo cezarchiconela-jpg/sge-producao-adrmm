@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date
 
 
-SCHEMA_VERSION = 2026080502
+SCHEMA_VERSION = 2026080501
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -49,21 +49,6 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             estado_tecnico TEXT DEFAULT 'Normal',
             prioridade TEXT DEFAULT 'Média',
             parent_id INTEGER,
-            provincia TEXT,
-            municipio TEXT,
-            distrito TEXT,
-            bairro TEXT,
-            latitude REAL,
-            longitude REAL,
-            sector_operacional TEXT,
-            fonte_cadastro TEXT,
-            referencia_externa TEXT,
-            ultima_sincronizacao TEXT,
-            classificacao_confirmada INTEGER DEFAULT 0,
-            nome_exibicao TEXT,
-            nivel_hierarquia TEXT,
-            grupo_navegacao TEXT,
-            ordem_navegacao INTEGER DEFAULT 0,
             FOREIGN KEY(parent_id) REFERENCES locais(id)
         );
         CREATE TABLE IF NOT EXISTS locais_cfg (
@@ -109,16 +94,6 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             garantia_fim TEXT,
             fornecedor TEXT,
             contrato_num TEXT,
-            sistema TEXT,
-            instalacao TEXT,
-            estado_operacional TEXT,
-            periodicidade_manutencao TEXT,
-            sector_operacional TEXT,
-            referencia_externa TEXT,
-            fonte_cadastro TEXT,
-            source_record_no TEXT,
-            source_hash TEXT,
-            ultima_sincronizacao TEXT,
             FOREIGN KEY(local_id) REFERENCES locais(id)
         );
         CREATE TABLE IF NOT EXISTS leituras (
@@ -234,23 +209,6 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT, equipamento_id INTEGER,
             acao TEXT, detalhes TEXT, actor TEXT,
             ts TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE TABLE IF NOT EXISTS asset_import_batches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_name TEXT NOT NULL,
-            source_hash TEXT,
-            actor TEXT,
-            status TEXT NOT NULL DEFAULT 'Em curso',
-            total_rows INTEGER DEFAULT 0,
-            inserted_rows INTEGER DEFAULT 0,
-            updated_rows INTEGER DEFAULT 0,
-            reconciled_rows INTEGER DEFAULT 0,
-            unchanged_rows INTEGER DEFAULT 0,
-            new_locations INTEGER DEFAULT 0,
-            summary_json TEXT,
-            error_message TEXT,
-            started_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-            completed_at TEXT
         );
         CREATE TABLE IF NOT EXISTS locais_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT, local_id INTEGER NOT NULL,
@@ -411,6 +369,49 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             actor TEXT,
             ts TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS operacional_importacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, lote_uid TEXT NOT NULL UNIQUE,
+            ficheiro_nome TEXT NOT NULL, ficheiro_hash TEXT NOT NULL, formato TEXT NOT NULL,
+            periodo TEXT, estado TEXT NOT NULL DEFAULT 'previsualizacao',
+            total_linhas INTEGER NOT NULL DEFAULT 0, linhas_importadas INTEGER NOT NULL DEFAULT 0,
+            linhas_rejeitadas INTEGER NOT NULL DEFAULT 0, criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            confirmado_por TEXT, confirmado_em TEXT
+        );
+        CREATE TABLE IF NOT EXISTS operacional_importacao_linhas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, lote_id INTEGER NOT NULL,
+            linha_origem INTEGER, folha_origem TEXT, local_origem TEXT NOT NULL,
+            local_id INTEGER, data TEXT NOT NULL, energia_kwh REAL, volume_m3 REAL,
+            horas_operacao REAL, tipo_dado TEXT NOT NULL DEFAULT 'medido',
+            qualidade TEXT NOT NULL DEFAULT 'provisoria', estado TEXT NOT NULL DEFAULT 'pendente',
+            avisos TEXT, payload_json TEXT,
+            FOREIGN KEY(lote_id) REFERENCES operacional_importacoes(id) ON DELETE CASCADE,
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE SET NULL
+        );
+        CREATE TABLE IF NOT EXISTS operacional_dados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, local_id INTEGER NOT NULL, data TEXT NOT NULL,
+            periodo_tipo TEXT NOT NULL DEFAULT 'dia', energia_kwh REAL,
+            volume_captado_m3 REAL, volume_produzido_m3 REAL, volume_distribuido_m3 REAL,
+            horas_operacao REAL, cortes_programados_min REAL, cortes_nao_programados_min REAL,
+            fonte TEXT NOT NULL, tipo_dado TEXT NOT NULL DEFAULT 'medido',
+            estado TEXT NOT NULL DEFAULT 'validado', cobertura_pct REAL NOT NULL DEFAULT 100,
+            lote_id INTEGER, ficheiro_origem TEXT, observacoes TEXT, criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')), atualizado_em TEXT,
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE CASCADE,
+            FOREIGN KEY(lote_id) REFERENCES operacional_importacoes(id) ON DELETE SET NULL,
+            UNIQUE(local_id, data, periodo_tipo, fonte)
+        );
+        CREATE TABLE IF NOT EXISTS operacional_ocorrencias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, local_id INTEGER,
+            descricao TEXT NOT NULL, categoria TEXT NOT NULL DEFAULT 'Operacional',
+            fonte TEXT NOT NULL DEFAULT 'PIGI', lote_id INTEGER,
+            estado TEXT NOT NULL DEFAULT 'validada', criado_por TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY(local_id) REFERENCES locais(id) ON DELETE SET NULL,
+            FOREIGN KEY(lote_id) REFERENCES operacional_importacoes(id) ON DELETE SET NULL,
+            UNIQUE(data, descricao, fonte)
+        );
         """
     )
 
@@ -424,12 +425,7 @@ def _upgrade_existing_tables(conn: sqlite3.Connection) -> None:
         "potencia_instalada_kw": "REAL DEFAULT 0", "tipo_local": "TEXT",
         "categoria_operacional": "TEXT", "email": "TEXT", "responsavel_alt": "TEXT",
         "estado_tecnico": "TEXT DEFAULT 'Normal'", "prioridade": "TEXT DEFAULT 'Média'",
-        "parent_id": "INTEGER", "provincia": "TEXT", "municipio": "TEXT",
-        "distrito": "TEXT", "bairro": "TEXT", "latitude": "REAL", "longitude": "REAL",
-        "sector_operacional": "TEXT", "fonte_cadastro": "TEXT", "referencia_externa": "TEXT",
-        "ultima_sincronizacao": "TEXT", "classificacao_confirmada": "INTEGER DEFAULT 0",
-        "nome_exibicao": "TEXT", "nivel_hierarquia": "TEXT",
-        "grupo_navegacao": "TEXT", "ordem_navegacao": "INTEGER DEFAULT 0",
+        "parent_id": "INTEGER",
     })
     _ensure_columns(conn, "locais_cfg", {
         "fator_mult": "REAL DEFAULT 1.0", "pot_contratada": "REAL DEFAULT 0.0",
@@ -449,11 +445,7 @@ def _upgrade_existing_tables(conn: sqlite3.Connection) -> None:
             "criticidade": "TEXT", "cover_photo_id": "INTEGER", "deleted_at": "TEXT",
             "potencia_kw": "REAL", "tensao_v": "REAL", "corrente_a": "REAL",
             "ip_class": "TEXT", "peso_kg": "REAL", "garantia_fim": "TEXT",
-            "fornecedor": "TEXT", "contrato_num": "TEXT", "sistema": "TEXT",
-            "instalacao": "TEXT", "estado_operacional": "TEXT",
-            "periodicidade_manutencao": "TEXT", "sector_operacional": "TEXT",
-            "referencia_externa": "TEXT", "fonte_cadastro": "TEXT",
-            "source_record_no": "TEXT", "source_hash": "TEXT", "ultima_sincronizacao": "TEXT",
+            "fornecedor": "TEXT", "contrato_num": "TEXT",
         },
         "leituras": {
             "datahora": "TEXT", "local": "TEXT", "equipamento": "TEXT",
@@ -554,15 +546,6 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_equip_local ON equipamentos(local_id)",
         "CREATE INDEX IF NOT EXISTS idx_equip_ativo ON equipamentos(ativo)",
         "CREATE INDEX IF NOT EXISTS idx_equip_deleted ON equipamentos(deleted_at)",
-        "CREATE INDEX IF NOT EXISTS idx_equip_sistema ON equipamentos(sistema)",
-        "CREATE INDEX IF NOT EXISTS idx_equip_instalacao ON equipamentos(instalacao)",
-        "CREATE INDEX IF NOT EXISTS idx_equip_estado_operacional ON equipamentos(estado_operacional)",
-        "CREATE INDEX IF NOT EXISTS idx_equip_sector_operacional ON equipamentos(sector_operacional)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_equip_referencia_externa ON equipamentos(referencia_externa) WHERE COALESCE(referencia_externa,'')<>''",
-        "CREATE INDEX IF NOT EXISTS idx_locais_tipo_sector ON locais(tipo_local, sector_operacional)",
-        "CREATE INDEX IF NOT EXISTS idx_locais_grupo_nivel ON locais(grupo_navegacao, nivel_hierarquia, parent_id)",
-        "CREATE INDEX IF NOT EXISTS idx_locais_referencia_externa ON locais(referencia_externa)",
-        "CREATE INDEX IF NOT EXISTS idx_asset_import_batches_started ON asset_import_batches(started_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_local_datahora ON leituras(local, datahora)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_mensais_periodo ON leituras_mensais(local, mes, ano, data)",
         "CREATE INDEX IF NOT EXISTS idx_tarifas_historico_periodo ON tarifas_historico(local_id, valid_from, valid_to)",
@@ -573,6 +556,10 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_eficiencia_metas_local_ano ON eficiencia_metas(local_id, ano)",
         "CREATE INDEX IF NOT EXISTS idx_eficiencia_medidas_local_estado ON eficiencia_medidas(local_id, estado, prioridade)",
         "CREATE INDEX IF NOT EXISTS idx_eficiencia_audit_time ON eficiencia_audit(ts DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_operacional_local_data ON operacional_dados(local_id,data,estado)",
+        "CREATE INDEX IF NOT EXISTS idx_operacional_lote ON operacional_dados(lote_id)",
+        "CREATE INDEX IF NOT EXISTS idx_operacional_preview_lote ON operacional_importacao_linhas(lote_id,estado)",
+        "CREATE INDEX IF NOT EXISTS idx_operacional_ocorrencias_data ON operacional_ocorrencias(data,local_id)",
     )
     for statement in statements:
         conn.execute(statement)
@@ -592,7 +579,7 @@ def run_migrations(db_path: str) -> int:
         _create_indexes(conn)
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES(?,?)",
-            (SCHEMA_VERSION, "Cadastro mestre de locais e activos, importação inteligente e exportações completas"),
+            (SCHEMA_VERSION, "Integração PIGI e dados operacionais de água e energia"),
         )
         conn.commit()
         return SCHEMA_VERSION
