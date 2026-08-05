@@ -192,6 +192,7 @@ def listar_equipamentos():
         'nome': 'e.nome',
         'local_nome': 'l.nome',
         'tag': 'e.tag',
+        'categoria': 'e.categoria',
         'ano': 'CAST(COALESCE(e.ano_instalacao,0) AS INTEGER)',
         'quantidade': 'e.quantidade',
         'fabricante': 'e.fabricante',

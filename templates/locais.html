@@ -1,298 +1,294 @@
-<!doctype html>
-<html lang="pt">
-<head>
-  <meta charset="utf-8">
-  <title>Módulo Locais — SGE Operacional</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
-</head>
-<body class="sge-page">
-  <div class="sge-shell sge-wide sge-phase3">
-    <header class="sge-topbar">
-      <div class="sge-brand">
-        <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="Águas e Saneamento de Maputo">
-        <div>
-          <h1>Sistema de Gestão de Energia</h1>
-          <small>Águas e Saneamento de Maputo · Gestão de Centros e Locais</small>
-        </div>
+{% extends "base.html" %}
+{% block title %}Locais · SGE{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='cadastros.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set filter_state = namespace(count=0) %}
+{% if q %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if status != 'todos' %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if tipo != 'todos' %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if qualidade != 'todos' %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if estado_tecnico != 'todos' %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if prioridade != 'todas' %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+{% if incluir_inativos %}{% set filter_state.count = filter_state.count + 1 %}{% endif %}
+
+<div class="registry-page registry-locations">
+  <header class="registry-hero">
+    <div>
+      <div class="registry-eyebrow"><i class="bi bi-diagram-3"></i> Cadastro operacional</div>
+      <h1>Locais</h1>
+      <p>Consulte a estrutura real da empresa por ETAs ou CDs e avance até à instalação, subinstalação e equipamento exacto.</p>
+      <div class="registry-hero-actions">
+        {% if can_write('locais') %}
+        <a class="btn btn-light" href="{{ url_for('adicionar_local') }}"><i class="bi bi-plus-lg me-1"></i>Novo local</a>
+        <a class="btn btn-outline-light" href="{{ url_for('locais_import') }}"><i class="bi bi-file-earmark-arrow-up me-1"></i>Importar cadastro</a>
+        {% endif %}
+        <a class="btn btn-outline-light" href="{{ url_for('cadastro_activos') }}"><i class="bi bi-database-check me-1"></i>Cadastro mestre</a>
       </div>
-      <nav class="sge-nav">
-        <a href="{{ url_for('index') }}">Início</a>
-        <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
-        <a href="{{ url_for('listar_equipamentos') }}">Equipamentos</a>
-        <a href="{{ url_for('leituras_mensal') }}">Leituras Mensais</a>
-        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    </div>
+    <div class="registry-hero-aside" aria-label="Indicadores prioritários">
+      <div class="registry-hero-kpi">
+        <span>Alta prioridade</span>
+        <strong>{{ resumo.alta_prioridade }}</strong>
+        <small>locais requerem atenção</small>
+      </div>
+      <div class="registry-hero-kpi">
+        <span>Estado crítico</span>
+        <strong>{{ resumo.criticos }}</strong>
+        <small>situações técnicas críticas</small>
+      </div>
+    </div>
+  </header>
+
+  <section class="registry-section">
+    {% if not grupo and modo_navegacao %}
+      <div class="registry-section-head">
+        <div>
+          <div class="text-uppercase small fw-bold text-primary mb-1">Primeiro nível</div>
+          <h2>Onde pretende entrar?</h2>
+          <p>Escolha o grupo para obter uma lista curta e específica.</p>
+        </div>
+        <a class="registry-context-link" href="{{ url_for('listar_locais', vista='todos') }}"><i class="bi bi-list-ul"></i>Cadastro técnico completo</a>
+      </div>
+      <div class="registry-choice-grid">
+        <a class="registry-choice" href="{{ url_for('listar_locais', grupo='ETA') }}">
+          <span class="registry-choice-icon"><i class="bi bi-droplet-half"></i></span>
+          <span>
+            <h3>Estações de Tratamento</h3>
+            <p>ETA Umbeluzi e ETA Sabié, incluindo instalações e subinstalações internas.</p>
+            <span class="registry-choice-meta">{{ navigation_summary.ETA.installations_count }} instalações · {{ navigation_summary.ETA.equipment_count }} equipamentos</span>
+          </span>
+          <span class="registry-choice-count"><strong>{{ navigation_summary.ETA.locations_count }}</strong><span>ETAs</span></span>
+        </a>
+        <a class="registry-choice cd" href="{{ url_for('listar_locais', grupo='CD') }}">
+          <span class="registry-choice-icon"><i class="bi bi-buildings"></i></span>
+          <span>
+            <h3>Centros de Distribuição</h3>
+            <p>CDs, estações, campos de furos, pequenos sistemas e rede de adução.</p>
+            <span class="registry-choice-meta">{{ navigation_summary.CD.cd_count }} CDs{% if navigation_summary.CD.network_count %} + {{ navigation_summary.CD.network_count }} rede de adução{% endif %} · {{ navigation_summary.CD.equipment_count }} equipamentos</span>
+          </span>
+          <span class="registry-choice-count"><strong>{{ navigation_summary.CD.cd_count }}</strong><span>CDs</span></span>
+        </a>
+      </div>
+    {% else %}
+      <div class="registry-section-head">
+        <div>
+          <div class="text-uppercase small fw-bold text-primary mb-1">{{ 'ETAs' if grupo == 'ETA' else ('CDs' if grupo == 'CD' else 'Cadastro técnico completo') }}</div>
+          <h2>{{ 'Seleccione Umbeluzi ou Sabié' if grupo == 'ETA' else ('Seleccione o CD ou sistema pretendido' if grupo == 'CD' else 'Todos os níveis da estrutura') }}</h2>
+          <p>Abra um local para consultar as instalações seguintes e todos os equipamentos descendentes.</p>
+        </div>
+        <nav class="registry-context-nav" aria-label="Navegação da hierarquia">
+          <a class="registry-context-link" href="{{ url_for('listar_locais') }}"><i class="bi bi-arrow-left"></i>ETAs ou CDs</a>
+          {% if grupo %}<a class="registry-context-link" href="{{ url_for('listar_locais', vista='todos', grupo=grupo) }}"><i class="bi bi-diagram-2"></i>Todos os níveis</a>{% endif %}
+        </nav>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="registry-kpis" aria-label="Resumo dos locais">
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-geo-alt"></i></span>
+      <div class="label">Total de locais</div><div class="value">{{ resumo.total }}</div>
+      <div class="meta">{{ resumo.ativos }} ativos · {{ resumo.arquivados }} arquivados</div>
+    </article>
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-lightning-charge"></i></span>
+      <div class="label">Potência contratada</div><div class="value">{{ '%.2f'|format(resumo.pot_contratada_total) }}</div>
+      <div class="meta">kW na listagem actual</div>
+    </article>
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-plugin"></i></span>
+      <div class="label">Potência instalada</div><div class="value">{{ '%.2f'|format(resumo.pot_instalada_total) }}</div>
+      <div class="meta">kW instalados registados</div>
+    </article>
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-clipboard-data"></i></span>
+      <div class="label">Maturidade média</div><div class="value">{{ '%.0f'|format(resumo.maturidade_media) }}%</div>
+      <div class="meta">qualidade média do cadastro</div>
+    </article>
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-grid"></i></span>
+      <div class="label">Tipo dominante</div><div class="value">{{ resumo.tipo_dominante }}</div>
+      <div class="meta">tipologia mais frequente</div>
+    </article>
+    <article class="registry-kpi">
+      <span class="registry-kpi-icon"><i class="bi bi-person-x"></i></span>
+      <div class="label">Sem contacto</div><div class="value">{{ resumo.sem_contato }}</div>
+      <div class="meta">responsável não registado</div>
+    </article>
+  </section>
+
+  {% if not modo_navegacao or grupo %}
+  <details class="registry-filter-panel" {% if not modo_navegacao or filter_state.count %}open{% endif %}>
+    <summary>
+      <span class="registry-filter-summary">
+        <i class="bi bi-funnel"></i>
+        <span>Pesquisa e filtros <small>{% if filter_state.count %}· {{ filter_state.count }} aplicado{{ 's' if filter_state.count != 1 else '' }}{% else %}· localizar rapidamente um registo{% endif %}</small></span>
+      </span>
+    </summary>
+    <div class="registry-filter-body">
+      <nav class="registry-status-tabs" aria-label="Estado dos locais">
+        <a class="registry-status-tab {{ 'active' if status == 'todos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='todos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Todos</a>
+        <a class="registry-status-tab {{ 'active' if status == 'ativos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='ativos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Ativos</a>
+        <a class="registry-status-tab {{ 'active' if status == 'arquivados' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1', sort=sort, order=order, status='arquivados', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Arquivados</a>
+        <a class="registry-status-tab {{ 'active' if status == 'sem_config' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='sem_config', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Sem configuração</a>
       </nav>
-    </header>
 
-    <section class="sge-hero sge-hero-locais phase3-hero">
-      <div class="sge-eyebrow">Gestão de Centros e Locais</div>
-      <div class="hero-grid">
-        <div>
-          <h2>Locais</h2>
-          <p>Navegue primeiro por ETAs ou CDs e avance até à instalação, subinstalação e equipamento exacto, mantendo leituras e tarifários no respectivo local operacional.</p>
-          <div class="sge-hero-actions">
-            <a class="sge-btn sge-btn-white" href="{{ url_for('adicionar_local') }}">Novo local</a>
-            <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_import') }}">Importar Excel/CSV</a>
-            <a class="sge-btn sge-btn-outline" href="{{ url_for('cadastro_activos') }}">Cadastro mestre</a>
-          </div>
+      <form method="get" action="{{ url_for('listar_locais') }}" class="registry-filters">
+        <div class="registry-field span-4">
+          <label for="localSearch">Pesquisar</label>
+          <input id="localSearch" class="form-control" type="search" name="q" value="{{ q or '' }}" placeholder="Nome, código, endereço ou responsável">
         </div>
-        <div class="hero-aside">
-          <div class="hero-aside-card">
-            <span class="label">Alta prioridade</span>
-            <strong>{{ resumo.alta_prioridade }}</strong>
-            <small>locais marcados para atenção imediata</small>
-          </div>
-          <div class="hero-aside-card danger">
-            <span class="label">Estado crítico</span>
-            <strong>{{ resumo.criticos }}</strong>
-            <small>locais com estado técnico crítico</small>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="sge-card pad mb-3">
-      {% if not grupo and modo_navegacao %}
-      <div class="sge-section-title mb-3">
-        <div>
-          <div class="sge-eyebrow">Primeiro nível</div>
-          <h3>Que tipo de local pretende consultar?</h3>
-          <p>Escolha uma das duas áreas para evitar uma lista extensa e pouco específica.</p>
-        </div>
-        <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais', vista='todos') }}">Ver cadastro técnico completo</a>
-      </div>
-      <div class="row g-3">
-        <div class="col-lg-6">
-          <a class="text-decoration-none" href="{{ url_for('listar_locais', grupo='ETA') }}">
-            <article class="border rounded-4 p-4 h-100 bg-primary-subtle text-dark">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div><span class="badge text-bg-primary mb-3">ETA</span><h3 class="mb-2">Estações de Tratamento</h3><p class="mb-0">ETA Umbeluzi e ETA Sabié, com instalações e subinstalações internas.</p></div>
-                <strong class="fs-2">{{ navigation_summary.ETA.locations_count }}</strong>
-              </div>
-              <div class="mt-4 small fw-semibold">{{ navigation_summary.ETA.installations_count }} instalações · {{ navigation_summary.ETA.equipment_count }} equipamentos</div>
-            </article>
-          </a>
-        </div>
-        <div class="col-lg-6">
-          <a class="text-decoration-none" href="{{ url_for('listar_locais', grupo='CD') }}">
-            <article class="border rounded-4 p-4 h-100 bg-success-subtle text-dark">
-              <div class="d-flex justify-content-between align-items-start gap-3">
-                <div><span class="badge text-bg-success mb-3">CD</span><h3 class="mb-2">Centros de Distribuição</h3><p class="mb-0">CDs, estações, campos de furos, pequenos sistemas e rede de adução.</p></div>
-                <strong class="fs-2">{{ navigation_summary.CD.cd_count }}</strong>
-              </div>
-              <div class="mt-4 small fw-semibold">{{ navigation_summary.CD.cd_count }} CDs{% if navigation_summary.CD.network_count %} + {{ navigation_summary.CD.network_count }} rede de adução{% endif %} · {{ navigation_summary.CD.equipment_count }} equipamentos</div>
-            </article>
-          </a>
-        </div>
-      </div>
-      {% else %}
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-          <div class="sge-eyebrow">{{ 'ETAs' if grupo=='ETA' else ('CDs' if grupo=='CD' else 'Cadastro técnico completo') }}</div>
-          <h3 class="mb-1">{{ 'Seleccione Umbeluzi ou Sabié' if grupo=='ETA' else ('Seleccione o CD ou sistema pretendido' if grupo=='CD' else 'Todos os níveis da estrutura') }}</h3>
-          <p class="mb-0">Ao abrir um local, verá as instalações seguintes e os equipamentos associados.</p>
-        </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais') }}">← ETAs ou CDs</a>
-          {% if grupo %}<a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais', vista='todos', grupo=grupo) }}">Ver todos os níveis</a>{% endif %}
-        </div>
-      </div>
-      {% endif %}
-    </section>
-
-    <section class="sge-grid-6 mb-3">
-      <article class="sge-card pad sge-stat"><h3>Total de locais</h3><div class="value">{{ resumo.total }}</div><div class="meta">{{ resumo.ativos }} ativos · {{ resumo.arquivados }} arquivados</div></article>
-      <article class="sge-card pad sge-stat"><h3>Potência contratada</h3><div class="value">{{ '%.2f'|format(resumo.pot_contratada_total) }}</div><div class="meta">kW na listagem filtrada</div></article>
-      <article class="sge-card pad sge-stat"><h3>Potência instalada</h3><div class="value">{{ '%.2f'|format(resumo.pot_instalada_total) }}</div><div class="meta">kW instalados registados</div></article>
-      <article class="sge-card pad sge-stat"><h3>Maturidade média</h3><div class="value">{{ '%.0f'|format(resumo.maturidade_media) }}%</div><div class="meta">qualidade institucional média</div></article>
-      <article class="sge-card pad sge-stat"><h3>Tipo dominante</h3><div class="value" style="font-size:1.6rem">{{ resumo.tipo_dominante }}</div><div class="meta">tipologia mais frequente</div></article>
-      <article class="sge-card pad sge-stat"><h3>Sem contacto</h3><div class="value">{{ resumo.sem_contato }}</div><div class="meta">locais sem contacto registado</div></article>
-    </section>
-
-    {% if not modo_navegacao or grupo %}
-    <section class="sge-card pad mb-3">
-      <div class="sge-section-title mb-2">
-        <div>
-          <h3>Pesquisa, filtragem e controlo</h3>
-          <p>Filtra por estado, tipologia, prioridade, estado técnico e qualidade do cadastro. A vista ocupa todo o ecrã para facilitar trabalho intensivo.</p>
-        </div>
-        <div class="sge-chipbar">
-          <a class="sge-chip {{ 'active' if status=='todos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='todos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Todos</a>
-          <a class="sge-chip {{ 'active' if status=='ativos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='ativos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Ativos</a>
-          <a class="sge-chip {{ 'active' if status=='arquivados' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1', sort=sort, order=order, status='arquivados', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Arquivados</a>
-          <a class="sge-chip {{ 'active' if status=='sem_config' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='sem_config', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Sem configuração</a>
-        </div>
-      </div>
-
-      <form method="get" action="{{ url_for('listar_locais') }}" class="sge-filters-phase3">
-        <div class="field field-span2">
-          <label>Pesquisar</label>
-          <input class="sge-input" type="text" name="q" value="{{ q or '' }}" placeholder="Nome, código, endereço, email ou responsável">
-        </div>
-        <div class="field">
-          <label>Tipo de local</label>
-          <select class="sge-select" name="tipo">
-            {% for item in tipos_disponiveis %}
-              <option value="{{ item }}" {{ 'selected' if tipo==item else '' }}>{{ 'Todos' if item=='todos' else item }}</option>
-            {% endfor %}
+        <div class="registry-field">
+          <label for="localType">Tipo de local</label>
+          <select id="localType" class="form-select" name="tipo">
+            {% for item in tipos_disponiveis %}<option value="{{ item }}" {{ 'selected' if tipo == item else '' }}>{{ 'Todos' if item == 'todos' else item }}</option>{% endfor %}
           </select>
         </div>
-        <div class="field">
-          <label>Estado técnico</label>
-          <select class="sge-select" name="estado_tecnico">
-            {% for item in estados_tecnicos %}
-              <option value="{{ item }}" {{ 'selected' if estado_tecnico==item else '' }}>{{ 'Todos' if item=='todos' else item }}</option>
-            {% endfor %}
+        <div class="registry-field">
+          <label for="localTechnicalState">Estado técnico</label>
+          <select id="localTechnicalState" class="form-select" name="estado_tecnico">
+            {% for item in estados_tecnicos %}<option value="{{ item }}" {{ 'selected' if estado_tecnico == item else '' }}>{{ 'Todos' if item == 'todos' else item }}</option>{% endfor %}
           </select>
         </div>
-        <div class="field">
-          <label>Prioridade</label>
-          <select class="sge-select" name="prioridade">
-            {% for item in prioridades %}
-              <option value="{{ item }}" {{ 'selected' if prioridade==item else '' }}>{{ 'Todas' if item=='todas' else item }}</option>
-            {% endfor %}
+        <div class="registry-field">
+          <label for="localPriority">Prioridade</label>
+          <select id="localPriority" class="form-select" name="prioridade">
+            {% for item in prioridades %}<option value="{{ item }}" {{ 'selected' if prioridade == item else '' }}>{{ 'Todas' if item == 'todas' else item }}</option>{% endfor %}
           </select>
         </div>
-        <div class="field">
-          <label>Qualidade do cadastro</label>
-          <select class="sge-select" name="qualidade">
-            <option value="todos" {{ 'selected' if qualidade=='todos' else '' }}>Todos</option>
-            <option value="completo" {{ 'selected' if qualidade=='completo' else '' }}>Mais completos</option>
-            <option value="incompleto" {{ 'selected' if qualidade=='incompleto' else '' }}>A melhorar</option>
-            <option value="sem_contato" {{ 'selected' if qualidade=='sem_contato' else '' }}>Sem contacto</option>
-            <option value="alta_prontidao" {{ 'selected' if qualidade=='alta_prontidao' else '' }}>Alta prontidão</option>
+        <div class="registry-field">
+          <label for="localQuality">Qualidade do cadastro</label>
+          <select id="localQuality" class="form-select" name="qualidade">
+            <option value="todos" {{ 'selected' if qualidade == 'todos' else '' }}>Todos</option>
+            <option value="completo" {{ 'selected' if qualidade == 'completo' else '' }}>Mais completos</option>
+            <option value="incompleto" {{ 'selected' if qualidade == 'incompleto' else '' }}>A melhorar</option>
+            <option value="sem_contato" {{ 'selected' if qualidade == 'sem_contato' else '' }}>Sem contacto</option>
+            <option value="alta_prontidao" {{ 'selected' if qualidade == 'alta_prontidao' else '' }}>Alta prontidão</option>
           </select>
         </div>
-        <div class="field">
-          <label>Ordenar por</label>
-          <select class="sge-select" name="sort">
-            <option value="nome" {{ 'selected' if sort=='nome' else '' }}>Nome</option>
-            <option value="codigo" {{ 'selected' if sort=='codigo' else '' }}>Código</option>
-            <option value="fator" {{ 'selected' if sort=='fator' else '' }}>Fator multiplicativo</option>
-            <option value="pot_contratada" {{ 'selected' if sort=='pot_contratada' else '' }}>Potência contratada</option>
-            <option value="pot_instalada" {{ 'selected' if sort=='pot_instalada' else '' }}>Potência instalada</option>
-            <option value="maturidade" {{ 'selected' if sort=='maturidade' else '' }}>Maturidade</option>
+        <div class="registry-field">
+          <label for="localSort">Ordenar por</label>
+          <select id="localSort" class="form-select" name="sort">
+            <option value="nome" {{ 'selected' if sort == 'nome' else '' }}>Nome</option>
+            <option value="codigo" {{ 'selected' if sort == 'codigo' else '' }}>Código</option>
+            <option value="fator" {{ 'selected' if sort == 'fator' else '' }}>Fator multiplicativo</option>
+            <option value="pot_contratada" {{ 'selected' if sort == 'pot_contratada' else '' }}>Potência contratada</option>
+            <option value="pot_instalada" {{ 'selected' if sort == 'pot_instalada' else '' }}>Potência instalada</option>
+            <option value="maturidade" {{ 'selected' if sort == 'maturidade' else '' }}>Maturidade</option>
           </select>
         </div>
-        <div class="field">
-          <label>Direção</label>
-          <select class="sge-select" name="order">
-            <option value="asc" {{ 'selected' if order=='asc' else '' }}>Ascendente</option>
-            <option value="desc" {{ 'selected' if order=='desc' else '' }}>Descendente</option>
+        <div class="registry-field">
+          <label for="localOrder">Direcção</label>
+          <select id="localOrder" class="form-select" name="order">
+            <option value="asc" {{ 'selected' if order == 'asc' else '' }}>Ascendente</option>
+            <option value="desc" {{ 'selected' if order == 'desc' else '' }}>Descendente</option>
           </select>
         </div>
-        <div class="field options-box">
+        <div class="registry-field">
           <label>Opções</label>
-          <div class="sge-input d-flex align-items-center gap-2"><input type="checkbox" id="ckInativos" name="inativos" value="1" {{ 'checked' if incluir_inativos else '' }}><label class="m-0" for="ckInativos">Incluir arquivados</label></div>
-        </div>
-        <div class="field action-box">
-          <label>&nbsp;</label>
-          <button class="sge-btn sge-btn-primary" type="submit">Filtrar</button>
+          <div class="registry-switch form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="ckInativos" name="inativos" value="1" {{ 'checked' if incluir_inativos else '' }}>
+            <label class="form-check-label ms-2 mb-0" for="ckInativos">Incluir arquivados</label>
+          </div>
         </div>
         <input type="hidden" name="status" value="{{ status or 'todos' }}">
         <input type="hidden" name="grupo" value="{{ grupo or '' }}">
         <input type="hidden" name="vista" value="todos">
+        <div class="registry-filter-actions">
+          <div>
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i>Aplicar filtros</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos' if grupo else 'navegacao') }}">Limpar</a>
+          </div>
+          {% if filter_state.count %}<span class="registry-active-note"><i class="bi bi-check2-circle"></i>{{ filter_state.count }} filtro{{ 's' if filter_state.count != 1 else '' }} activo{{ 's' if filter_state.count != 1 else '' }}</span>{% endif %}
+        </div>
       </form>
 
       {% if ranking_atencao %}
-      <div class="sge-priority-list phase3 mt-4">
+      <div class="registry-attention-grid" aria-label="Locais que requerem atenção">
         {% for item in ranking_atencao %}
-          <div class="sge-priority-card">
-            <div class="d-flex justify-content-between gap-2 align-items-start">
-              <h4>{{ item.nome }}</h4>
-              <span class="priority-pill priority-{{ (item.prioridade or 'Média')|lower|replace('é','e') }}">{{ item.prioridade or 'Média' }}</span>
-            </div>
-            <div class="small mb-1">{{ item.tipo }} · {{ item.estado_tecnico or 'Normal' }} · maturidade {{ item.maturidade }}%</div>
-            <div class="sge-maturity"><span style="width:{{ item.maturidade }}%"></span></div>
-            <div class="small mt-2">{% if item.contato_nome %}{{ item.contato_nome }}{% elif item.email %}{{ item.email }}{% else %}sem responsável registado{% endif %}</div>
+        <article class="registry-attention">
+          <div class="registry-attention-head">
+            <strong>{{ item.nome }}</strong>
+            <span class="registry-badge priority-{{ (item.prioridade or 'Média')|lower|replace('é','e') }}">{{ item.prioridade or 'Média' }}</span>
           </div>
+          <small>{{ item.tipo }} · {{ item.estado_tecnico or 'Normal' }} · maturidade {{ item.maturidade }}%</small>
+          <div class="registry-progress"><span style="width:{{ item.maturidade }}%"></span></div>
+          <small>{% if item.contato_nome %}{{ item.contato_nome }}{% elif item.email %}{{ item.email }}{% else %}Sem responsável registado{% endif %}</small>
+        </article>
         {% endfor %}
       </div>
       {% endif %}
-    </section>
-    {% endif %}
+    </div>
+  </details>
+  {% endif %}
 
-    <section class="alert-stack">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category if category not in ['message'] else 'info' }}">{{ message }}</div>
+  {% if locais or grupo or not modo_navegacao %}
+  <section class="registry-list-panel">
+    <div class="registry-list-head">
+      <div>
+        <h2>{{ 'ETAs disponíveis' if grupo == 'ETA' and modo_navegacao else ('CDs e sistemas disponíveis' if grupo == 'CD' and modo_navegacao else 'Lista institucional de locais') }}</h2>
+        <p>{{ locais|length }} registo{{ 's' if locais|length != 1 else '' }} nesta vista · abra um local para avançar na hierarquia.</p>
+      </div>
+      <div class="registry-toolbar">
+        <a class="btn btn-outline-secondary" href="{{ url_for('export_locais_csv', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}"><i class="bi bi-filetype-csv me-1"></i>CSV</a>
+        <a class="btn btn-outline-success" href="{{ url_for('export_locais_xlsx', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+        <a class="btn btn-outline-dark" href="{{ url_for('locais_export_pdf') }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('locais_template_xlsx') }}"><i class="bi bi-download me-1"></i>Modelo</a>
+      </div>
+    </div>
+    <div class="registry-table-wrap">
+      <table class="registry-table registry-locations-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Nome e perfil</th><th>Tipo</th><th>Categoria</th><th>Contacto principal</th><th>Estado técnico</th><th>Prioridade</th><th>Fator</th><th>Pot. contratada</th><th>Pot. instalada</th><th>Maturidade</th><th>Estado</th><th class="text-end">Acções</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in locais %}
+          <tr>
+            <td class="registry-id-column" data-label="ID">{{ r.id }}</td>
+            <td class="registry-main-cell">
+              <a href="{{ url_for('detalhes_local', local_id=r.id) }}" class="primary-link">{{ r.nome_exibicao if modo_navegacao else (r.display_name or r.nome) }}</a><span class="registry-id-chip">#{{ r.id }}</span>
+              <div class="registry-subtext">{% if r.codigo %}<span class="me-2"><i class="bi bi-upc-scan me-1"></i>{{ r.codigo }}</span>{% endif %}{% if r.endereco %}<span><i class="bi bi-geo-alt me-1"></i>{{ r.endereco }}</span>{% endif %}</div>
+            </td>
+            <td data-label="Tipo"><span class="registry-badge badge-blue">{{ r.tipo }}</span></td>
+            <td data-label="Categoria">{{ r.categoria_operacional or '—' }}</td>
+            <td data-label="Contacto"><div>{{ r.contato_nome or '—' }}</div><div class="registry-subtext">{{ r.contato_tel or r.email or 'Sem contacto' }}</div></td>
+            <td data-label="Estado técnico"><span class="registry-badge badge-tech-{{ (r.estado_tecnico or 'Normal')|lower|replace('ç','c')|replace('ã','a')|replace('í','i') }}">{{ r.estado_tecnico or 'Normal' }}</span></td>
+            <td data-label="Prioridade"><span class="registry-badge priority-{{ (r.prioridade or 'Média')|lower|replace('é','e') }}">{{ r.prioridade or 'Média' }}</span></td>
+            <td data-label="Fator">{{ '%.4f'|format(r.fator_mult) }}</td>
+            <td data-label="Pot. contratada">{{ '%.2f'|format(r.pot_contratada) }} kW</td>
+            <td data-label="Pot. instalada">{{ '%.2f'|format(r.pot_instalada) }} kW</td>
+            <td data-label="Maturidade">
+              <div class="registry-maturity"><strong>{{ r.maturidade }}%</strong><div class="registry-maturity-line"><span style="width:{{ r.maturidade }}%"></span></div></div>
+            </td>
+            <td data-label="Estado">{% if r.ativo == 1 %}<span class="registry-badge state-on"><i class="bi bi-check-circle"></i>Ativo</span>{% else %}<span class="registry-badge state-off"><i class="bi bi-archive"></i>Arquivado</span>{% endif %}</td>
+            <td class="registry-actions-cell" data-label="Acções">
+              <div class="registry-row-actions">
+                <a class="btn btn-sm btn-primary" href="{{ url_for('detalhes_local', local_id=r.id) }}"><i class="bi bi-eye me-1"></i>Abrir</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('configurar_local', local_id=r.id) }}">Configurar</a>
+                {% if can_write('locais') %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('editar_local', local_id=r.id) }}">Editar</a>
+                <form method="post" action="{{ url_for('locais_duplicar', local_id=r.id) }}"><button class="btn btn-sm btn-outline-secondary" type="submit">Duplicar</button></form>
+                <form method="post" action="{{ url_for('locais_toggle', local_id=r.id) }}" onsubmit="return confirm('Confirmar alteração do estado deste local?')"><button class="btn btn-sm btn-outline-warning" type="submit">{{ 'Arquivar' if (r.ativo|int == 1) else 'Ativar' }}</button></form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="13" class="registry-empty"><i class="bi bi-search"></i>Nenhum local encontrado com os filtros seleccionados.</td></tr>
           {% endfor %}
-        {% endif %}
-      {% endwith %}
-      {% if request.args.get('msg') %}<div class="alert alert-info">{{ request.args.get('msg') }}</div>{% endif %}
-    </section>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
 
-    {% if locais or not modo_navegacao %}
-    <section class="sge-card p-0 overflow-hidden">
-      <div class="d-flex justify-content-between align-items-center p-4 pb-3 flex-wrap gap-3">
-        <div>
-          <h3 class="sge-panel-title mb-1">{{ 'ETAs disponíveis' if grupo=='ETA' and modo_navegacao else ('CDs e sistemas disponíveis' if grupo=='CD' and modo_navegacao else 'Lista institucional de locais') }}</h3>
-          <div class="sge-mini">Abra um local para avançar às instalações e consultar os equipamentos correspondentes.</div>
-        </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_csv', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}">Exportar CSV</a>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_xlsx', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}">Exportar XLSX</a>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_export_pdf') }}">Exportar PDF</a>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_template_xlsx') }}">Modelo Excel</a>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table class="table-premium table-locais w-100">
-          <thead>
-            <tr>
-              <th>#</th><th>Nome / Perfil</th><th>Tipo</th><th>Categoria</th><th>Contacto principal</th><th>Estado técnico</th><th>Prioridade</th><th>Fator</th><th>Pot. contratada</th><th>Pot. instalada</th><th>Maturidade</th><th>Estado</th><th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in locais %}
-            <tr>
-              <td>{{ r.id }}</td>
-              <td>
-                <a href="{{ url_for('detalhes_local', local_id=r.id) }}" class="fw-bold text-decoration-none">{{ r.nome_exibicao if modo_navegacao else (r.display_name or r.nome) }}</a>
-                <div class="sge-mini mt-1">
-                  {% if r.codigo %}<span class="me-2">{{ r.codigo }}</span>{% endif %}
-                  {% if r.endereco %}<span>{{ r.endereco }}</span>{% endif %}
-                </div>
-              </td>
-              <td><span class="badge-soft badge-blue">{{ r.tipo }}</span></td>
-              <td>{{ r.categoria_operacional or '—' }}</td>
-              <td>
-                <div>{{ r.contato_nome or '—' }}</div>
-                <div class="sge-mini">{{ r.contato_tel or r.email or 'sem contacto' }}</div>
-              </td>
-              <td><span class="badge-soft badge-tech badge-tech-{{ (r.estado_tecnico or 'Normal')|lower|replace('ç','c')|replace('ã','a')|replace('í','i') }}">{{ r.estado_tecnico or 'Normal' }}</span></td>
-              <td><span class="priority-pill priority-{{ (r.prioridade or 'Média')|lower|replace('é','e') }}">{{ r.prioridade or 'Média' }}</span></td>
-              <td>{{ '%.4f'|format(r.fator_mult) }}</td>
-              <td>{{ '%.2f'|format(r.pot_contratada) }} kW</td>
-              <td>{{ '%.2f'|format(r.pot_instalada) }} kW</td>
-              <td>
-                <div class="fw-bold">{{ r.maturidade }}%</div>
-                <div class="sge-maturity"><span style="width:{{ r.maturidade }}%"></span></div>
-              </td>
-              <td>{% if r.ativo == 1 %}<span class="badge-soft badge-active">Ativo</span>{% else %}<span class="badge-soft badge-archived">Arquivado</span>{% endif %}</td>
-              <td class="sge-table-actions">
-                <div class="d-flex flex-wrap gap-2">
-                  <a class="sge-btn sge-btn-soft" href="{{ url_for('detalhes_local', local_id=r.id) }}">Detalhes</a>
-                  <a class="sge-btn sge-btn-soft" href="{{ url_for('configurar_local', local_id=r.id) }}">Config</a>
-                  {% if can_write('locais') %}
-                  <a class="sge-btn sge-btn-soft" href="{{ url_for('editar_local', local_id=r.id) }}">Editar</a>
-                  <form method="post" action="{{ url_for('locais_duplicar', local_id=r.id) }}" class="d-inline"><button class="sge-btn sge-btn-soft" type="submit">Duplicar</button></form>
-                  <form method="post" action="{{ url_for('locais_toggle', local_id=r.id) }}" class="d-inline" onsubmit="return confirm('Confirmar alteração do estado deste local?')"><button class="sge-btn sge-btn-warning" type="submit">{{ 'Arquivar' if (r.ativo|int == 1) else 'Ativar' }}</button></form>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="13" class="text-center py-5 text-muted">Nenhum local encontrado com os filtros selecionados.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-    {% endif %}
-  </div>
-</body>
-</html>
+{% block extra_js %}
+<script src="{{ url_for('static', filename='cadastros.js') }}"></script>
+{% endblock %}

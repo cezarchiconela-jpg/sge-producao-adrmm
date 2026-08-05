@@ -1,0 +1,20 @@
+ACTUALIZAÇÃO: Design Responsivo — Locais e Equipamentos
+DATA: 05/08/2026
+
+FICHEIROS MODIFICADOS
+- templates/base.html
+- templates/locais.html
+- templates/equipamentos.html
+- sge_modules/equipment_core.py
+
+FICHEIROS NOVOS
+- static/cadastros.css
+- static/cadastros.js
+- DESIGN_RESPONSIVO_LOCAIS_EQUIPAMENTOS.md
+- FICHEIROS_MODIFICADOS_DESIGN_RESPONSIVO.txt
+
+IMPORTANTE
+- Copiar estes ficheiros mantendo exactamente a estrutura das pastas.
+- Este pacote parte da actualização SGE_Hierarquia_Locais_ETA_CDs_Instalacoes.
+- Não contém nem substitui a base sge.db.
+- Não remove funções anteriores de Locais, Equipamentos ou Cadastro Mestre.
