@@ -34,7 +34,7 @@
       <div class="sge-card pad">
         <h4 class="sge-panel-title">Perfil do local</h4>
         <div class="sge-form-grid-3">
-          <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ local.nome or '' }}" required></div>
+          <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ local.nome_exibicao or local.nome or '' }}" required></div>
           <div class="field"><label>Código interno</label><input class="sge-input" name="codigo" value="{{ local.codigo or '' }}"></div>
           <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option>{% for item in ['ETA','Centro de Distribuição','Estação de Bombagem','Campo de Furos','Pequeno Sistema','Sistema de Adução','Reservatório','Escritório','Outro'] %}<option value="{{ item }}" {{ 'selected' if local.tipo_local==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
           <div class="field"><label>Local pai / centro</label><select class="sge-select" name="parent_id"><option value="">Raiz principal</option>{% for opt in parent_options or [] %}<option value="{{ opt[0] }}" {{ 'selected' if local.parent_id|string==opt[0]|string else '' }}>{{ opt[1] }}</option>{% endfor %}</select><small class="text-muted">Defina a ligação hierárquica deste local dentro do sistema.</small></div>

@@ -21,9 +21,24 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-BUNDLED_REGISTRY_MARKER = 2026080503
+BUNDLED_REGISTRY_MARKER = 2026080504
 BUNDLED_REGISTRY_FILENAME = "activos_dima_todos_20260804_154738.xlsx"
 MAX_REGISTRY_ROWS = 20_000
+
+NAVIGATION_GROUPS = {
+    "ETA": {
+        "name": "ETAs",
+        "reference": "SGE-NAV-ETAS",
+        "category": "Produção e tratamento",
+        "order": 10,
+    },
+    "CD": {
+        "name": "CDs",
+        "reference": "SGE-NAV-CDS",
+        "category": "Distribuição, bombagem e adução",
+        "order": 20,
+    },
+}
 
 
 def clean_text(value: Any) -> str:
@@ -307,6 +322,73 @@ def infer_local_name(row: dict[str, Any]) -> str:
     return installation or clean_text(row.get("sector_operacional")) or "Local por classificar"
 
 
+def infer_registry_hierarchy(
+    row: dict[str, Any],
+    local_name: str,
+) -> dict[str, str]:
+    """Traduz a folha DIMA na navegação ETA/CD > local > instalação > subinstalação.
+
+    ``local_name`` continua a representar o local operacional usado por leituras e
+    tarifários. Os níveis abaixo dele servem para localizar os equipamentos sem
+    transformar cada sistema interno num novo local de facturação.
+    """
+    sector = fold_text(row.get("sector_operacional"))
+    installation = clean_text(row.get("instalacao"))
+    system = clean_text(row.get("sistema"))
+    local_folded = fold_text(local_name)
+
+    group = ""
+    principal = local_name
+    hierarchy_installation = ""
+    subinstallation = ""
+
+    if sector == "UMBELUZI":
+        group = "ETA"
+        principal = "ETA Umbeluzi"
+        hierarchy_installation = installation
+        subinstallation = system
+    elif sector == "SABIE":
+        group = "ETA"
+        principal = "ETA Sabié"
+        hierarchy_installation = installation
+        subinstallation = system
+    elif sector in {"CDS", "CD"}:
+        group = "CD"
+        principal = installation or local_name
+        hierarchy_installation = system
+    elif sector in {"ADUCAO", "ADUCAO E TRANSFERENCIA"}:
+        if local_folded in {"ETA UMBELUZI", "ETA SABIE"}:
+            group = "ETA"
+            principal = local_name
+            hierarchy_installation = "Adução e Transferência"
+            subinstallation = system
+        else:
+            group = "CD"
+            principal = "Rede de Adução e Transferência"
+            hierarchy_installation = system
+    else:
+        hierarchy_installation = installation if fold_text(installation) != local_folded else ""
+        subinstallation = system
+
+    if fold_text(hierarchy_installation) == fold_text(principal):
+        hierarchy_installation = ""
+    if not hierarchy_installation and subinstallation:
+        hierarchy_installation, subinstallation = subinstallation, ""
+    if fold_text(subinstallation) == fold_text(hierarchy_installation):
+        subinstallation = ""
+
+    path_parts = [part for part in (principal, hierarchy_installation, subinstallation) if clean_text(part)]
+    hierarchy_key = "|".join(map(fold_text, (group, *path_parts)))
+    return {
+        "navigation_group": group,
+        "principal_name": principal,
+        "hierarchy_installation": hierarchy_installation,
+        "hierarchy_subinstallation": subinstallation,
+        "hierarchy_key": hierarchy_key,
+        "hierarchy_path": " › ".join(path_parts),
+    }
+
+
 def infer_local_profile(name: str, sector: str = "") -> dict[str, Any]:
     folded = fold_text(name)
     if "UMBELUZI" in folded and "ETA" in folded:
@@ -363,6 +445,7 @@ def prepare_registry_rows(raw_rows: list[dict[str, Any]], source_name: str, sour
         installation = clean_text(raw.get("instalacao"))
         system = clean_text(raw.get("sistema"))
         local_name = infer_local_name(raw)
+        hierarchy = infer_registry_hierarchy(raw, local_name)
         base_identity = "|".join(map(fold_text, (local_name, sector, installation, system, nome)))
         occurrence[base_identity] += 1
         external = clean_text(raw.get("referencia_externa"))
@@ -385,6 +468,7 @@ def prepare_registry_rows(raw_rows: list[dict[str, Any]], source_name: str, sour
             "source_name": source_name,
             "source_file_hash": source_hash,
             "local_name": local_name,
+            **hierarchy,
             "nome": nome,
             "sector_operacional": sector,
             "instalacao": installation,
@@ -451,14 +535,28 @@ def parse_registry_file(file_or_path: Any, filename: str | None = None) -> dict[
 
 
 def _existing_location_map(conn: sqlite3.Connection) -> tuple[dict[str, int], dict[int, str]]:
-    rows = conn.execute("SELECT id, nome FROM locais").fetchall()
+    rows = conn.execute(
+        "SELECT id, nome, COALESCE(nome_exibicao,''), COALESCE(nivel_hierarquia,'') FROM locais"
+    ).fetchall()
     by_alias: dict[str, int] = {}
     names: dict[int, str] = {}
-    for local_id, name in rows:
+    for local_id, name, display_name, hierarchy_level in rows:
         names[int(local_id)] = clean_text(name)
         for alias in _local_aliases(clean_text(name)):
             by_alias.setdefault(alias, int(local_id))
+        if hierarchy_level in {"", "LOCAL_PRINCIPAL"} and clean_text(display_name):
+            for alias in _local_aliases(display_name):
+                by_alias.setdefault(alias, int(local_id))
     return by_alias, names
+
+
+def _existing_location_references(conn: sqlite3.Connection) -> dict[str, int]:
+    return {
+        clean_text(reference): int(local_id)
+        for local_id, reference in conn.execute(
+            "SELECT id, referencia_externa FROM locais WHERE COALESCE(TRIM(referencia_externa),'')<>''"
+        ).fetchall()
+    }
 
 
 def _find_local_id(by_alias: dict[str, int], name: str) -> int | None:
@@ -521,12 +619,27 @@ def preview_registry(db_path: str, parsed: dict[str, Any]) -> dict[str, Any]:
             else:
                 actions["inserir"] += 1
         duplicate_keys = len(rows) - len({row["source_key"] for row in rows})
+        hierarchy_nodes = set()
+        for row in rows:
+            group = row.get("navigation_group") or ""
+            principal = row.get("principal_name") or row["local_name"]
+            if group:
+                hierarchy_nodes.add(("GRUPO", group))
+            hierarchy_nodes.add(("LOCAL_PRINCIPAL", group, fold_text(principal)))
+            if row.get("hierarchy_installation"):
+                hierarchy_nodes.add(("INSTALACAO", group, fold_text(principal), fold_text(row["hierarchy_installation"])))
+            if row.get("hierarchy_subinstallation"):
+                hierarchy_nodes.add((
+                    "SUBINSTALACAO", group, fold_text(principal),
+                    fold_text(row.get("hierarchy_installation")), fold_text(row["hierarchy_subinstallation"]),
+                ))
         return {
             "total": len(rows),
             "actions": dict(actions),
             "new_locations": sorted(locations_new, key=fold_text),
             "new_locations_count": len(locations_new),
             "locations_count": len(location_counts),
+            "hierarchy_nodes_count": len(hierarchy_nodes),
             "duplicate_keys": duplicate_keys,
             "quality": dict(quality),
             "locations": location_counts.most_common(),
@@ -548,6 +661,8 @@ def _upsert_location(
     local_name: str,
     sector: str,
     actor: str,
+    parent_id: int | None = None,
+    navigation_group: str = "",
 ) -> tuple[int, bool]:
     local_id = _find_local_id(by_alias, local_name)
     profile = infer_local_profile(local_name, sector)
@@ -563,11 +678,15 @@ def _upsert_location(
                 sector_operacional=CASE WHEN ?<>'' THEN ? ELSE sector_operacional END,
                 fonte_cadastro='Cadastro DIMA 2026', referencia_externa=COALESCE(NULLIF(referencia_externa,''), ?),
                 ultima_sincronizacao=?, classificacao_confirmada=COALESCE(classificacao_confirmada,0)
+                ,parent_id=CASE WHEN ? IS NOT NULL THEN ? ELSE parent_id END
+                ,nome_exibicao=COALESCE(NULLIF(TRIM(nome_exibicao),''), ?)
+                ,nivel_hierarquia='LOCAL_PRINCIPAL', grupo_navegacao=?
             WHERE id=?
             """,
             (
                 profile["codigo"], profile["tipo_local"], profile["categoria_operacional"], profile["prioridade"],
-                sector, sector, f"LOCAL-{hashlib.sha256(fold_text(local_name).encode()).hexdigest()[:16]}", now, local_id,
+                sector, sector, f"LOCAL-{hashlib.sha256(fold_text(local_name).encode()).hexdigest()[:16]}", now,
+                parent_id, parent_id, local_name, navigation_group, local_id,
             ),
         )
         return local_id, False
@@ -576,13 +695,16 @@ def _upsert_location(
         INSERT INTO locais(
             nome, codigo, ativo, tipo_local, categoria_operacional, estado_tecnico, prioridade,
             sector_operacional, fonte_cadastro, referencia_externa, ultima_sincronizacao,
-            classificacao_confirmada
-        ) VALUES(?,?,1,?,?, 'Normal', ?, ?, 'Cadastro DIMA 2026', ?, ?, 0)
+            classificacao_confirmada, parent_id, nome_exibicao, nivel_hierarquia,
+            grupo_navegacao, ordem_navegacao
+        ) VALUES(?,?,1,?,?, 'Normal', ?, ?, 'Cadastro DIMA 2026', ?, ?, 0, ?, ?,
+                 'LOCAL_PRINCIPAL', ?, 0)
         """,
         (
             local_name, profile["codigo"], profile["tipo_local"], profile["categoria_operacional"],
             profile["prioridade"], sector,
             f"LOCAL-{hashlib.sha256(fold_text(local_name).encode()).hexdigest()[:16]}", now,
+            parent_id, local_name, navigation_group,
         ),
     )
     local_id = int(cursor.lastrowid)
@@ -595,6 +717,77 @@ def _upsert_location(
     for alias in _local_aliases(local_name):
         by_alias[alias] = local_id
     return local_id, True
+
+
+def _upsert_hierarchy_location(
+    conn: sqlite3.Connection,
+    by_reference: dict[str, int],
+    *,
+    reference: str,
+    name: str,
+    display_name: str,
+    level: str,
+    group: str,
+    parent_id: int | None,
+    sector: str,
+    actor: str,
+    order: int = 0,
+) -> tuple[int, bool]:
+    """Cria ou actualiza um nó técnico da árvore através de referência estável."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    local_id = by_reference.get(reference)
+    if local_id is None:
+        exact = conn.execute("SELECT id FROM locais WHERE nome=?", (name,)).fetchone()
+        local_id = int(exact[0]) if exact else None
+    local_type = "Grupo de locais" if level == "GRUPO" else ("Instalação" if level == "INSTALACAO" else "Subinstalação")
+    category = NAVIGATION_GROUPS.get(group, {}).get("category", "Estrutura operacional")
+    if local_id is not None:
+        conn.execute(
+            """
+            UPDATE locais SET parent_id=?, nome_exibicao=?, nivel_hierarquia=?,
+                grupo_navegacao=?, ordem_navegacao=?, tipo_local=?,
+                categoria_operacional=COALESCE(NULLIF(TRIM(categoria_operacional),''), ?),
+                sector_operacional=CASE WHEN ?<>'' THEN ? ELSE sector_operacional END,
+                fonte_cadastro='Cadastro DIMA 2026',
+                referencia_externa=COALESCE(NULLIF(TRIM(referencia_externa),''), ?),
+                ultima_sincronizacao=?, ativo=1
+            WHERE id=?
+            """,
+            (
+                parent_id, display_name, level, group, order, local_type, category,
+                sector, sector, reference, now, local_id,
+            ),
+        )
+        by_reference.setdefault(reference, local_id)
+        return local_id, False
+    cursor = conn.execute(
+        """
+        INSERT INTO locais(
+            nome, nome_exibicao, codigo, ativo, tipo_local, categoria_operacional,
+            estado_tecnico, prioridade, parent_id, sector_operacional,
+            fonte_cadastro, referencia_externa, ultima_sincronizacao,
+            classificacao_confirmada, nivel_hierarquia, grupo_navegacao,
+            ordem_navegacao
+        ) VALUES(?,?,?,1,?,?, 'Normal','Média',?,?, 'Cadastro DIMA 2026',?,?,0,?,?,?)
+        """,
+        (
+            name, display_name, reference, local_type, category, parent_id, sector,
+            reference, now, level, group, order,
+        ),
+    )
+    local_id = int(cursor.lastrowid)
+    conn.execute("INSERT OR IGNORE INTO locais_cfg(local_id) VALUES(?)", (local_id,))
+    conn.execute(
+        "INSERT INTO locais_history(local_id, evento, detalhe, actor) VALUES(?,?,?,?)",
+        (local_id, "Nó de localização criado", f"Nível {level}; origem {sector or group}", actor),
+    )
+    by_reference[reference] = local_id
+    return local_id, True
+
+
+def _hierarchy_reference(level: str, *parts: str) -> str:
+    seed = "|".join(map(fold_text, (level, *parts)))
+    return f"SGE-HIER-{hashlib.sha256(seed.encode('utf-8')).hexdigest()[:20].upper()}"
 
 
 def _existing_equipment_state(conn: sqlite3.Connection) -> tuple[dict[str, dict[str, Any]], dict[tuple[int, str], deque[int]]]:
@@ -642,31 +835,114 @@ def import_registry(db_path: str, parsed: dict[str, Any], actor: str = "sge") ->
         )
         batch_id = int(cursor.lastrowid)
         location_aliases, location_names = _existing_location_map(conn)
-        local_cache: dict[str, int] = {}
+        location_references = _existing_location_references(conn)
+        group_cache: dict[str, int] = {}
+        principal_cache: dict[str, int] = {}
+        leaf_cache: dict[str, int] = {}
         created_locations = 0
+
+        for group in sorted({row.get("navigation_group") for row in rows if row.get("navigation_group")}):
+            config = NAVIGATION_GROUPS[group]
+            group_id, created = _upsert_hierarchy_location(
+                conn,
+                location_references,
+                reference=config["reference"],
+                name=config["name"],
+                display_name=config["name"],
+                level="GRUPO",
+                group=group,
+                parent_id=None,
+                sector=group,
+                actor=actor,
+                order=int(config["order"]),
+            )
+            group_cache[group] = group_id
+            created_locations += int(created)
+
         for row in rows:
-            key = fold_text(row["local_name"])
-            if key in local_cache:
+            group = row.get("navigation_group") or ""
+            principal_name = row.get("principal_name") or row["local_name"]
+            key = "|".join((group, fold_text(principal_name)))
+            if key in principal_cache:
                 continue
             local_id, created = _upsert_location(
-                conn, location_aliases, location_names, row["local_name"], row["sector_operacional"], actor
+                conn,
+                location_aliases,
+                location_names,
+                principal_name,
+                row["sector_operacional"],
+                actor,
+                parent_id=group_cache.get(group),
+                navigation_group=group,
             )
-            local_cache[key] = local_id
+            principal_cache[key] = local_id
             created_locations += int(created)
+
+        for row in rows:
+            hierarchy_key = row.get("hierarchy_key") or fold_text(row["local_name"])
+            if hierarchy_key in leaf_cache:
+                continue
+            group = row.get("navigation_group") or ""
+            principal_name = row.get("principal_name") or row["local_name"]
+            principal_key = "|".join((group, fold_text(principal_name)))
+            parent_id = principal_cache[principal_key]
+            path_parts = [principal_name]
+            installation = row.get("hierarchy_installation") or ""
+            subinstallation = row.get("hierarchy_subinstallation") or ""
+            if installation:
+                path_parts.append(installation)
+                reference = _hierarchy_reference("INSTALACAO", group, *path_parts)
+                node_id, created = _upsert_hierarchy_location(
+                    conn,
+                    location_references,
+                    reference=reference,
+                    name=" / ".join(path_parts),
+                    display_name=installation,
+                    level="INSTALACAO",
+                    group=group,
+                    parent_id=parent_id,
+                    sector=row["sector_operacional"],
+                    actor=actor,
+                )
+                parent_id = node_id
+                created_locations += int(created)
+            if subinstallation:
+                path_parts.append(subinstallation)
+                reference = _hierarchy_reference("SUBINSTALACAO", group, *path_parts)
+                node_id, created = _upsert_hierarchy_location(
+                    conn,
+                    location_references,
+                    reference=reference,
+                    name=" / ".join(path_parts),
+                    display_name=subinstallation,
+                    level="SUBINSTALACAO",
+                    group=group,
+                    parent_id=parent_id,
+                    sector=row["sector_operacional"],
+                    actor=actor,
+                )
+                parent_id = node_id
+                created_locations += int(created)
+            leaf_cache[hierarchy_key] = parent_id
 
         by_reference, legacy = _existing_equipment_state(conn)
         counters = Counter()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for row in rows:
-            local_id = local_cache[fold_text(row["local_name"])]
+            group = row.get("navigation_group") or ""
+            principal_name = row.get("principal_name") or row["local_name"]
+            principal_id = principal_cache["|".join((group, fold_text(principal_name)))]
+            local_id = leaf_cache[row.get("hierarchy_key") or fold_text(row["local_name"])]
             existing = by_reference.get(row["source_key"])
             equipment_id = int(existing["id"]) if existing else None
             reconciled = False
             if equipment_id is None:
-                candidates = legacy.get((local_id, fold_text(row["nome"])))
-                if candidates:
-                    equipment_id = candidates.popleft()
-                    reconciled = True
+                for candidate_local_id in dict.fromkeys((local_id, principal_id)):
+                    candidates = legacy.get((candidate_local_id, fold_text(row["nome"])))
+                    if candidates:
+                        equipment_id = candidates.popleft()
+                        reconciled = True
+                        break
             if equipment_id is not None:
                 old_hash = clean_text(existing.get("source_hash")) if existing else ""
                 if existing and old_hash == row["source_hash"] and not clean_text(existing.get("deleted_at")):
@@ -796,7 +1072,13 @@ def registry_dashboard(db_path: str) -> dict[str, Any]:
         source_total = conn.execute(
             "SELECT COUNT(*) FROM equipamentos WHERE COALESCE(referencia_externa,'')<>'' AND COALESCE(deleted_at,'')=''"
         ).fetchone()[0]
-        locations = conn.execute("SELECT COUNT(*) FROM locais WHERE COALESCE(ativo,1)=1").fetchone()[0]
+        locations = conn.execute(
+            "SELECT COUNT(*) FROM locais WHERE COALESCE(ativo,1)=1 "
+            "AND COALESCE(nivel_hierarquia,'LOCAL_PRINCIPAL')='LOCAL_PRINCIPAL'"
+        ).fetchone()[0]
+        hierarchy_nodes = conn.execute(
+            "SELECT COUNT(*) FROM locais WHERE COALESCE(ativo,1)=1 AND COALESCE(nivel_hierarquia,'')<>''"
+        ).fetchone()[0]
         etas = conn.execute("SELECT COUNT(*) FROM locais WHERE COALESCE(ativo,1)=1 AND tipo_local='ETA'").fetchone()[0]
         missing = conn.execute(
             """
@@ -818,7 +1100,8 @@ def registry_dashboard(db_path: str) -> dict[str, Any]:
             "SELECT id, source_name, actor, status, total_rows, inserted_rows, updated_rows, reconciled_rows, unchanged_rows, new_locations, started_at, completed_at FROM asset_import_batches ORDER BY id DESC LIMIT 10"
         )]
         return {
-            "total": int(total or 0), "source_total": int(source_total or 0), "locations": int(locations or 0), "etas": int(etas or 0),
+            "total": int(total or 0), "source_total": int(source_total or 0), "locations": int(locations or 0),
+            "hierarchy_nodes": int(hierarchy_nodes or 0), "etas": int(etas or 0),
             "missing_manufacturer": int(missing[0] or 0), "missing_model": int(missing[1] or 0),
             "missing_state": int(missing[2] or 0), "missing_criticality": int(missing[3] or 0),
             "by_sector": by_sector, "by_type": by_type, "batches": batches,
@@ -843,7 +1126,7 @@ def bootstrap_bundled_registry(db_path: str, base_dir: str) -> dict[str, Any] | 
     try:
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES(?,?)",
-            (BUNDLED_REGISTRY_MARKER, "Cadastro mestre DIMA de locais e 3.147 activos"),
+            (BUNDLED_REGISTRY_MARKER, "Cadastro DIMA hierárquico ETA/CD de locais e 3.147 activos"),
         )
         conn.commit()
     finally:

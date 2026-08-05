@@ -36,6 +36,7 @@ class AssetRegistryTest(unittest.TestCase):
             preview = preview_registry(str(db_path), self.parsed)
             self.assertEqual(preview['total'], 3147)
             self.assertEqual(preview['locations_count'], 29)
+            self.assertEqual(preview['hierarchy_nodes_count'], 428)
             self.assertEqual(preview['duplicate_keys'], 0)
 
             first = import_registry(str(db_path), self.parsed, actor='teste')
@@ -45,9 +46,37 @@ class AssetRegistryTest(unittest.TestCase):
 
             conn = sqlite3.connect(db_path)
             try:
-                self.assertEqual(conn.execute('SELECT COUNT(*) FROM locais').fetchone()[0], 29)
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM locais').fetchone()[0], 428)
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM locais WHERE nivel_hierarquia='GRUPO'").fetchone()[0], 2
+                )
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM locais WHERE nivel_hierarquia='LOCAL_PRINCIPAL'").fetchone()[0], 29
+                )
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM locais WHERE nivel_hierarquia='INSTALACAO'").fetchone()[0], 175
+                )
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM locais WHERE nivel_hierarquia='SUBINSTALACAO'").fetchone()[0], 222
+                )
                 self.assertEqual(
                     conn.execute("SELECT COUNT(*) FROM locais WHERE tipo_local='ETA'").fetchone()[0], 2
+                )
+                self.assertEqual(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM locais WHERE grupo_navegacao='CD' "
+                        "AND nivel_hierarquia='LOCAL_PRINCIPAL' AND sector_operacional='CDs'"
+                    ).fetchone()[0],
+                    26,
+                )
+                self.assertEqual(
+                    conn.execute(
+                        """SELECT COUNT(*) FROM equipamentos e
+                           JOIN locais l ON l.id=e.local_id
+                           JOIN locais p ON p.id=l.parent_id
+                           WHERE p.nome_exibicao='Tratamento 3'"""
+                    ).fetchone()[0],
+                    322,
                 )
                 self.assertEqual(
                     conn.execute("SELECT COUNT(*) FROM equipamentos WHERE COALESCE(deleted_at,'')='' ").fetchone()[0],
@@ -88,12 +117,14 @@ class AssetRegistryTest(unittest.TestCase):
             conn = sqlite3.connect(db_path)
             try:
                 saved = conn.execute(
-                    "SELECT id, tag, custo_aquisicao, referencia_externa FROM equipamentos"
+                    "SELECT e.id, e.tag, e.custo_aquisicao, e.referencia_externa, l.nivel_hierarquia "
+                    "FROM equipamentos e JOIN locais l ON l.id=e.local_id"
                 ).fetchone()
                 self.assertEqual(saved[0], equipment_id)
                 self.assertEqual(saved[1], 'TAG-MANUAL')
                 self.assertEqual(saved[2], 12345.67)
                 self.assertEqual(saved[3], row['source_key'])
+                self.assertIn(saved[4], ('INSTALACAO', 'SUBINSTALACAO'))
             finally:
                 conn.close()
 

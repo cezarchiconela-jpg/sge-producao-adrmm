@@ -8,9 +8,18 @@ def ensure_locais_parent_id_column():
     c = conn.cursor()
     try:
         cols = {row[1] for row in c.execute("PRAGMA table_info(locais)").fetchall()}
-        if 'parent_id' not in cols:
-            c.execute("ALTER TABLE locais ADD COLUMN parent_id INTEGER")
+        wanted = {
+            'parent_id': 'INTEGER',
+            'nome_exibicao': 'TEXT',
+            'nivel_hierarquia': 'TEXT',
+            'grupo_navegacao': 'TEXT',
+            'ordem_navegacao': 'INTEGER DEFAULT 0',
+        }
+        for column, declaration in wanted.items():
+            if column not in cols:
+                c.execute(f"ALTER TABLE locais ADD COLUMN {column} {declaration}")
         c.execute("CREATE INDEX IF NOT EXISTS idx_locais_parent_id ON locais(parent_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_locais_grupo_nivel ON locais(grupo_navegacao, nivel_hierarquia, parent_id)")
         conn.commit()
     finally:
         conn.close()
@@ -20,11 +29,17 @@ def _get_locais_rows(include_inactive=True):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    sql = "SELECT id, nome, COALESCE(parent_id, NULL) AS parent_id, COALESCE(ativo,1) AS ativo FROM locais"
+    sql = """SELECT id, nome, COALESCE(parent_id, NULL) AS parent_id,
+                    COALESCE(ativo,1) AS ativo,
+                    COALESCE(NULLIF(TRIM(nome_exibicao),''), nome) AS nome_exibicao,
+                    COALESCE(nivel_hierarquia,'') AS nivel_hierarquia,
+                    COALESCE(grupo_navegacao,'') AS grupo_navegacao,
+                    COALESCE(ordem_navegacao,0) AS ordem_navegacao
+             FROM locais"""
     params = []
     if not include_inactive:
         sql += " WHERE COALESCE(ativo,1)=1"
-    sql += " ORDER BY nome COLLATE NOCASE"
+    sql += " ORDER BY ordem_navegacao, nome_exibicao COLLATE NOCASE, nome COLLATE NOCASE"
     rows = c.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -51,8 +66,14 @@ def get_locais_hierarchy(include_inactive=True, exclude_id=None):
             roots.append(rid)
 
     for key in children:
-        children[key].sort(key=lambda cid: (by_id[cid].get('nome') or '').lower())
-    roots = sorted(set(roots), key=lambda rid: (by_id[rid].get('nome') or '').lower())
+        children[key].sort(key=lambda cid: (
+            int(by_id[cid].get('ordem_navegacao') or 0),
+            (by_id[cid].get('nome_exibicao') or by_id[cid].get('nome') or '').lower(),
+        ))
+    roots = sorted(set(roots), key=lambda rid: (
+        int(by_id[rid].get('ordem_navegacao') or 0),
+        (by_id[rid].get('nome_exibicao') or by_id[rid].get('nome') or '').lower(),
+    ))
 
     ordered = []
     visited = set()
@@ -63,9 +84,11 @@ def get_locais_hierarchy(include_inactive=True, exclude_id=None):
         visited.add(rid)
         row = dict(by_id[rid])
         trail = list(trail or [])
-        trail.append(row.get('nome') or '')
+        short_name = row.get('nome_exibicao') or row.get('nome') or ''
+        trail.append(short_name)
         row['depth'] = depth
-        row['display_name'] = (('— ' * depth) + (row.get('nome') or '')).strip()
+        row['short_name'] = short_name
+        row['display_name'] = (('— ' * depth) + short_name).strip()
         row['full_name'] = ' › '.join([p for p in trail if p])
         ordered.append(row)
         for child_id in children.get(rid, []):
@@ -91,10 +114,110 @@ def get_local_children(parent_id, include_inactive=True):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     for row in rows:
-        cnt = c.execute("SELECT COUNT(*) FROM equipamentos WHERE local_id=? AND COALESCE(deleted_at,'')=''", (row['id'],)).fetchone()[0]
+        scope = get_descendant_local_ids(row['id'], include_self=True) or [row['id']]
+        placeholders = ','.join('?' for _ in scope)
+        cnt = c.execute(
+            f"SELECT COUNT(*) FROM equipamentos WHERE local_id IN ({placeholders}) AND COALESCE(deleted_at,'')=''",
+            scope,
+        ).fetchone()[0]
+        child_count = c.execute(
+            "SELECT COUNT(*) FROM locais WHERE parent_id=? AND COALESCE(ativo,1)=1",
+            (row['id'],),
+        ).fetchone()[0]
         row['equipamentos_count'] = int(cnt or 0)
+        row['children_count'] = int(child_count or 0)
     conn.close()
     return rows
+
+
+def get_local_breadcrumb(local_id):
+    """Caminho curto e seguro até ao local, instalação ou subinstalação."""
+    rows = _get_locais_rows(include_inactive=True)
+    by_id = {int(row['id']): row for row in rows}
+    current = int(local_id)
+    chain = []
+    visited = set()
+    while current in by_id and current not in visited:
+        visited.add(current)
+        row = by_id[current]
+        chain.append({
+            'id': current,
+            'nome': row.get('nome_exibicao') or row.get('nome') or '',
+            'nivel_hierarquia': row.get('nivel_hierarquia') or '',
+            'grupo_navegacao': row.get('grupo_navegacao') or '',
+        })
+        parent_id = row.get('parent_id')
+        current = int(parent_id) if parent_id is not None and str(parent_id).isdigit() else -1
+    return list(reversed(chain))
+
+
+def derive_manual_location_identity(conn, parent_id, display_name):
+    """Define nome técnico único e nível ao criar manualmente dentro da árvore."""
+    display_name = (display_name or '').strip()
+    if not parent_id:
+        return display_name, display_name, '', ''
+    parent = conn.execute(
+        """SELECT nome, COALESCE(nivel_hierarquia,''), COALESCE(grupo_navegacao,'')
+           FROM locais WHERE id=?""",
+        (int(parent_id),),
+    ).fetchone()
+    if not parent:
+        return display_name, display_name, '', ''
+    parent_name, parent_level, group = parent
+    if parent_level == 'GRUPO':
+        return display_name, display_name, 'LOCAL_PRINCIPAL', group
+    if parent_level == 'LOCAL_PRINCIPAL':
+        level = 'INSTALACAO'
+    elif parent_level in ('INSTALACAO', 'SUBINSTALACAO'):
+        level = 'SUBINSTALACAO'
+    else:
+        level = ''
+    technical_name = f"{parent_name} / {display_name}" if level else display_name
+    return technical_name, display_name, level, group
+
+
+def get_navigation_summary():
+    """Resumo dos dois pontos de entrada: ETAs e CDs."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        result = {}
+        for group in ('ETA', 'CD'):
+            principals = conn.execute(
+                """SELECT id, COALESCE(NULLIF(TRIM(nome_exibicao),''), nome) AS nome,
+                          COALESCE(sector_operacional,'') AS sector_operacional
+                   FROM locais WHERE grupo_navegacao=? AND nivel_hierarquia='LOCAL_PRINCIPAL'
+                     AND COALESCE(ativo,1)=1 ORDER BY nome COLLATE NOCASE""",
+                (group,),
+            ).fetchall()
+            principal_ids = [int(row['id']) for row in principals]
+            scope = []
+            for principal_id in principal_ids:
+                scope.extend(get_descendant_local_ids(principal_id, include_self=True))
+            scope = sorted(set(scope))
+            equipment_count = 0
+            installation_count = 0
+            if scope:
+                placeholders = ','.join('?' for _ in scope)
+                equipment_count = conn.execute(
+                    f"SELECT COUNT(*) FROM equipamentos WHERE local_id IN ({placeholders}) AND COALESCE(deleted_at,'')=''",
+                    scope,
+                ).fetchone()[0]
+                installation_count = conn.execute(
+                    f"SELECT COUNT(*) FROM locais WHERE id IN ({placeholders}) AND nivel_hierarquia='INSTALACAO' AND COALESCE(ativo,1)=1",
+                    scope,
+                ).fetchone()[0]
+            result[group] = {
+                'principals': [dict(row) for row in principals],
+                'locations_count': len(principals),
+                'cd_count': sum(1 for row in principals if (row['sector_operacional'] or '').upper() == 'CDS'),
+                'network_count': sum(1 for row in principals if (row['sector_operacional'] or '').upper() != 'CDS') if group == 'CD' else 0,
+                'installations_count': int(installation_count or 0),
+                'equipment_count': int(equipment_count or 0),
+            }
+        return result
+    finally:
+        conn.close()
 
 
 def get_descendant_local_ids(local_id, include_self=True):
@@ -176,7 +299,10 @@ def get_local_full(local_id: int):
                COALESCE(l.distrito,''), COALESCE(l.bairro,''), l.latitude, l.longitude,
                COALESCE(l.sector_operacional,''), COALESCE(l.fonte_cadastro,''),
                COALESCE(l.referencia_externa,''), COALESCE(l.ultima_sincronizacao,''),
-               COALESCE(l.classificacao_confirmada,0)
+               COALESCE(l.classificacao_confirmada,0),
+               COALESCE(NULLIF(TRIM(l.nome_exibicao),''), l.nome),
+               COALESCE(l.nivel_hierarquia,''), COALESCE(l.grupo_navegacao,''),
+               COALESCE(l.ordem_navegacao,0)
         FROM locais l
         LEFT JOIN locais p ON p.id = l.parent_id
         WHERE l.id=?
@@ -194,7 +320,9 @@ def get_local_full(local_id: int):
         "parent_id": row[14], "parent_nome": row[15], "provincia": row[16], "municipio": row[17],
         "distrito": row[18], "bairro": row[19], "latitude": row[20], "longitude": row[21],
         "sector_operacional": row[22], "fonte_cadastro": row[23], "referencia_externa": row[24],
-        "ultima_sincronizacao": row[25], "classificacao_confirmada": int(row[26] or 0)
+        "ultima_sincronizacao": row[25], "classificacao_confirmada": int(row[26] or 0),
+        "nome_exibicao": row[27], "nivel_hierarquia": row[28],
+        "grupo_navegacao": row[29], "ordem_navegacao": int(row[30] or 0)
     }
 
 def infer_local_tipo(nome: str, endereco: str = '') -> str:
@@ -261,9 +389,9 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
     if not incluir_inativos:
         where.append("COALESCE(l.ativo,1)=1")
     if search:
-        where.append("(l.nome LIKE ? OR COALESCE(l.codigo,'') LIKE ? OR COALESCE(l.endereco,'') LIKE ? OR COALESCE(l.contato_nome,'') LIKE ? OR COALESCE(l.email,'') LIKE ? OR COALESCE(l.sector_operacional,'') LIKE ? OR COALESCE(l.municipio,'') LIKE ? OR COALESCE(l.distrito,'') LIKE ?)")
+        where.append("(l.nome LIKE ? OR COALESCE(l.nome_exibicao,'') LIKE ? OR COALESCE(l.codigo,'') LIKE ? OR COALESCE(l.endereco,'') LIKE ? OR COALESCE(l.contato_nome,'') LIKE ? OR COALESCE(l.email,'') LIKE ? OR COALESCE(l.sector_operacional,'') LIKE ? OR COALESCE(l.municipio,'') LIKE ? OR COALESCE(l.distrito,'') LIKE ?)")
         like = f"%{search}%"
-        params += [like, like, like, like, like, like, like, like]
+        params += [like, like, like, like, like, like, like, like, like]
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     sort_map = {
@@ -289,6 +417,8 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
                ,COALESCE(l.provincia,''), COALESCE(l.municipio,''), COALESCE(l.distrito,''), COALESCE(l.bairro,''),
                l.latitude, l.longitude, COALESCE(l.sector_operacional,''), COALESCE(l.fonte_cadastro,''),
                COALESCE(l.referencia_externa,''), COALESCE(l.ultima_sincronizacao,''), COALESCE(l.classificacao_confirmada,0)
+               ,COALESCE(NULLIF(TRIM(l.nome_exibicao),''), l.nome), COALESCE(l.nivel_hierarquia,''),
+               COALESCE(l.grupo_navegacao,''), COALESCE(l.ordem_navegacao,0)
         FROM locais l
         LEFT JOIN locais_cfg cfg ON cfg.local_id = l.id
         {where_sql}
@@ -307,7 +437,9 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
             "responsavel_alt": r[14], "estado_tecnico": r[15], "prioridade": r[16], "parent_id": r[17],
             "provincia": r[18], "municipio": r[19], "distrito": r[20], "bairro": r[21],
             "latitude": r[22], "longitude": r[23], "sector_operacional": r[24], "fonte_cadastro": r[25],
-            "referencia_externa": r[26], "ultima_sincronizacao": r[27], "classificacao_confirmada": int(r[28] or 0)
+            "referencia_externa": r[26], "ultima_sincronizacao": r[27], "classificacao_confirmada": int(r[28] or 0),
+            "nome_exibicao": r[29], "nivel_hierarquia": r[30], "grupo_navegacao": r[31],
+            "ordem_navegacao": int(r[32] or 0)
         }
         item['tipo'] = item['tipo_local'] or infer_local_tipo(item['nome'], item['endereco'])
         item['maturidade'] = calcular_maturidade_local(item)
@@ -317,7 +449,7 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
     hierarchy_map = {int(r['id']): r for r in get_locais_hierarchy(include_inactive=True)}
     for item in data:
         href = hierarchy_map.get(int(item['id']))
-        item['display_name'] = (href.get('full_name') if href else item['nome']) or item['nome']
+        item['display_name'] = (href.get('full_name') if href else item['nome_exibicao']) or item['nome_exibicao']
         item['depth'] = int(href.get('depth', 0)) if href else 0
 
     if tipo and tipo != 'todos':

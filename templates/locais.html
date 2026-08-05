@@ -31,7 +31,7 @@
       <div class="hero-grid">
         <div>
           <h2>Locais</h2>
-          <p>Agora com cadastro mais inteligente, filtros operacionais, classificação manual por tipologia, prioridade, estado técnico e maior controlo institucional do parque operacional da empresa Águas e Saneamento de Maputo.</p>
+          <p>Navegue primeiro por ETAs ou CDs e avance até à instalação, subinstalação e equipamento exacto, mantendo leituras e tarifários no respectivo local operacional.</p>
           <div class="sge-hero-actions">
             <a class="sge-btn sge-btn-white" href="{{ url_for('adicionar_local') }}">Novo local</a>
             <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_import') }}">Importar Excel/CSV</a>
@@ -53,6 +53,55 @@
       </div>
     </section>
 
+    <section class="sge-card pad mb-3">
+      {% if not grupo and modo_navegacao %}
+      <div class="sge-section-title mb-3">
+        <div>
+          <div class="sge-eyebrow">Primeiro nível</div>
+          <h3>Que tipo de local pretende consultar?</h3>
+          <p>Escolha uma das duas áreas para evitar uma lista extensa e pouco específica.</p>
+        </div>
+        <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais', vista='todos') }}">Ver cadastro técnico completo</a>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <a class="text-decoration-none" href="{{ url_for('listar_locais', grupo='ETA') }}">
+            <article class="border rounded-4 p-4 h-100 bg-primary-subtle text-dark">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div><span class="badge text-bg-primary mb-3">ETA</span><h3 class="mb-2">Estações de Tratamento</h3><p class="mb-0">ETA Umbeluzi e ETA Sabié, com instalações e subinstalações internas.</p></div>
+                <strong class="fs-2">{{ navigation_summary.ETA.locations_count }}</strong>
+              </div>
+              <div class="mt-4 small fw-semibold">{{ navigation_summary.ETA.installations_count }} instalações · {{ navigation_summary.ETA.equipment_count }} equipamentos</div>
+            </article>
+          </a>
+        </div>
+        <div class="col-lg-6">
+          <a class="text-decoration-none" href="{{ url_for('listar_locais', grupo='CD') }}">
+            <article class="border rounded-4 p-4 h-100 bg-success-subtle text-dark">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <div><span class="badge text-bg-success mb-3">CD</span><h3 class="mb-2">Centros de Distribuição</h3><p class="mb-0">CDs, estações, campos de furos, pequenos sistemas e rede de adução.</p></div>
+                <strong class="fs-2">{{ navigation_summary.CD.cd_count }}</strong>
+              </div>
+              <div class="mt-4 small fw-semibold">{{ navigation_summary.CD.cd_count }} CDs{% if navigation_summary.CD.network_count %} + {{ navigation_summary.CD.network_count }} rede de adução{% endif %} · {{ navigation_summary.CD.equipment_count }} equipamentos</div>
+            </article>
+          </a>
+        </div>
+      </div>
+      {% else %}
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <div class="sge-eyebrow">{{ 'ETAs' if grupo=='ETA' else ('CDs' if grupo=='CD' else 'Cadastro técnico completo') }}</div>
+          <h3 class="mb-1">{{ 'Seleccione Umbeluzi ou Sabié' if grupo=='ETA' else ('Seleccione o CD ou sistema pretendido' if grupo=='CD' else 'Todos os níveis da estrutura') }}</h3>
+          <p class="mb-0">Ao abrir um local, verá as instalações seguintes e os equipamentos associados.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais') }}">← ETAs ou CDs</a>
+          {% if grupo %}<a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais', vista='todos', grupo=grupo) }}">Ver todos os níveis</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+
     <section class="sge-grid-6 mb-3">
       <article class="sge-card pad sge-stat"><h3>Total de locais</h3><div class="value">{{ resumo.total }}</div><div class="meta">{{ resumo.ativos }} ativos · {{ resumo.arquivados }} arquivados</div></article>
       <article class="sge-card pad sge-stat"><h3>Potência contratada</h3><div class="value">{{ '%.2f'|format(resumo.pot_contratada_total) }}</div><div class="meta">kW na listagem filtrada</div></article>
@@ -62,6 +111,7 @@
       <article class="sge-card pad sge-stat"><h3>Sem contacto</h3><div class="value">{{ resumo.sem_contato }}</div><div class="meta">locais sem contacto registado</div></article>
     </section>
 
+    {% if not modo_navegacao or grupo %}
     <section class="sge-card pad mb-3">
       <div class="sge-section-title mb-2">
         <div>
@@ -69,10 +119,10 @@
           <p>Filtra por estado, tipologia, prioridade, estado técnico e qualidade do cadastro. A vista ocupa todo o ecrã para facilitar trabalho intensivo.</p>
         </div>
         <div class="sge-chipbar">
-          <a class="sge-chip {{ 'active' if status=='todos' else '' }}" href="{{ url_for('listar_locais', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='todos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Todos</a>
-          <a class="sge-chip {{ 'active' if status=='ativos' else '' }}" href="{{ url_for('listar_locais', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='ativos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Ativos</a>
-          <a class="sge-chip {{ 'active' if status=='arquivados' else '' }}" href="{{ url_for('listar_locais', q=q or None, inativos='1', sort=sort, order=order, status='arquivados', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Arquivados</a>
-          <a class="sge-chip {{ 'active' if status=='sem_config' else '' }}" href="{{ url_for('listar_locais', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='sem_config', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Sem configuração</a>
+          <a class="sge-chip {{ 'active' if status=='todos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='todos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Todos</a>
+          <a class="sge-chip {{ 'active' if status=='ativos' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='ativos', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Ativos</a>
+          <a class="sge-chip {{ 'active' if status=='arquivados' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1', sort=sort, order=order, status='arquivados', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Arquivados</a>
+          <a class="sge-chip {{ 'active' if status=='sem_config' else '' }}" href="{{ url_for('listar_locais', grupo=grupo or None, vista='todos', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order, status='sem_config', tipo=tipo if tipo!='todos' else None, qualidade=qualidade if qualidade!='todos' else None, estado_tecnico=estado_tecnico if estado_tecnico!='todos' else None, prioridade=prioridade if prioridade!='todas' else None) }}">Sem configuração</a>
         </div>
       </div>
 
@@ -142,6 +192,8 @@
           <button class="sge-btn sge-btn-primary" type="submit">Filtrar</button>
         </div>
         <input type="hidden" name="status" value="{{ status or 'todos' }}">
+        <input type="hidden" name="grupo" value="{{ grupo or '' }}">
+        <input type="hidden" name="vista" value="todos">
       </form>
 
       {% if ranking_atencao %}
@@ -160,6 +212,7 @@
       </div>
       {% endif %}
     </section>
+    {% endif %}
 
     <section class="alert-stack">
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -172,11 +225,12 @@
       {% if request.args.get('msg') %}<div class="alert alert-info">{{ request.args.get('msg') }}</div>{% endif %}
     </section>
 
+    {% if locais or not modo_navegacao %}
     <section class="sge-card p-0 overflow-hidden">
       <div class="d-flex justify-content-between align-items-center p-4 pb-3 flex-wrap gap-3">
         <div>
-          <h3 class="sge-panel-title mb-1">Lista institucional de locais</h3>
-          <div class="sge-mini">Visão operacional com ações rápidas e leitura mais executiva do cadastro institucional.</div>
+          <h3 class="sge-panel-title mb-1">{{ 'ETAs disponíveis' if grupo=='ETA' and modo_navegacao else ('CDs e sistemas disponíveis' if grupo=='CD' and modo_navegacao else 'Lista institucional de locais') }}</h3>
+          <div class="sge-mini">Abra um local para avançar às instalações e consultar os equipamentos correspondentes.</div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_csv', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}">Exportar CSV</a>
@@ -197,7 +251,7 @@
             <tr>
               <td>{{ r.id }}</td>
               <td>
-                <a href="{{ url_for('detalhes_local', local_id=r.id) }}" class="fw-bold text-decoration-none">{{ r.display_name or r.nome }}</a>
+                <a href="{{ url_for('detalhes_local', local_id=r.id) }}" class="fw-bold text-decoration-none">{{ r.nome_exibicao if modo_navegacao else (r.display_name or r.nome) }}</a>
                 <div class="sge-mini mt-1">
                   {% if r.codigo %}<span class="me-2">{{ r.codigo }}</span>{% endif %}
                   {% if r.endereco %}<span>{{ r.endereco }}</span>{% endif %}
@@ -238,6 +292,7 @@
         </table>
       </div>
     </section>
+    {% endif %}
   </div>
 </body>
 </html>

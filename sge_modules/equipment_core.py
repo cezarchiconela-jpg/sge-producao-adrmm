@@ -332,8 +332,7 @@ def listar_equipamentos():
             'ultima_sincronizacao': _equip_clean_text(r[29]),
         })
 
-    c.execute('SELECT id, nome FROM locais ORDER BY nome')
-    locais = c.fetchall()
+    locais = get_local_choices(include_inactive=True)
     opcoes = {}
     for chave, coluna in [('sectores','sector_operacional'),('sistemas','sistema'),('instalacoes','instalacao'),('estados_operacionais','estado_operacional'),('periodicidades','periodicidade_manutencao')]:
         opcoes[chave] = [r[0] for r in c.execute(f"SELECT DISTINCT {coluna} FROM equipamentos WHERE COALESCE(TRIM({coluna}),'')<>'' AND COALESCE(deleted_at,'')='' ORDER BY {coluna} COLLATE NOCASE").fetchall()]

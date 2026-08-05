@@ -6,6 +6,12 @@ Carregado no arranque pelo mecanismo transitório de compatibilidade.
 @app.route('/locais')
 def listar_locais():
     q = (request.args.get('q') or '').strip()
+    grupo = (request.args.get('grupo') or '').strip().upper()
+    if grupo not in ('ETA', 'CD'):
+        grupo = ''
+    vista = (request.args.get('vista') or 'navegacao').strip().lower()
+    if vista not in ('navegacao', 'todos'):
+        vista = 'navegacao'
     incluir_inativos = (request.args.get('inativos') == '1')
     sort = request.args.get('sort', 'nome')
     order = request.args.get('order', 'asc')
@@ -15,8 +21,21 @@ def listar_locais():
     estado_tecnico = (request.args.get('estado_tecnico') or 'todos').strip()
     prioridade = (request.args.get('prioridade') or 'todas').strip()
 
-    locais = get_locais_with_cfg(q if q else None, incluir_inativos=incluir_inativos, sort=sort, order=order,
-                                 tipo=tipo, qualidade=qualidade, estado_tecnico=estado_tecnico, prioridade=prioridade)
+    todos_locais = get_locais_with_cfg(q if q else None, incluir_inativos=incluir_inativos, sort=sort, order=order,
+                                       tipo=tipo, qualidade=qualidade, estado_tecnico=estado_tecnico, prioridade=prioridade)
+    filtros_avancados = bool(q) or vista == 'todos' or any((
+        status != 'todos', tipo != 'todos', qualidade != 'todos',
+        estado_tecnico != 'todos', prioridade != 'todas', incluir_inativos,
+    ))
+    if not filtros_avancados and grupo:
+        locais = [
+            row for row in todos_locais
+            if row.get('grupo_navegacao') == grupo and row.get('nivel_hierarquia') == 'LOCAL_PRINCIPAL'
+        ]
+    elif not filtros_avancados:
+        locais = []
+    else:
+        locais = [row for row in todos_locais if not grupo or row.get('grupo_navegacao') == grupo]
     if status == 'ativos':
         locais = [r for r in locais if int(r.get('ativo', 1)) == 1]
     elif status == 'arquivados':
@@ -24,7 +43,11 @@ def listar_locais():
     elif status == 'sem_config':
         locais = [r for r in locais if not r.get('config_ok')]
 
-    resumo = get_locais_module_summary(locais)
+    principais_operacionais = [
+        row for row in get_locais_with_cfg(None, incluir_inativos=True)
+        if row.get('nivel_hierarquia') in ('', 'LOCAL_PRINCIPAL')
+    ]
+    resumo = get_locais_module_summary(locais if locais else principais_operacionais)
     ranking_atencao = sorted(locais, key=lambda x: (x.get('maturidade', 0), x.get('pot_contratada', 0) + x.get('pot_instalada', 0)))[:5]
     tipos_disponiveis = ['todos'] + sorted({r.get('tipo','Outro') for r in get_locais_with_cfg(None, incluir_inativos=True)})
     estados_tecnicos = ['todos', 'Normal', 'Atenção', 'Crítico']
@@ -39,7 +62,10 @@ def listar_locais():
                            estados_tecnicos=estados_tecnicos,
                            prioridades=prioridades,
                            ranking_atencao=ranking_atencao,
-                           resumo=resumo)
+                           resumo=resumo,
+                           grupo=grupo, vista=vista,
+                           modo_navegacao=(not filtros_avancados),
+                           navigation_summary=get_navigation_summary())
 
 
 @app.route('/locais/template.csv')
@@ -133,7 +159,8 @@ def detalhes_local(local_id):
     alertas = get_local_alertas(local, cfg_full, overview)
     history = get_local_history(local_id, limit=12)
     sublocais = get_local_children(local_id, include_inactive=True)
-    return render_template('detalhes_local.html', local=local, cfg=cfg_full, equipamentos=equipamentos, overview=overview, alertas=alertas, history=history, sublocais=sublocais)
+    breadcrumb = get_local_breadcrumb(local_id)
+    return render_template('detalhes_local.html', local=local, cfg=cfg_full, equipamentos=equipamentos, overview=overview, alertas=alertas, history=history, sublocais=sublocais, breadcrumb=breadcrumb)
 
 
 @app.route('/locais/adicionar', methods=['GET', 'POST'])
@@ -169,16 +196,21 @@ def adicionar_local():
             return render_template('adicionar_local.html', form=request.form, parent_options=parent_options)
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         try:
+            nome_tecnico, nome_exibicao, nivel_hierarquia, grupo_navegacao = derive_manual_location_identity(
+                conn, parent_id, nome
+            )
             c.execute('''INSERT INTO locais (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
-                                             provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, classificacao_confirmada)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
-                      (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
-                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional))
+                                             provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, classificacao_confirmada,
+                                             nome_exibicao, nivel_hierarquia, grupo_navegacao)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)''',
+                      (nome_tecnico, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
+                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional,
+                       nome_exibicao, nivel_hierarquia, grupo_navegacao))
             lid = c.lastrowid
             c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (lid,))
             conn.commit()
             log_local_history(lid, 'Local criado', f'Cadastro inicial do local {nome}', actor='locais_fase4')
-            flash(f'Local "{nome}" criado com sucesso.', 'success')
+            flash(f'Local "{nome_exibicao}" criado com sucesso.', 'success')
             return redirect(url_for('detalhes_local', local_id=lid))
         except sqlite3.IntegrityError:
             flash('Já existe um local com esse nome.', 'danger')
@@ -229,12 +261,21 @@ def editar_local(local_id):
             return render_template('editar_local.html', local=local, parent_options=parent_options)
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         try:
+            derived_name, display_name, derived_level, derived_group = derive_manual_location_identity(
+                conn, parent_id, novo_nome
+            )
+            existing_level = local.get('nivel_hierarquia') or ''
+            stored_name = local.get('nome') if existing_level in ('INSTALACAO', 'SUBINSTALACAO') else derived_name
+            final_level = derived_level or existing_level
+            final_group = derived_group or (local.get('grupo_navegacao') or '')
             c.execute('''UPDATE locais
                             SET nome=?, codigo=?, endereco=?, contato_nome=?, contato_tel=?, email=?, responsavel_alt=?, tipo_local=?, categoria_operacional=?, estado_tecnico=?, prioridade=?, notas=?, ativo=?, parent_id=?,
-                                provincia=?, municipio=?, distrito=?, bairro=?, latitude=?, longitude=?, sector_operacional=?, classificacao_confirmada=1
+                                provincia=?, municipio=?, distrito=?, bairro=?, latitude=?, longitude=?, sector_operacional=?, classificacao_confirmada=1,
+                                nome_exibicao=?, nivel_hierarquia=?, grupo_navegacao=?
                           WHERE id=?''',
-                      (novo_nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
-                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, local_id))
+                      (stored_name, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
+                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional,
+                       display_name, final_level, final_group, local_id))
             conn.commit()
             log_local_history(local_id, 'Perfil atualizado', f'Nome: {novo_nome}; prioridade: {prioridade}; estado técnico: {estado_tecnico}', actor='locais_fase4')
             flash('Local atualizado com sucesso.', 'success')

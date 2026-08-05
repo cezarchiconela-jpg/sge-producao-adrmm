@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
   <meta charset="utf-8">
-  <title>{{ local.nome }} — SGE</title>
+  <title>{{ local.nome_exibicao or local.nome }} — SGE</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='locais_premium.css') }}">
@@ -12,11 +12,11 @@
   <header class="sge-topbar">
     <div class="sge-brand">
       <img src="{{ url_for('static', filename='adrmm_logo.png') }}" alt="Águas e Saneamento de Maputo">
-      <div><h2>{{ local.nome }}</h2><small>Informação detalhada do local</small></div>
+      <div><h2>{{ local.nome_exibicao or local.nome }}</h2><small>Informação detalhada do local</small></div>
     </div>
     <nav class="sge-nav">
       <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
-      <a href="{{ url_for('configurar_local', local_id=local.id) }}">Configuração</a>
+      {% if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] %}<a href="{{ url_for('configurar_local', local_id=local.id) }}">Configuração</a>{% endif %}
       <a href="{{ url_for('index') }}">Início</a>
     </nav>
   </header>
@@ -25,12 +25,24 @@
     {% if messages %}<div class="alert-stack mb-3">{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
   {% endwith %}
 
+  {% if breadcrumb %}
+  <nav class="mb-3" aria-label="Localização">
+    <div class="d-flex flex-wrap gap-2 align-items-center small">
+      <a class="text-decoration-none" href="{{ url_for('listar_locais') }}">Locais</a>
+      {% for item in breadcrumb %}
+        <span class="text-muted">›</span>
+        {% if not loop.last %}<a class="text-decoration-none" href="{{ url_for('detalhes_local', local_id=item.id) }}">{{ item.nome }}</a>{% else %}<strong>{{ item.nome }}</strong>{% endif %}
+      {% endfor %}
+    </div>
+  </nav>
+  {% endif %}
+
   <section class="sge-hero phase3-hero compact">
     <div class="hero-grid">
       <div>
-        <div class="sge-eyebrow">Perfil operacional · {{ local.tipo }}</div>
-        <h2>{{ local.nome }}</h2>
-        <p>{{ local.endereco or 'Sem endereço registado.' }}{% if local.codigo %} · Código {{ local.codigo }}{% endif %}</p>
+        <div class="sge-eyebrow">{{ 'Local operacional' if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] else ('Instalação' if local.nivel_hierarquia=='INSTALACAO' else 'Subinstalação') }} · {{ local.tipo }}</div>
+        <h2>{{ local.nome_exibicao or local.nome }}</h2>
+        <p>{% if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] %}{{ local.endereco or 'Sem endereço registado.' }}{% if local.codigo %} · Código {{ local.codigo }}{% endif %}{% else %}Localização interna de equipamentos · {{ breadcrumb|map(attribute='nome')|join(' › ') }}{% endif %}</p>
         <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
           <span class="badge-soft badge-blue">{{ local.tipo }}</span>
           <span class="badge-soft badge-tech badge-tech-{{ (local.estado_tecnico or 'Normal')|lower|replace('ç','c')|replace('ã','a')|replace('í','i') }}">{{ local.estado_tecnico or 'Normal' }}</span>
@@ -39,9 +51,11 @@
         </div>
         <div class="sge-hero-actions">
           <a class="sge-btn sge-btn-white" href="{{ url_for('editar_local', local_id=local.id) }}">Editar perfil</a>
+          {% if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] %}
           <a class="sge-btn sge-btn-outline" href="{{ url_for('configurar_local', local_id=local.id) }}">Configuração tarifária</a>
           <a class="sge-btn sge-btn-outline" href="{{ url_for('leituras_mensal', local=local.nome) }}">Abrir leituras</a>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_equipamentos', local_id=local.id) }}">Ver equipamentos</a>
+          {% endif %}
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_equipamentos', local_id=local.id) }}">Ver todos os {{ overview.equipamentos_count }} equipamentos</a>
           <a class="sge-btn sge-btn-outline" href="{{ url_for('adicionar_local') }}?parent_id={{ local.id }}">Criar sublocal</a>
         </div>
       </div>
@@ -60,6 +74,13 @@
     </div>
   </section>
 
+  {% if local.nivel_hierarquia not in ['', 'LOCAL_PRINCIPAL'] %}
+  <section class="sge-grid-3 mb-3">
+    <article class="sge-card pad sge-stat"><h3>Equipamentos associados</h3><div class="value">{{ overview.equipamentos_count }}</div><div class="meta">inclui os níveis internos abaixo deste ponto</div></article>
+    <article class="sge-card pad sge-stat"><h3>Próximo nível</h3><div class="value">{{ sublocais|length }}</div><div class="meta">subinstalações disponíveis</div></article>
+    <article class="sge-card pad sge-stat"><h3>Sector de origem</h3><div class="value" style="font-size:1.35rem">{{ local.sector_operacional or '—' }}</div><div class="meta">classificação preservada do cadastro</div></article>
+  </section>
+  {% else %}
   <section class="sge-grid-6 mb-3">
     <article class="sge-card pad sge-stat"><h3>Fator multiplicativo</h3><div class="value">{{ '%.4f'|format(cfg.fator_mult) }}</div><div class="meta">Parâmetro base de medição</div></article>
     <article class="sge-card pad sge-stat"><h3>Potência contratada</h3><div class="value">{{ '%.2f'|format(cfg.pot_contratada) }}</div><div class="meta">kW contratados</div></article>
@@ -138,12 +159,13 @@
       {% endif %}
     </article>
   </section>
+  {% endif %}
 
   <section class="sge-card p-0 overflow-hidden mb-3">
     <div class="p-4 pb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
-        <h3 class="sge-panel-title mb-1">Sublocais associados</h3>
-        <div class="sge-mini">Estrutura hierárquica ligada a este local para gestão de subáreas e equipamentos.</div>
+        <h3 class="sge-panel-title mb-1">{{ 'Instalações disponíveis' if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] else 'Subinstalações disponíveis' }}</h3>
+        <div class="sge-mini">Seleccione o nível seguinte para refinar a localização dos equipamentos.</div>
       </div>
       <a class="sge-btn sge-btn-outline" href="{{ url_for('adicionar_local') }}?parent_id={{ local.id }}">+ Novo sublocal</a>
     </div>
@@ -154,14 +176,14 @@
         {% for s in sublocais %}
           <tr>
             <td>{{ s.id }}</td>
-            <td><a class="fw-bold text-decoration-none" href="{{ url_for('detalhes_local', local_id=s.id) }}">{{ s.nome }}</a></td>
+            <td><a class="fw-bold text-decoration-none" href="{{ url_for('detalhes_local', local_id=s.id) }}">{{ s.short_name or s.nome }}</a><div class="sge-mini">{{ s.children_count }} níveis internos</div></td>
             <td>{{ s.full_name }}</td>
             <td>{{ s.equipamentos_count }}</td>
             <td>{% if (s.ativo or 1)==1 %}<span class="badge-soft badge-active">Ativo</span>{% else %}<span class="badge-soft badge-archived">Arquivado</span>{% endif %}</td>
             <td class="d-flex gap-2 flex-wrap"><a class="sge-btn sge-btn-outline" href="{{ url_for('editar_local', local_id=s.id) }}">Editar</a><a class="sge-btn sge-btn-outline" href="{{ url_for('adicionar_equipamento') }}?local_id={{ s.id }}">Novo equipamento</a></td>
           </tr>
         {% else %}
-          <tr><td colspan="6" class="text-center py-5 text-muted">Este local ainda não possui sublocais registados.</td></tr>
+          <tr><td colspan="6" class="text-center py-5 text-muted">Este é o nível mais específico da localização.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -172,8 +194,10 @@
     <article class="sge-card pad">
       <h3 class="sge-panel-title">Ações rápidas</h3>
       <div class="quick-actions-grid">
+        {% if local.nivel_hierarquia in ['', 'LOCAL_PRINCIPAL'] %}
         <a class="sge-btn sge-btn-soft big" href="{{ url_for('configurar_local', local_id=local.id) }}">Ajustar parâmetros</a>
         <a class="sge-btn sge-btn-soft big" href="{{ url_for('leituras_mensal', local=local.nome) }}">Preencher leituras</a>
+        {% endif %}
         <a class="sge-btn sge-btn-soft big" href="{{ url_for('listar_equipamentos', local_id=local.id) }}">Auditar equipamentos</a>
         <a class="sge-btn sge-btn-soft big" href="{{ url_for('editar_local', local_id=local.id) }}">Rever cadastro</a>
       </div>
@@ -200,9 +224,9 @@
   </section>
 
   <section class="sge-card p-0 overflow-hidden">
-    <div class="p-4 pb-3">
-      <h3 class="sge-panel-title mb-1">Equipamentos associados</h3>
-      <div class="sge-mini">Os primeiros 5 equipamentos ajudam a validar rapidamente a coerência deste local dentro do SGE.</div>
+    <div class="p-4 pb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div><h3 class="sge-panel-title mb-1">Equipamentos associados</h3><div class="sge-mini">A listagem inclui este nível e todos os níveis internos abaixo dele.</div></div>
+      <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_equipamentos', local_id=local.id) }}">Abrir lista completa com filtros</a>
     </div>
     <div class="table-wrap">
       <table class="table-premium w-100">
@@ -210,7 +234,7 @@
         <tbody>
         {% for e in equipamentos %}
           <tr>
-            <td>{{ e[0] }}</td><td>{{ e[1] }}</td><td>{{ e[2] or '—' }}</td><td>{{ e[3] or '—' }}</td><td>{{ e[4] or '—' }}</td><td>{{ e[5] or '—' }}</td>
+            <td>{{ e[0] }}</td><td><a class="fw-semibold text-decoration-none" href="{{ url_for('equipamento_detalhe', equipamento_id=e[0]) }}">{{ e[1] }}</a></td><td>{{ e[2] or '—' }}</td><td>{{ e[3] or '—' }}</td><td>{{ e[4] or '—' }}</td><td>{{ e[5] or '—' }}</td>
           </tr>
         {% else %}
           <tr><td colspan="6" class="text-center py-5 text-muted">Sem equipamentos registados para este local.</td></tr>

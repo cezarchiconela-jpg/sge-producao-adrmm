@@ -8,8 +8,28 @@ Esta actualização integra o cadastro DIMA de 4 de Agosto de 2026 no SGE e mant
 - 29 locais operacionais representados no cadastro-fonte.
 - 2 ETAs: ETA Umbeluzi e ETA Sabié.
 - CDs, campos de furos, estações de bombagem, transferências e pequenos sistemas mantidos como locais reais.
+- 428 nós de navegação: 2 grupos, 29 locais principais, 175 instalações e 222 subinstalações.
 - Sector, instalação e sistema guardados separadamente para permitir filtros e relatórios correctos.
 - 4 sectores de origem preservados: UMBELUZI, SABIE, CDs e ADUCAO.
+
+## Hierarquia de navegação
+
+A lista de locais abre com duas escolhas: **ETAs** ou **CDs**.
+
+- **ETAs → ETA Umbeluzi / ETA Sabié → Instalação → Subinstalação → Equipamentos**.
+- **CDs → Nome da coluna Instalação → Sistema interno → Equipamentos**.
+
+Exemplo: **ETAs → ETA Umbeluzi → Tratamento 3 → Filtro**. Ao abrir Tratamento 3,
+o SGE agrega todos os 322 equipamentos da instalação; ao abrir Filtro, mostra
+apenas os activos nessa localização exacta.
+
+Os activos do sector ADUCAO são preservados. Os que pertencem a Umbeluzi ou
+Sabié aparecem em **Adução e Transferência** dentro da ETA correspondente. Os
+restantes aparecem em **Rede de Adução e Transferência** dentro do grupo CDs.
+
+Os 29 locais principais continuam a concentrar leituras, tarifários e dados de
+governação. Instalações e subinstalações servem para localização técnica dos
+equipamentos; não criam facturas independentes.
 
 Numa base SGE já preenchida, o total pode ser superior a 3.147 porque os activos antigos sem correspondência não são eliminados automaticamente. Na base analisada, 693 registos existentes foram reconciliados e 3 ficaram preservados para revisão manual.
 
@@ -40,6 +60,10 @@ Abra **Equipamentos → Cadastro mestre** para:
 
 Os formulários manuais de Locais e Equipamentos incluem agora sector, instalação, sistema, estado operacional, periodicidade, localização geográfica e referência externa. O Excel de locais aceita um local-pai mesmo quando este aparece numa linha posterior da mesma folha.
 
+Ao criar manualmente um local por baixo de uma ETA, CD ou instalação, o SGE
+herda automaticamente o grupo e o nível hierárquico. Nomes internos repetidos,
+como Filtro ou Bombagem, permanecem distinguíveis pelo caminho completo.
+
 ## Qualidade de dados
 
 O ficheiro de origem deixa campos por completar. O painel do cadastro mostra essas lacunas para preenchimento posterior, sem inventar valores. No ficheiro actual existem, entre outros:
@@ -59,5 +83,4 @@ Esses campos podem ser preenchidos manualmente ou por um novo Excel. Província,
 4. Reinicie o SGE e aguarde a conclusão do primeiro arranque.
 5. Confirme em **Equipamentos → Cadastro mestre** os totais e o lote de importação.
 
-Os testes automatizados cobrem migração em base vazia, reconciliação numa base existente, preservação de dados manuais e repetição idempotente da importação.
-
+Os testes automatizados cobrem migração em base vazia, reconciliação numa base existente, preservação de dados manuais, hierarquia ETA/CD, agregação de equipamentos e repetição idempotente da importação.

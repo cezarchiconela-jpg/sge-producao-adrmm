@@ -60,6 +60,10 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             referencia_externa TEXT,
             ultima_sincronizacao TEXT,
             classificacao_confirmada INTEGER DEFAULT 0,
+            nome_exibicao TEXT,
+            nivel_hierarquia TEXT,
+            grupo_navegacao TEXT,
+            ordem_navegacao INTEGER DEFAULT 0,
             FOREIGN KEY(parent_id) REFERENCES locais(id)
         );
         CREATE TABLE IF NOT EXISTS locais_cfg (
@@ -424,6 +428,8 @@ def _upgrade_existing_tables(conn: sqlite3.Connection) -> None:
         "distrito": "TEXT", "bairro": "TEXT", "latitude": "REAL", "longitude": "REAL",
         "sector_operacional": "TEXT", "fonte_cadastro": "TEXT", "referencia_externa": "TEXT",
         "ultima_sincronizacao": "TEXT", "classificacao_confirmada": "INTEGER DEFAULT 0",
+        "nome_exibicao": "TEXT", "nivel_hierarquia": "TEXT",
+        "grupo_navegacao": "TEXT", "ordem_navegacao": "INTEGER DEFAULT 0",
     })
     _ensure_columns(conn, "locais_cfg", {
         "fator_mult": "REAL DEFAULT 1.0", "pot_contratada": "REAL DEFAULT 0.0",
@@ -554,6 +560,8 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_equip_sector_operacional ON equipamentos(sector_operacional)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_equip_referencia_externa ON equipamentos(referencia_externa) WHERE COALESCE(referencia_externa,'')<>''",
         "CREATE INDEX IF NOT EXISTS idx_locais_tipo_sector ON locais(tipo_local, sector_operacional)",
+        "CREATE INDEX IF NOT EXISTS idx_locais_grupo_nivel ON locais(grupo_navegacao, nivel_hierarquia, parent_id)",
+        "CREATE INDEX IF NOT EXISTS idx_locais_referencia_externa ON locais(referencia_externa)",
         "CREATE INDEX IF NOT EXISTS idx_asset_import_batches_started ON asset_import_batches(started_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_local_datahora ON leituras(local, datahora)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_mensais_periodo ON leituras_mensais(local, mes, ano, data)",
