@@ -79,7 +79,12 @@
             </div>
             <div class="meta-grid">
               <div class="meta-item"><div class="label">Local</div><div class="value">{{ e.local }}</div></div>
+              <div class="meta-item"><div class="label">Sector operacional</div><div class="value">{{ e.sector_operacional }}</div></div>
+              <div class="meta-item"><div class="label">Instalação / área</div><div class="value">{{ e.instalacao }}</div></div>
+              <div class="meta-item"><div class="label">Sistema / processo</div><div class="value">{{ e.sistema }}</div></div>
               <div class="meta-item"><div class="label">Categoria</div><div class="value">{{ e.categoria }}</div></div>
+              <div class="meta-item"><div class="label">Estado operacional</div><div class="value">{{ e.estado_operacional }}</div></div>
+              <div class="meta-item"><div class="label">Periodicidade</div><div class="value">{{ e.periodicidade_manutencao }}</div></div>
               <div class="meta-item"><div class="label">TAG</div><div class="value">{{ e.tag }}</div></div>
               <div class="meta-item"><div class="label">Número de série</div><div class="value">{{ e.numero_serie }}</div></div>
               <div class="meta-item"><div class="label">Fabricante</div><div class="value">{{ e.fabricante }}</div></div>
@@ -92,6 +97,9 @@
               <div class="meta-item"><div class="label">Vida útil</div><div class="value">{{ e.vida_util }} anos</div></div>
               <div class="meta-item"><div class="label">Fornecedor</div><div class="value">{{ e.fornecedor }}</div></div>
               <div class="meta-item"><div class="label">Contrato / referência</div><div class="value">{{ e.contrato_num }}</div></div>
+              <div class="meta-item"><div class="label">Código externo</div><div class="value">{{ e.referencia_externa }}</div></div>
+              <div class="meta-item"><div class="label">Origem do cadastro</div><div class="value">{{ e.fonte_cadastro }}{% if e.source_record_no != '—' %} · registo {{ e.source_record_no }}{% endif %}</div></div>
+              <div class="meta-item"><div class="label">Última sincronização</div><div class="value">{{ e.ultima_sincronizacao }}</div></div>
               <div class="meta-item"><div class="label">Criado em</div><div class="value">{{ e.created_at }}</div></div>
               <div class="meta-item"><div class="label">Atualizado em</div><div class="value">{{ e.updated_at }}</div></div>
             </div>

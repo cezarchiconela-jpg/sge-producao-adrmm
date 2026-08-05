@@ -18,6 +18,21 @@ def _form_float(name):
         return None
     return float(v)
 
+def _form_first(*names):
+    for name in names:
+        value = _form_str(name)
+        if value:
+            return value
+    return ''
+
+def _form_first_int(*names):
+    value = _form_first(*names)
+    return int(value) if value else None
+
+def _form_first_float(*names):
+    value = _form_first(*names).replace(',', '.')
+    return float(value) if value else None
+
 def _equip_form_payload():
     return {
         'nome': _form_str('nome'),
@@ -30,8 +45,8 @@ def _equip_form_payload():
         'fabricante': _form_str('fabricante'),
         'modelo': _form_str('modelo'),
         'numero_serie': _form_str('numero_serie'),
-        'custo_aquisicao': _form_float('custo'),
-        'vida_util_anos': _form_int('vida_util'),
+        'custo_aquisicao': _form_first_float('custo_aquisicao', 'custo'),
+        'vida_util_anos': _form_first_int('vida_util_anos', 'vida_util'),
         'criticidade': _form_str('criticidade'),
         'ativo': 1 if request.form.get('ativo') else 0,
         'potencia_kw': _form_float('potencia_kw'),
@@ -40,6 +55,12 @@ def _equip_form_payload():
         'fornecedor': _form_str('fornecedor'),
         'contrato_num': _form_str('contrato_num'),
         'garantia_fim': _form_str('garantia_fim') or None,
+        'sistema': _form_str('sistema'),
+        'instalacao': _form_str('instalacao'),
+        'estado_operacional': _form_str('estado_operacional'),
+        'periodicidade_manutencao': _form_str('periodicidade_manutencao'),
+        'sector_operacional': _form_str('sector_operacional'),
+        'referencia_externa': _form_str('referencia_externa'),
     }
 
 def _equip_validate_payload(payload):
@@ -54,6 +75,26 @@ def _equip_validate_payload(payload):
     if payload['criticidade'] and payload['criticidade'] not in ('Baixa', 'Média', 'Alta'):
         errors.append('Criticidade inválida.')
     return errors
+
+
+def _equip_reference_conflict(reference, exclude_id=None):
+    reference = (reference or '').strip()
+    if not reference:
+        return False
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        if exclude_id is None:
+            row = conn.execute(
+                "SELECT 1 FROM equipamentos WHERE referencia_externa=? LIMIT 1", (reference,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT 1 FROM equipamentos WHERE referencia_externa=? AND id<>? LIMIT 1",
+                (reference, exclude_id),
+            ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
 
 
 def _equip_clean_text(value, fallback='—'):
@@ -116,6 +157,12 @@ def _equip_form_defaults(equipamento):
         'garantia_fim': equipamento[24] or '',
         'fornecedor': equipamento[25] or '',
         'contrato_num': equipamento[26] or '',
+        'sistema': equipamento[27] or '' if len(equipamento) > 27 else '',
+        'instalacao': equipamento[28] or '' if len(equipamento) > 28 else '',
+        'estado_operacional': equipamento[29] or '' if len(equipamento) > 29 else '',
+        'periodicidade_manutencao': equipamento[30] or '' if len(equipamento) > 30 else '',
+        'sector_operacional': equipamento[31] or '' if len(equipamento) > 31 else '',
+        'referencia_externa': equipamento[32] or '' if len(equipamento) > 32 else '',
     }
 
 @app.route('/equipamentos')
@@ -127,6 +174,11 @@ def listar_equipamentos():
     fabricante = request.args.get('fabricante', '').strip()
     modelo = request.args.get('modelo', '').strip()
     criticidade = request.args.get('criticidade', '').strip()
+    sector = request.args.get('sector', '').strip()
+    sistema = request.args.get('sistema', '').strip()
+    instalacao = request.args.get('instalacao', '').strip()
+    estado_operacional = request.args.get('estado_operacional', '').strip()
+    periodicidade = request.args.get('periodicidade', '').strip()
     ano_min = request.args.get('ano_min', '').strip()
     ano_max = request.args.get('ano_max', '').strip()
     sort = request.args.get('sort', 'local_nome')
@@ -144,7 +196,11 @@ def listar_equipamentos():
         'quantidade': 'e.quantidade',
         'fabricante': 'e.fabricante',
         'modelo': 'e.modelo',
-        'criticidade': 'e.criticidade'
+        'criticidade': 'e.criticidade',
+        'sector': 'e.sector_operacional',
+        'sistema': 'e.sistema',
+        'instalacao': 'e.instalacao',
+        'estado_operacional': 'e.estado_operacional'
     }
     sort_sql = allowed_sort.get(sort, 'l.nome, e.nome')
     order_sql = 'DESC' if order == 'desc' else 'ASC'
@@ -175,6 +231,21 @@ def listar_equipamentos():
     if criticidade:
         where_clauses.append("COALESCE(e.criticidade,'') = ?")
         params.append(criticidade)
+    if sector:
+        where_clauses.append("COALESCE(e.sector_operacional,'') = ?")
+        params.append(sector)
+    if sistema:
+        where_clauses.append("COALESCE(e.sistema,'') = ?")
+        params.append(sistema)
+    if instalacao:
+        where_clauses.append("COALESCE(e.instalacao,'') = ?")
+        params.append(instalacao)
+    if estado_operacional:
+        where_clauses.append("COALESCE(e.estado_operacional,'') = ?")
+        params.append(estado_operacional)
+    if periodicidade:
+        where_clauses.append("COALESCE(e.periodicidade_manutencao,'') = ?")
+        params.append(periodicidade)
     if ano_min and ano_min.isdigit():
         where_clauses.append("CAST(COALESCE(e.ano_instalacao,0) AS INTEGER) >= ?")
         params.append(int(ano_min))
@@ -212,7 +283,10 @@ def listar_equipamentos():
                e.custo_aquisicao, COALESCE(e.vida_util_anos,''), COALESCE(e.criticidade,''),
                e.potencia_kw, e.tensao_v, e.corrente_a, e.garantia_fim,
                COALESCE(cp.thumb_filename,(SELECT thumb_filename FROM equipamentos_photos WHERE equipamento_id = e.id ORDER BY uploaded_at DESC LIMIT 1),''),
-               COALESCE(e.fornecedor,''), COALESCE(e.contrato_num,'')
+               COALESCE(e.fornecedor,''), COALESCE(e.contrato_num,''),
+               COALESCE(e.sector_operacional,''), COALESCE(e.instalacao,''), COALESCE(e.sistema,''),
+               COALESCE(e.estado_operacional,''), COALESCE(e.periodicidade_manutencao,''),
+               COALESCE(e.referencia_externa,''), COALESCE(e.fonte_cadastro,''), COALESCE(e.ultima_sincronizacao,'')
         FROM equipamentos e
         LEFT JOIN locais l ON e.local_id = l.id
         LEFT JOIN equipamentos_photos cp ON cp.id = e.cover_photo_id
@@ -248,10 +322,21 @@ def listar_equipamentos():
             'cover_thumb': r[19] or '',
             'fornecedor': _equip_clean_text(r[20]),
             'contrato_num': _equip_clean_text(r[21]),
+            'sector_operacional': _equip_clean_text(r[22]),
+            'instalacao': _equip_clean_text(r[23]),
+            'sistema': _equip_clean_text(r[24]),
+            'estado_operacional': _equip_clean_text(r[25]),
+            'periodicidade_manutencao': _equip_clean_text(r[26]),
+            'referencia_externa': _equip_clean_text(r[27]),
+            'fonte_cadastro': _equip_clean_text(r[28]),
+            'ultima_sincronizacao': _equip_clean_text(r[29]),
         })
 
     c.execute('SELECT id, nome FROM locais ORDER BY nome')
     locais = c.fetchall()
+    opcoes = {}
+    for chave, coluna in [('sectores','sector_operacional'),('sistemas','sistema'),('instalacoes','instalacao'),('estados_operacionais','estado_operacional'),('periodicidades','periodicidade_manutencao')]:
+        opcoes[chave] = [r[0] for r in c.execute(f"SELECT DISTINCT {coluna} FROM equipamentos WHERE COALESCE(TRIM({coluna}),'')<>'' AND COALESCE(deleted_at,'')='' ORDER BY {coluna} COLLATE NOCASE").fetchall()]
     local_nome = ''
     if local_id and str(local_id).isdigit():
         for _lid, _lnome in locais:
@@ -271,6 +356,9 @@ def listar_equipamentos():
                            local_id=local_id, incluir_inativos=incluir_inativos,
                            categoria=categoria, fabricante=fabricante, modelo=modelo,
                            criticidade=criticidade, ano_min=ano_min, ano_max=ano_max,
+                           sector=sector, sistema=sistema, instalacao=instalacao,
+                           estado_operacional=estado_operacional, periodicidade=periodicidade,
+                           **opcoes,
                            ativos=ativos, inativos=inativos, criticos=criticos,
                            em_garantia=em_garantia, local_nome=local_nome)
 @app.route('/equipamentos/adicionar', methods=['GET', 'POST'])
@@ -285,6 +373,8 @@ def adicionar_equipamento():
             return render_template('adicionar_equipamento.html', locais=locais, form=request.form)
 
         errors = _equip_validate_payload(payload)
+        if _equip_reference_conflict(payload['referencia_externa']):
+            errors.append('O código externo já está associado a outro equipamento.')
         if errors:
             for e in errors:
                 flash(e, 'danger')
@@ -296,17 +386,21 @@ def adicionar_equipamento():
                 nome, local_id, tag, especificacao, ano_instalacao, quantidade, ativo,
                 created_at, updated_at, categoria, fabricante, modelo, numero_serie,
                 custo_aquisicao, vida_util_anos, criticidade, potencia_kw, tensao_v,
-                corrente_a, fornecedor, contrato_num, garantia_fim
+                corrente_a, fornecedor, contrato_num, garantia_fim,
+                sistema, instalacao, estado_operacional, periodicidade_manutencao,
+                sector_operacional, referencia_externa
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'),
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
         ''', (
             payload['nome'], payload['local_id'], payload['tag'], payload['especificacao'], payload['ano_instalacao'],
             payload['quantidade'], payload['ativo'], payload['categoria'], payload['fabricante'], payload['modelo'],
             payload['numero_serie'], payload['custo_aquisicao'], payload['vida_util_anos'], payload['criticidade'],
             payload['potencia_kw'], payload['tensao_v'], payload['corrente_a'], payload['fornecedor'],
-            payload['contrato_num'], payload['garantia_fim']
+            payload['contrato_num'], payload['garantia_fim'], payload['sistema'], payload['instalacao'],
+            payload['estado_operacional'], payload['periodicidade_manutencao'], payload['sector_operacional'],
+            payload['referencia_externa']
         ))
         equipamento_id = c.lastrowid
         conn.commit(); conn.close()
@@ -333,6 +427,8 @@ def editar_equipamento(equipamento_id):
             return render_template('editar_equipamento.html', equipamento=equipamento, locais=locais, form=request.form, defaults=_equip_form_defaults(equipamento))
 
         errors = _equip_validate_payload(payload)
+        if _equip_reference_conflict(payload['referencia_externa'], equipamento_id):
+            errors.append('O código externo já está associado a outro equipamento.')
         if errors:
             for e in errors:
                 flash(e, 'danger')
@@ -344,14 +440,18 @@ def editar_equipamento(equipamento_id):
             SET nome=?, local_id=?, tag=?, especificacao=?, ano_instalacao=?, quantidade=?, ativo=?,
                 categoria=?, fabricante=?, modelo=?, numero_serie=?, custo_aquisicao=?, vida_util_anos=?,
                 criticidade=?, potencia_kw=?, tensao_v=?, corrente_a=?, fornecedor=?, contrato_num=?,
-                garantia_fim=?, updated_at=datetime('now','localtime')
+                garantia_fim=?, updated_at=datetime('now','localtime'),
+                sistema=?, instalacao=?, estado_operacional=?, periodicidade_manutencao=?,
+                sector_operacional=?, referencia_externa=?
             WHERE id=?
         ''', (
             payload['nome'], payload['local_id'], payload['tag'], payload['especificacao'], payload['ano_instalacao'],
             payload['quantidade'], payload['ativo'], payload['categoria'], payload['fabricante'], payload['modelo'],
             payload['numero_serie'], payload['custo_aquisicao'], payload['vida_util_anos'], payload['criticidade'],
             payload['potencia_kw'], payload['tensao_v'], payload['corrente_a'], payload['fornecedor'],
-            payload['contrato_num'], payload['garantia_fim'], equipamento_id
+            payload['contrato_num'], payload['garantia_fim'], payload['sistema'], payload['instalacao'],
+            payload['estado_operacional'], payload['periodicidade_manutencao'], payload['sector_operacional'],
+            payload['referencia_externa'], equipamento_id
         ))
         conn.commit(); conn.close()
         log_equip_audit(equipamento_id, 'editar', f"nome={payload['nome']}")
@@ -396,4 +496,3 @@ def equipamento_config(equipamento_id):
     return render_template('equipamento_config.html', equipamento=equipamento, cfg=cfg)
 
 # === LEITURAS POR LOCAL ===
-

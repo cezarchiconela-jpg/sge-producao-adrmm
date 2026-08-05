@@ -36,10 +36,17 @@
         <div class="sge-form-grid-3">
           <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ (form.nome if form else '') or '' }}" required></div>
           <div class="field"><label>Código interno</label><input class="sge-input" name="codigo" value="{{ (form.codigo if form else '') or '' }}"></div>
-          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option><option>ETA</option><option>CD</option><option>Furo</option><option>Reservatório</option><option>Estação</option><option>Escritório</option><option>Outro</option></select></div>
+          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option><option>ETA</option><option>Centro de Distribuição</option><option>Estação de Bombagem</option><option>Campo de Furos</option><option>Pequeno Sistema</option><option>Sistema de Adução</option><option>Reservatório</option><option>Escritório</option><option>Outro</option></select></div>
           <div class="field"><label>Local pai / centro</label><select class="sge-select" name="parent_id"><option value="">Raiz principal</option>{% for opt in parent_options or [] %}<option value="{{ opt[0] }}" {{ 'selected' if (form.parent_id if form else request.args.get('parent_id'))|string==opt[0]|string else '' }}>{{ opt[1] }}</option>{% endfor %}</select><small class="text-muted">Use este campo quando o local pertence a um centro ou a outro local já existente.</small></div>
           <div class="field" style="grid-column: span 2"><label>Endereço / localização</label><input class="sge-input" name="endereco" value="{{ (form.endereco if form else '') or '' }}"></div>
           <div class="field"><label>Estado inicial</label><select class="sge-select" name="ativo"><option value="1">Ativo</option><option value="0">Arquivado</option></select></div>
+          <div class="field"><label>Sector operacional</label><input class="sge-input" name="sector_operacional" value="{{ (form.sector_operacional if form else '') or '' }}" placeholder="UMBELUZI, SABIE, CDs, ADUÇÃO..."></div>
+          <div class="field"><label>Província</label><input class="sge-input" name="provincia" value="{{ (form.provincia if form else '') or '' }}"></div>
+          <div class="field"><label>Município</label><input class="sge-input" name="municipio" value="{{ (form.municipio if form else '') or '' }}"></div>
+          <div class="field"><label>Distrito</label><input class="sge-input" name="distrito" value="{{ (form.distrito if form else '') or '' }}"></div>
+          <div class="field"><label>Bairro</label><input class="sge-input" name="bairro" value="{{ (form.bairro if form else '') or '' }}"></div>
+          <div class="field"><label>Latitude</label><input class="sge-input" name="latitude" value="{{ (form.latitude if form else '') or '' }}" placeholder="-25.000000"></div>
+          <div class="field"><label>Longitude</label><input class="sge-input" name="longitude" value="{{ (form.longitude if form else '') or '' }}" placeholder="32.000000"></div>
         </div>
       </div>
       <div class="sge-card pad">

@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date
 
 
-SCHEMA_VERSION = 2026080302
+SCHEMA_VERSION = 2026080502
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -49,6 +49,17 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             estado_tecnico TEXT DEFAULT 'Normal',
             prioridade TEXT DEFAULT 'Média',
             parent_id INTEGER,
+            provincia TEXT,
+            municipio TEXT,
+            distrito TEXT,
+            bairro TEXT,
+            latitude REAL,
+            longitude REAL,
+            sector_operacional TEXT,
+            fonte_cadastro TEXT,
+            referencia_externa TEXT,
+            ultima_sincronizacao TEXT,
+            classificacao_confirmada INTEGER DEFAULT 0,
             FOREIGN KEY(parent_id) REFERENCES locais(id)
         );
         CREATE TABLE IF NOT EXISTS locais_cfg (
@@ -94,6 +105,16 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             garantia_fim TEXT,
             fornecedor TEXT,
             contrato_num TEXT,
+            sistema TEXT,
+            instalacao TEXT,
+            estado_operacional TEXT,
+            periodicidade_manutencao TEXT,
+            sector_operacional TEXT,
+            referencia_externa TEXT,
+            fonte_cadastro TEXT,
+            source_record_no TEXT,
+            source_hash TEXT,
+            ultima_sincronizacao TEXT,
             FOREIGN KEY(local_id) REFERENCES locais(id)
         );
         CREATE TABLE IF NOT EXISTS leituras (
@@ -209,6 +230,23 @@ def _create_core_schema(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT, equipamento_id INTEGER,
             acao TEXT, detalhes TEXT, actor TEXT,
             ts TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS asset_import_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_name TEXT NOT NULL,
+            source_hash TEXT,
+            actor TEXT,
+            status TEXT NOT NULL DEFAULT 'Em curso',
+            total_rows INTEGER DEFAULT 0,
+            inserted_rows INTEGER DEFAULT 0,
+            updated_rows INTEGER DEFAULT 0,
+            reconciled_rows INTEGER DEFAULT 0,
+            unchanged_rows INTEGER DEFAULT 0,
+            new_locations INTEGER DEFAULT 0,
+            summary_json TEXT,
+            error_message TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            completed_at TEXT
         );
         CREATE TABLE IF NOT EXISTS locais_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT, local_id INTEGER NOT NULL,
@@ -382,7 +420,10 @@ def _upgrade_existing_tables(conn: sqlite3.Connection) -> None:
         "potencia_instalada_kw": "REAL DEFAULT 0", "tipo_local": "TEXT",
         "categoria_operacional": "TEXT", "email": "TEXT", "responsavel_alt": "TEXT",
         "estado_tecnico": "TEXT DEFAULT 'Normal'", "prioridade": "TEXT DEFAULT 'Média'",
-        "parent_id": "INTEGER",
+        "parent_id": "INTEGER", "provincia": "TEXT", "municipio": "TEXT",
+        "distrito": "TEXT", "bairro": "TEXT", "latitude": "REAL", "longitude": "REAL",
+        "sector_operacional": "TEXT", "fonte_cadastro": "TEXT", "referencia_externa": "TEXT",
+        "ultima_sincronizacao": "TEXT", "classificacao_confirmada": "INTEGER DEFAULT 0",
     })
     _ensure_columns(conn, "locais_cfg", {
         "fator_mult": "REAL DEFAULT 1.0", "pot_contratada": "REAL DEFAULT 0.0",
@@ -402,7 +443,11 @@ def _upgrade_existing_tables(conn: sqlite3.Connection) -> None:
             "criticidade": "TEXT", "cover_photo_id": "INTEGER", "deleted_at": "TEXT",
             "potencia_kw": "REAL", "tensao_v": "REAL", "corrente_a": "REAL",
             "ip_class": "TEXT", "peso_kg": "REAL", "garantia_fim": "TEXT",
-            "fornecedor": "TEXT", "contrato_num": "TEXT",
+            "fornecedor": "TEXT", "contrato_num": "TEXT", "sistema": "TEXT",
+            "instalacao": "TEXT", "estado_operacional": "TEXT",
+            "periodicidade_manutencao": "TEXT", "sector_operacional": "TEXT",
+            "referencia_externa": "TEXT", "fonte_cadastro": "TEXT",
+            "source_record_no": "TEXT", "source_hash": "TEXT", "ultima_sincronizacao": "TEXT",
         },
         "leituras": {
             "datahora": "TEXT", "local": "TEXT", "equipamento": "TEXT",
@@ -503,6 +548,13 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_equip_local ON equipamentos(local_id)",
         "CREATE INDEX IF NOT EXISTS idx_equip_ativo ON equipamentos(ativo)",
         "CREATE INDEX IF NOT EXISTS idx_equip_deleted ON equipamentos(deleted_at)",
+        "CREATE INDEX IF NOT EXISTS idx_equip_sistema ON equipamentos(sistema)",
+        "CREATE INDEX IF NOT EXISTS idx_equip_instalacao ON equipamentos(instalacao)",
+        "CREATE INDEX IF NOT EXISTS idx_equip_estado_operacional ON equipamentos(estado_operacional)",
+        "CREATE INDEX IF NOT EXISTS idx_equip_sector_operacional ON equipamentos(sector_operacional)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_equip_referencia_externa ON equipamentos(referencia_externa) WHERE COALESCE(referencia_externa,'')<>''",
+        "CREATE INDEX IF NOT EXISTS idx_locais_tipo_sector ON locais(tipo_local, sector_operacional)",
+        "CREATE INDEX IF NOT EXISTS idx_asset_import_batches_started ON asset_import_batches(started_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_local_datahora ON leituras(local, datahora)",
         "CREATE INDEX IF NOT EXISTS idx_leituras_mensais_periodo ON leituras_mensais(local, mes, ano, data)",
         "CREATE INDEX IF NOT EXISTS idx_tarifas_historico_periodo ON tarifas_historico(local_id, valid_from, valid_to)",
@@ -532,7 +584,7 @@ def run_migrations(db_path: str) -> int:
         _create_indexes(conn)
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES(?,?)",
-            (SCHEMA_VERSION, "Eficiência Energética e Desempenho Operacional"),
+            (SCHEMA_VERSION, "Cadastro mestre de locais e activos, importação inteligente e exportações completas"),
         )
         conn.commit()
         return SCHEMA_VERSION

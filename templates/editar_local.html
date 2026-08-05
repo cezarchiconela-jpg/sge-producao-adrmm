@@ -36,13 +36,20 @@
         <div class="sge-form-grid-3">
           <div class="field"><label>Nome *</label><input class="sge-input" name="nome" value="{{ local.nome or '' }}" required></div>
           <div class="field"><label>Código interno</label><input class="sge-input" name="codigo" value="{{ local.codigo or '' }}"></div>
-          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option>{% for item in ['ETA','CD','Furo','Reservatório','Estação','Escritório','Outro'] %}<option value="{{ item }}" {{ 'selected' if local.tipo_local==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Tipo de local</label><select class="sge-select" name="tipo_local"><option value="">Auto-detectar</option>{% for item in ['ETA','Centro de Distribuição','Estação de Bombagem','Campo de Furos','Pequeno Sistema','Sistema de Adução','Reservatório','Escritório','Outro'] %}<option value="{{ item }}" {{ 'selected' if local.tipo_local==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
           <div class="field"><label>Local pai / centro</label><select class="sge-select" name="parent_id"><option value="">Raiz principal</option>{% for opt in parent_options or [] %}<option value="{{ opt[0] }}" {{ 'selected' if local.parent_id|string==opt[0]|string else '' }}>{{ opt[1] }}</option>{% endfor %}</select><small class="text-muted">Defina a ligação hierárquica deste local dentro do sistema.</small></div>
           <div class="field" style="grid-column: span 2"><label>Endereço / localização</label><input class="sge-input" name="endereco" value="{{ local.endereco or '' }}"></div>
           <div class="field"><label>Estado</label><select class="sge-select" name="ativo"><option value="1" {{ 'selected' if local.ativo==1 else '' }}>Ativo</option><option value="0" {{ 'selected' if local.ativo!=1 else '' }}>Arquivado</option></select></div>
           <div class="field"><label>Categoria operacional</label><input class="sge-input" name="categoria_operacional" value="{{ local.categoria_operacional or '' }}"></div>
           <div class="field"><label>Estado técnico</label><select class="sge-select" name="estado_tecnico">{% for item in ['Normal','Atenção','Crítico'] %}<option value="{{ item }}" {{ 'selected' if local.estado_tecnico==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
           <div class="field"><label>Prioridade</label><select class="sge-select" name="prioridade">{% for item in ['Baixa','Média','Alta'] %}<option value="{{ item }}" {{ 'selected' if local.prioridade==item else '' }}>{{ item }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Sector operacional</label><input class="sge-input" name="sector_operacional" value="{{ local.sector_operacional or '' }}"></div>
+          <div class="field"><label>Província</label><input class="sge-input" name="provincia" value="{{ local.provincia or '' }}"></div>
+          <div class="field"><label>Município</label><input class="sge-input" name="municipio" value="{{ local.municipio or '' }}"></div>
+          <div class="field"><label>Distrito</label><input class="sge-input" name="distrito" value="{{ local.distrito or '' }}"></div>
+          <div class="field"><label>Bairro</label><input class="sge-input" name="bairro" value="{{ local.bairro or '' }}"></div>
+          <div class="field"><label>Latitude</label><input class="sge-input" name="latitude" value="{{ local.latitude if local.latitude is not none else '' }}"></div>
+          <div class="field"><label>Longitude</label><input class="sge-input" name="longitude" value="{{ local.longitude if local.longitude is not none else '' }}"></div>
         </div>
       </div>
       <div class="sge-card pad">

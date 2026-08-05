@@ -181,6 +181,9 @@ _load_sge_feature('compatibility', globals())
 # Domínio modular: efficiency
 _load_sge_feature('efficiency', globals())
 
+# Domínio modular: cadastro mestre de locais e activos
+_load_sge_feature('asset_registry', globals())
+
 # Domínio modular: dashboard_executive
 _load_sge_feature('dashboard_executive', globals())
 

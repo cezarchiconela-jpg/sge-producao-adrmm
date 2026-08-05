@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastro Mestre de Activos — SGE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{--navy:#0b3b75;--blue:#136ca7;--green:#148a63;--bg:#eef3f8;--text:#18324b;--muted:#6b7d90}
+    body{background:var(--bg);color:var(--text)}.shell{max-width:1500px;margin:auto}
+    .hero{background:linear-gradient(135deg,var(--navy),var(--blue) 58%,var(--green));color:#fff;border-radius:24px;box-shadow:0 18px 44px rgba(13,45,89,.16)}
+    .card-premium{border:0;border-radius:20px;box-shadow:0 10px 28px rgba(13,45,89,.08);background:#fff}
+    .kpi{position:relative;overflow:hidden}.kpi:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--green))}
+    .kpi strong{font-size:2rem;line-height:1}.mini{font-size:.84rem;color:var(--muted)}
+    .section-title{font-size:1.05rem;font-weight:800;color:#23405f}.drop{border:2px dashed #b7c7d8;border-radius:18px;background:#f8fbfe;padding:1.25rem}
+    .badge-soft{display:inline-flex;padding:.35rem .7rem;border-radius:999px;font-size:.78rem;font-weight:700;background:#e7f0fb;color:#174983}
+    .table thead th{background:#f5f8fb;color:#53677a;font-size:.78rem;text-transform:uppercase;white-space:nowrap}
+    .quality-good{background:#daf5e9;color:#0f6a48}.quality-warn{background:#fff1cb;color:#916900}
+  </style>
+</head>
+<body>
+<div class="container-fluid px-3 px-lg-4 py-4"><div class="shell">
+  <section class="hero p-4 p-lg-5 mb-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
+      <div><div class="text-uppercase small fw-semibold opacity-75 mb-1">SGE · Fonte institucional única</div><h2 class="mb-1">Cadastro Mestre de Locais e Activos</h2><div class="opacity-75">Importação com pré-visualização, reconciliação sem duplicação, preservação dos dados anteriores e rastreabilidade por lote.</div></div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-light" href="{{ url_for('listar_equipamentos') }}">Lista de equipamentos</a>
+        <a class="btn btn-outline-light" href="{{ url_for('listar_locais') }}">Locais</a>
+        <a class="btn btn-outline-light" href="{{ url_for('index') }}">Início</a>
+      </div>
+    </div>
+  </section>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="mb-3">{% for category,message in messages %}<div class="alert alert-{{ category if category in ['success','warning','danger','info'] else 'info' }} shadow-sm">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3"><div class="card card-premium kpi h-100"><div class="card-body p-4"><div class="mini">Activos no SGE</div><strong>{{ dashboard.total }}</strong><div class="mini mt-2">{{ dashboard.source_total }} reconciliados com cadastro externo</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card card-premium kpi h-100"><div class="card-body p-4"><div class="mini">Locais activos</div><strong>{{ dashboard.locations }}</strong><div class="mini mt-2">{{ dashboard.etas }} estações de tratamento</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card card-premium kpi h-100"><div class="card-body p-4"><div class="mini">Fabricante por completar</div><strong>{{ dashboard.missing_manufacturer }}</strong><div class="mini mt-2">Campos vazios mantidos para actualização manual</div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card card-premium kpi h-100"><div class="card-body p-4"><div class="mini">Estado por confirmar</div><strong>{{ dashboard.missing_state }}</strong><div class="mini mt-2">Activos sem condição operacional definida</div></div></div></div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-xl-7"><div class="card card-premium h-100"><div class="card-body p-4">
+      <div class="section-title mb-1">Actualizar o cadastro</div><p class="mini">Aceita o relatório DIMA original e o modelo mestre do SGE. Primeiro é apresentada uma pré-visualização; nada é gravado até à confirmação.</p>
+      {% if can_write('equipamentos') %}
+      <form class="drop mt-3" method="post" enctype="multipart/form-data" action="{{ url_for('cadastro_activos_preview') }}">
+        <label class="form-label fw-bold">Ficheiro Excel ou CSV</label><input class="form-control" type="file" name="arquivo" accept=".xlsx,.csv" required>
+        <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-primary" type="submit">Analisar e pré-visualizar</button><a class="btn btn-outline-primary" href="{{ url_for('cadastro_activos_modelo_xlsx') }}">Baixar modelo de activos</a><a class="btn btn-outline-secondary" href="{{ url_for('locais_template_xlsx') }}">Baixar modelo de locais</a></div>
+      </form>
+      {% else %}<div class="alert alert-info mt-3">O seu perfil possui acesso de consulta e exportação. A importação exige permissão de escrita em equipamentos.</div>{% endif %}
+    </div></div></div>
+    <div class="col-xl-5"><div class="card card-premium h-100"><div class="card-body p-4">
+      <div class="section-title mb-3">Exportação completa</div><p class="mini">Os filtros podem ser aplicados na URL ou na lista de equipamentos. O Excel inclui Resumo, Activos e Locais; o PDF produz a relação consolidada.</p>
+      <div class="d-grid gap-2"><a class="btn btn-success" href="{{ url_for('cadastro_activos_export_xlsx') }}">Exportar cadastro mestre em Excel</a><a class="btn btn-outline-dark" href="{{ url_for('cadastro_activos_export_pdf') }}">Exportar activos em PDF</a><a class="btn btn-outline-dark" href="{{ url_for('locais_export_pdf') }}">Exportar locais em PDF</a></div>
+      <hr><div class="d-flex flex-wrap gap-2">{% for item in dashboard.by_type %}<span class="badge-soft">{{ item.nome }} · {{ item.total }}</span>{% endfor %}</div>
+    </div></div></div>
+  </div>
+
+  {% if preview %}
+  <section class="card card-premium mb-4 border border-primary"><div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start"><div><div class="section-title">Pré-visualização pronta</div><div class="mini">{{ preview.source_name }} · {{ preview.total }} linhas · folhas {{ preview.sheets|join(', ') }}</div></div><span class="badge-soft quality-good">Nenhuma alteração aplicada ainda</span></div>
+    <div class="row g-3 mt-1">
+      {% set actions=preview.actions %}
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Inserir</div><div class="fs-3 fw-bold">{{ actions.get('inserir',0) }}</div></div></div>
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Actualizar</div><div class="fs-3 fw-bold">{{ actions.get('actualizar',0) }}</div></div></div>
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Reconciliar</div><div class="fs-3 fw-bold">{{ actions.get('reconciliar',0) }}</div></div></div>
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Sem alteração</div><div class="fs-3 fw-bold">{{ actions.get('sem_alteracao',0) }}</div></div></div>
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Novos locais</div><div class="fs-3 fw-bold">{{ preview.new_locations_count }}</div></div></div>
+      <div class="col-6 col-lg-2"><div class="border rounded-4 p-3"><div class="mini">Chaves duplicadas</div><div class="fs-3 fw-bold">{{ preview.duplicate_keys }}</div></div></div>
+    </div>
+    {% if preview.new_locations %}<div class="mt-3"><div class="fw-bold mb-2">Locais que serão criados</div><div class="d-flex flex-wrap gap-2">{% for local in preview.new_locations %}<span class="badge-soft">{{ local }}</span>{% endfor %}</div></div>{% endif %}
+    <div class="row g-3 mt-1"><div class="col-lg-7"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Local previsto</th><th>Activos</th></tr></thead><tbody>{% for name,count in preview.locations %}<tr><td>{{ name }}</td><td>{{ count }}</td></tr>{% endfor %}</tbody></table></div></div>
+      <div class="col-lg-5"><div class="border rounded-4 p-3 bg-light"><div class="fw-bold mb-2">Qualidade da fonte</div><ul class="mb-0"><li>Sem fabricante: {{ preview.quality.get('sem_fabricante',0) }}</li><li>Sem modelo: {{ preview.quality.get('sem_modelo',0) }}</li><li>Sem estado: {{ preview.quality.get('sem_estado',0) }}</li><li>Sem criticidade: {{ preview.quality.get('sem_criticidade',0) }}</li></ul></div></div></div>
+    {% for warning in preview.warnings %}<div class="alert alert-warning mt-3 mb-0">{{ warning }}</div>{% endfor %}
+    {% if preview.duplicate_keys %}<div class="alert alert-danger mt-4 mb-2">A confirmação foi bloqueada porque existem códigos de activo duplicados. Corrija o Excel e volte a analisar.</div>{% endif %}
+    <form method="post" action="{{ url_for('cadastro_activos_confirmar') }}" class="d-flex flex-wrap gap-2 mt-4" onsubmit="return confirm('Confirmar a actualização transaccional do cadastro?');"><input type="hidden" name="preview_token" value="{{ preview_token }}"><button class="btn btn-primary px-4" {% if preview.duplicate_keys %}disabled{% endif %}>Confirmar actualização</button><a class="btn btn-outline-secondary" href="{{ url_for('cadastro_activos') }}">Cancelar</a></form>
+  </div></section>
+  {% endif %}
+
+  <div class="row g-3">
+    <div class="col-xl-5"><div class="card card-premium h-100"><div class="card-body p-4"><div class="section-title mb-3">Distribuição por sector</div>{% for item in dashboard.by_sector %}<div class="d-flex justify-content-between py-2 border-bottom"><span>{{ item.nome }}</span><strong>{{ item.total }}</strong></div>{% else %}<div class="mini">Sem dados.</div>{% endfor %}</div></div></div>
+    <div class="col-xl-7"><div class="card card-premium h-100"><div class="card-body p-4"><div class="section-title mb-3">Últimas importações</div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Lote</th><th>Origem</th><th>Estado</th><th>Total</th><th>Inseridos</th><th>Actualizados</th><th>Reconciliados</th><th>Data</th></tr></thead><tbody>{% for b in dashboard.batches %}<tr><td>#{{ b.id }}</td><td>{{ b.source_name }}</td><td><span class="badge-soft {{ 'quality-good' if b.status=='Concluído' else 'quality-warn' }}">{{ b.status }}</span></td><td>{{ b.total_rows }}</td><td>{{ b.inserted_rows }}</td><td>{{ b.updated_rows }}</td><td>{{ b.reconciled_rows }}</td><td>{{ b.completed_at or b.started_at }}</td></tr>{% else %}<tr><td colspan="8" class="text-center mini py-4">Ainda não existem lotes registados.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  </div>
+</div></div>
+</body></html>

@@ -3,6 +3,9 @@
   <div class="btn-group">
     <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Exportar</button>
     <ul class="dropdown-menu">
+      <li><a class="dropdown-item fw-semibold" href="/equipamentos/cadastro/export.xlsx?{{ request.query_string.decode() }}">Cadastro mestre XLSX</a></li>
+      <li><a class="dropdown-item fw-semibold" href="/equipamentos/cadastro/export.pdf?{{ request.query_string.decode() }}">Cadastro mestre PDF</a></li>
+      <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="/equipamentos/export/csv?{{ request.query_string.decode() }}">CSV (filtro atual)</a></li>
       <li><a class="dropdown-item" href="/equipamentos/export/xlsx?{{ request.query_string.decode() }}">XLSX (filtro atual)</a></li>
       <li><a class="dropdown-item" href="/equipamentos/export/relatorio.pdf?{{ request.query_string.decode() }}">Relatório PDF (filtro atual)</a></li>
@@ -16,6 +19,8 @@
   <div class="btn-group">
     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Etiquetas</button>
     <ul class="dropdown-menu">
+      <li><a class="dropdown-item fw-semibold" href="/equipamentos/cadastro">Cadastro mestre com pré-visualização</a></li>
+      <li><hr class="dropdown-divider"></li>
       <li><a class="dropdown-item" href="/equipamentos/labels.options">—</a></li>
       <li><a class="dropdown-item" href="/equipamentos/labels.options">Opções...</a></li>
       <li><hr class="dropdown-divider"></li>

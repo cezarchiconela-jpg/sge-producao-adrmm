@@ -184,7 +184,12 @@ def equipamento_detalhe(equipamento_id):
                COALESCE(e.modelo,''), COALESCE(e.numero_serie,''), COALESCE(e.custo_aquisicao,0.0),
                COALESCE(e.vida_util_anos,''), COALESCE(e.criticidade,''), COALESCE(e.potencia_kw,''),
                COALESCE(e.tensao_v,''), COALESCE(e.corrente_a,''), COALESCE(e.fornecedor,''),
-               COALESCE(e.contrato_num,''), COALESCE(e.garantia_fim,'')
+               COALESCE(e.contrato_num,''), COALESCE(e.garantia_fim,''),
+               COALESCE(e.sector_operacional,''), COALESCE(e.instalacao,''),
+               COALESCE(e.sistema,''), COALESCE(e.estado_operacional,''),
+               COALESCE(e.periodicidade_manutencao,''), COALESCE(e.referencia_externa,''),
+               COALESCE(e.fonte_cadastro,''), COALESCE(e.source_record_no,''),
+               COALESCE(e.ultima_sincronizacao,'')
         FROM equipamentos e
         LEFT JOIN locais l ON e.local_id = l.id
         WHERE e.id=?
@@ -231,6 +236,15 @@ def equipamento_detalhe(equipamento_id):
         'fornecedor': _equip_clean_text(eq[20]),
         'contrato_num': _equip_clean_text(eq[21]),
         'garantia_fim': _equip_clean_text(eq[22]),
+        'sector_operacional': _equip_clean_text(eq[23]),
+        'instalacao': _equip_clean_text(eq[24]),
+        'sistema': _equip_clean_text(eq[25]),
+        'estado_operacional': _equip_clean_text(eq[26]),
+        'periodicidade_manutencao': _equip_clean_text(eq[27]),
+        'referencia_externa': _equip_clean_text(eq[28]),
+        'fonte_cadastro': _equip_clean_text(eq[29]),
+        'source_record_no': _equip_clean_text(eq[30]),
+        'ultima_sincronizacao': _equip_clean_text(eq[31]),
         'created_at': _equip_clean_text(eq[8]),
         'updated_at': _equip_clean_text(eq[9]),
     }
@@ -269,39 +283,20 @@ def importar_equipamentos():
         if not file or file.filename == '':
             flash("Selecione um ficheiro CSV.", "danger")
             return redirect(url_for('importar_equipamentos'))
-        import csv, io
-        content = file.read().decode('utf-8', errors='ignore')
-        reader = csv.DictReader(io.StringIO(content))
-        inserted = 0; skipped = 0
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        for row in reader:
-            nome = (row.get('nome') or row.get('Nome') or '').strip()
-            if not nome:
-                skipped += 1; continue
-            local_nome = (row.get('local') or row.get('Local') or '').strip()
-            # resolve local_id by name if provided
-            local_id = None
-            if local_nome:
-                c.execute("SELECT id FROM locais WHERE nome=?", (local_nome,))
-                r = c.fetchone()
-                if r: local_id = r[0]
-            tag = (row.get('tag') or row.get('TAG') or '').strip()
-            especificacao = (row.get('especificacao') or row.get('Especificacao') or row.get('Especificação') or '').strip()
-            ano = (row.get('ano_instalacao') or row.get('ano') or '').strip()
-            qtd = (row.get('quantidade') or row.get('qtd') or '1').strip()
-            try:
-                qtd_i = int(qtd)
-            except Exception:
-                qtd_i = 1
-
-            c.execute('''
-                INSERT INTO equipamentos (nome, local_id, tag, especificacao, ano_instalacao, quantidade, ativo, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now','localtime'), datetime('now','localtime'))
-            ''', (nome, local_id, tag, especificacao, ano or None, qtd_i))
-            inserted += 1
-        conn.commit(); conn.close()
-        flash(f"Importação concluída: {inserted} inseridos, {skipped} ignorados.", "success")
-        return redirect(url_for('listar_equipamentos'))
+        try:
+            from asset_registry_service import import_registry, parse_registry_file
+            parsed = parse_registry_file(file.stream, file.filename)
+            result = import_registry(DB_PATH, parsed, actor=_actor_name('importar_equipamentos_csv'))
+            flash(
+                f"Importação segura concluída: {result.get('inseridos',0)} inseridos, "
+                f"{result.get('actualizados',0)} actualizados, {result.get('reconciliados',0)} reconciliados e "
+                f"{result.get('sem_alteracao',0)} sem alteração.",
+                "success",
+            )
+            return redirect(url_for('listar_equipamentos'))
+        except Exception as exc:
+            flash(f"Não foi possível importar o CSV: {exc}", "danger")
+            return redirect(url_for('importar_equipamentos'))
     return render_template('importar_equipamentos.html')
 
 
@@ -642,55 +637,20 @@ def importar_equipamentos_xlsx():
         if not file or file.filename == '':
             flash("Selecione um ficheiro XLSX.", "danger")
             return redirect(url_for('importar_equipamentos_xlsx'))
-        from openpyxl import load_workbook
-        data = io.BytesIO(file.read())
-        wb = load_workbook(filename=data, read_only=True, data_only=True)
-        ws = wb.active
-        headers = [str(c.value).strip().lower() if c.value is not None else '' for c in next(ws.iter_rows(min_row=1, max_row=1))]
-        idx = {h:i for i,h in enumerate(headers)}
-        def get(row, key):
-            i = idx.get(key)
-            return (str(row[i].value).strip() if (i is not None and row[i].value is not None) else '')
-        inserted=0; skipped=0
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        for row in ws.iter_rows(min_row=2):
-            nome = get(row,'nome')
-            if not nome: skipped+=1; continue
-            local_nome = get(row,'local')
-            local_id = None
-            if local_nome:
-                c.execute("SELECT id FROM locais WHERE nome=?", (local_nome,))
-                r = c.fetchone()
-                if r: local_id = r[0]
-            tag = get(row,'tag')
-            especificacao = get(row,'especificacao') or get(row,'especificação')
-            ano = get(row,'ano') or get(row,'ano_instalacao')
-            quantidade = get(row,'quantidade') or '1'
-            categoria = get(row,'categoria')
-            fabricante = get(row,'fabricante')
-            modelo = get(row,'modelo')
-            numero_serie = get(row,'numero_serie') or get(row,'nº série')
-            custo_aquisicao = get(row,'custo_aquisicao')
-            vida_util_anos = get(row,'vida_util_anos')
-            criticidade = get(row,'criticidade')
-
-            try: qtd_i = int(quantidade)
-            except: qtd_i = 1
-            try: custo_val = float(custo_aquisicao) if custo_aquisicao else None
-            except: custo_val = None
-            try: vida_val = int(vida_util_anos) if vida_util_anos else None
-            except: vida_val = None
-
-            c.execute('''
-                INSERT INTO equipamentos (nome, local_id, tag, especificacao, ano_instalacao, quantidade, ativo, created_at, updated_at,
-                                          categoria, fabricante, modelo, numero_serie, custo_aquisicao, vida_util_anos, criticidade)
-                VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now','localtime'), datetime('now','localtime'),
-                        ?, ?, ?, ?, ?, ?, ?)
-            ''', (nome, local_id, tag, especificacao, ano or None, qtd_i, categoria, fabricante, modelo, numero_serie, custo_val, vida_val, criticidade))
-            inserted += 1
-        conn.commit(); conn.close()
-        flash(f"Importação XLSX concluída: {inserted} inseridos, {skipped} ignorados.", "success")
-        return redirect(url_for('listar_equipamentos'))
+        try:
+            from asset_registry_service import import_registry, parse_registry_file
+            parsed = parse_registry_file(file.stream, file.filename)
+            result = import_registry(DB_PATH, parsed, actor=_actor_name('importar_equipamentos_xlsx'))
+            flash(
+                f"Importação segura concluída: {result.get('inseridos',0)} inseridos, "
+                f"{result.get('actualizados',0)} actualizados, {result.get('reconciliados',0)} reconciliados e "
+                f"{result.get('sem_alteracao',0)} sem alteração.",
+                "success",
+            )
+            return redirect(url_for('listar_equipamentos'))
+        except Exception as exc:
+            flash(f"Não foi possível importar o Excel: {exc}", "danger")
+            return redirect(url_for('importar_equipamentos_xlsx'))
     return render_template('importar_equipamentos_xlsx.html')
 
 
@@ -887,9 +847,10 @@ def equipamentos_xlsx_template():
     wb = xlsxwriter.Workbook(out, {'in_memory': True})
     _set_xlsx_identity(wb, 'Modelo de Importação de Equipamentos')
     ws = wb.add_worksheet('Equipamentos')
-    headers = ["nome","local","tag","especificacao","ano","quantidade","categoria","fabricante","modelo","numero_serie","custo_aquisicao","vida_util_anos","criticidade"]
+    headers = ["codigo_activo","local","sector","instalacao","sistema","nome","estado","criticidade","periodicidade","tag","especificacao","ano","quantidade","categoria","fabricante","modelo","numero_serie","custo_aquisicao","vida_util_anos"]
     for i,hx in enumerate(headers): ws.write(0, i, hx)
-    ws.data_validation(1, 12, 10000, 12, {'validate': 'list', 'source': ['Baixa','Média','Alta']})
+    ws.data_validation(1, 7, 10000, 7, {'validate': 'list', 'source': ['Baixa','Média','Alta']})
+    ws.data_validation(1, 6, 10000, 6, {'validate': 'list', 'source': ['Operacional','Avariado','Fora de serviço','Não informado']})
     wb.close(); out.seek(0)
     return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": "attachment; filename=template_equipamentos.xlsx"})
@@ -1564,4 +1525,3 @@ def _get_local_cfg_full(conn, local_id):
             cfg["pot_instalada"] = _to_float(r2[0], cfg["pot_instalada"])
 
     return cfg
-

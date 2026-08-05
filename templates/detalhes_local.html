@@ -76,10 +76,16 @@
         <div class="kpi-item"><strong>{{ local.codigo or '—' }}</strong><span>Código interno</span></div>
         <div class="kpi-item"><strong>{{ local.categoria_operacional or '—' }}</strong><span>Categoria operacional</span></div>
         <div class="kpi-item"><strong>{{ local.parent_nome or 'Raiz principal' }}</strong><span>Local pai / centro</span></div>
+        <div class="kpi-item"><strong>{{ local.sector_operacional or '—' }}</strong><span>Sector operacional</span></div>
+        <div class="kpi-item"><strong>{{ local.provincia or '—' }}{% if local.municipio %} · {{ local.municipio }}{% endif %}</strong><span>Província / município</span></div>
+        <div class="kpi-item"><strong>{{ local.distrito or '—' }}{% if local.bairro %} · {{ local.bairro }}{% endif %}</strong><span>Distrito / bairro</span></div>
+        <div class="kpi-item"><strong>{% if local.latitude is not none and local.longitude is not none %}{{ local.latitude }}, {{ local.longitude }}{% else %}—{% endif %}</strong><span>Coordenadas</span></div>
         <div class="kpi-item"><strong>{{ local.contato_nome or '—' }}</strong><span>Responsável principal</span></div>
         <div class="kpi-item"><strong>{{ local.responsavel_alt or '—' }}</strong><span>Responsável alternativo</span></div>
         <div class="kpi-item"><strong>{{ local.contato_tel or '—' }}</strong><span>Telefone</span></div>
         <div class="kpi-item"><strong>{{ local.email or '—' }}</strong><span>Email</span></div>
+        <div class="kpi-item"><strong>{{ local.fonte_cadastro or 'Manual' }}</strong><span>Fonte do cadastro</span></div>
+        <div class="kpi-item"><strong>{{ local.ultima_sincronizacao or '—' }}</strong><span>Última sincronização</span></div>
       </div>
       <div class="mt-3 sge-mini">{{ local.notas or 'Sem notas adicionais registadas.' }}</div>
     </article>

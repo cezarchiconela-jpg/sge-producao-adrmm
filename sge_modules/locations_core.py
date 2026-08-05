@@ -172,7 +172,11 @@ def get_local_full(local_id: int):
         SELECT l.id, l.nome, l.codigo, l.endereco, l.contato_nome, l.contato_tel, l.notas, COALESCE(l.ativo,1),
                COALESCE(l.tipo_local,''), COALESCE(l.categoria_operacional,''), COALESCE(l.email,''),
                COALESCE(l.responsavel_alt,''), COALESCE(l.estado_tecnico,'Normal'), COALESCE(l.prioridade,'Média'),
-               l.parent_id, COALESCE(p.nome,'')
+               l.parent_id, COALESCE(p.nome,''), COALESCE(l.provincia,''), COALESCE(l.municipio,''),
+               COALESCE(l.distrito,''), COALESCE(l.bairro,''), l.latitude, l.longitude,
+               COALESCE(l.sector_operacional,''), COALESCE(l.fonte_cadastro,''),
+               COALESCE(l.referencia_externa,''), COALESCE(l.ultima_sincronizacao,''),
+               COALESCE(l.classificacao_confirmada,0)
         FROM locais l
         LEFT JOIN locais p ON p.id = l.parent_id
         WHERE l.id=?
@@ -184,10 +188,13 @@ def get_local_full(local_id: int):
     return {
         "id": row[0], "nome": row[1], "codigo": row[2], "endereco": row[3],
         "contato_nome": row[4], "contato_tel": row[5], "notas": row[6],
-        "ativo": int(row[7] or 1),
+        "ativo": int(row[7] if row[7] is not None else 1),
         "tipo_local": row[8], "categoria_operacional": row[9], "email": row[10],
         "responsavel_alt": row[11], "estado_tecnico": row[12], "prioridade": row[13],
-        "parent_id": row[14], "parent_nome": row[15]
+        "parent_id": row[14], "parent_nome": row[15], "provincia": row[16], "municipio": row[17],
+        "distrito": row[18], "bairro": row[19], "latitude": row[20], "longitude": row[21],
+        "sector_operacional": row[22], "fonte_cadastro": row[23], "referencia_externa": row[24],
+        "ultima_sincronizacao": row[25], "classificacao_confirmada": int(row[26] or 0)
     }
 
 def infer_local_tipo(nome: str, endereco: str = '') -> str:
@@ -232,6 +239,12 @@ def calcular_maturidade_local(local: dict) -> int:
         score += 6
     if (local.get('notas') or '').strip():
         score += 5
+    if (local.get('sector_operacional') or '').strip():
+        score += 4
+    if (local.get('provincia') or '').strip() or (local.get('municipio') or '').strip():
+        score += 4
+    if local.get('latitude') not in (None, '') and local.get('longitude') not in (None, ''):
+        score += 4
     if (local.get('estado_tecnico') or '').strip() and (local.get('estado_tecnico') or '').strip().lower() != 'normal':
         score += 3
     if (local.get('prioridade') or '').strip():
@@ -248,9 +261,9 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
     if not incluir_inativos:
         where.append("COALESCE(l.ativo,1)=1")
     if search:
-        where.append("(l.nome LIKE ? OR COALESCE(l.codigo,'') LIKE ? OR COALESCE(l.endereco,'') LIKE ? OR COALESCE(l.contato_nome,'') LIKE ? OR COALESCE(l.email,'') LIKE ?)")
+        where.append("(l.nome LIKE ? OR COALESCE(l.codigo,'') LIKE ? OR COALESCE(l.endereco,'') LIKE ? OR COALESCE(l.contato_nome,'') LIKE ? OR COALESCE(l.email,'') LIKE ? OR COALESCE(l.sector_operacional,'') LIKE ? OR COALESCE(l.municipio,'') LIKE ? OR COALESCE(l.distrito,'') LIKE ?)")
         like = f"%{search}%"
-        params += [like, like, like, like, like]
+        params += [like, like, like, like, like, like, like, like]
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     sort_map = {
@@ -273,6 +286,9 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
                COALESCE(l.notas,''), COALESCE(l.tipo_local,''), COALESCE(l.categoria_operacional,''),
                COALESCE(l.email,''), COALESCE(l.responsavel_alt,''), COALESCE(l.estado_tecnico,'Normal'),
                COALESCE(l.prioridade,'Média'), l.parent_id
+               ,COALESCE(l.provincia,''), COALESCE(l.municipio,''), COALESCE(l.distrito,''), COALESCE(l.bairro,''),
+               l.latitude, l.longitude, COALESCE(l.sector_operacional,''), COALESCE(l.fonte_cadastro,''),
+               COALESCE(l.referencia_externa,''), COALESCE(l.ultima_sincronizacao,''), COALESCE(l.classificacao_confirmada,0)
         FROM locais l
         LEFT JOIN locais_cfg cfg ON cfg.local_id = l.id
         {where_sql}
@@ -284,11 +300,14 @@ def get_locais_with_cfg(search=None, incluir_inativos=False, sort='nome', order=
     for r in rows:
         item = {
             "id": r[0], "nome": r[1], "codigo": r[2], "endereco": r[3],
-            "contato_nome": r[4], "contato_tel": r[5], "ativo": int(r[6] or 1),
+            "contato_nome": r[4], "contato_tel": r[5], "ativo": int(r[6] if r[6] is not None else 1),
             "fator_mult": float(r[7]), "pot_contratada": float(r[8]),
             "pot_instalada": float(r[9]), "notas": r[10],
             "tipo_local": r[11], "categoria_operacional": r[12], "email": r[13],
-            "responsavel_alt": r[14], "estado_tecnico": r[15], "prioridade": r[16], "parent_id": r[17]
+            "responsavel_alt": r[14], "estado_tecnico": r[15], "prioridade": r[16], "parent_id": r[17],
+            "provincia": r[18], "municipio": r[19], "distrito": r[20], "bairro": r[21],
+            "latitude": r[22], "longitude": r[23], "sector_operacional": r[24], "fonte_cadastro": r[25],
+            "referencia_externa": r[26], "ultima_sincronizacao": r[27], "classificacao_confirmada": int(r[28] or 0)
         }
         item['tipo'] = item['tipo_local'] or infer_local_tipo(item['nome'], item['endereco'])
         item['maturidade'] = calcular_maturidade_local(item)
@@ -401,7 +420,8 @@ def get_locais_module_summary(locais):
     soma_fator = 0.0
     soma_maturidade = 0.0
     for r in locais:
-        ativo = int(r.get('ativo', 1) or 1)
+        ativo_raw = r.get('ativo', 1)
+        ativo = int(ativo_raw if ativo_raw is not None else 1)
         resumo['ativos' if ativo == 1 else 'arquivados'] += 1
         pot_c = float(r.get('pot_contratada', 0) or 0)
         pot_i = float(r.get('pot_instalada', 0) or 0)
@@ -606,4 +626,3 @@ def consumo_mensal_kwh(local_nome, mes, ano, fator_mult):
     return (total, dias)
 
 # === ROTAS PRINCIPAIS ===
-

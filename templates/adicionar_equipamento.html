@@ -95,6 +95,12 @@
               <div class="section-title">Dados técnicos e operacionais</div>
               <div class="section-sub">Informação usada em análise, inventário e acompanhamento.</div>
               <div class="row g-3">
+                <div class="col-md-4"><label class="form-label">Sector</label><input class="form-control" name="sector_operacional" value="{{ d.get('sector_operacional','') }}" placeholder="UMBELUZI, SABIE, CDs..."></div>
+                <div class="col-md-4"><label class="form-label">Instalação / área</label><input class="form-control" name="instalacao" value="{{ d.get('instalacao','') }}"></div>
+                <div class="col-md-4"><label class="form-label">Sistema / processo</label><input class="form-control" name="sistema" value="{{ d.get('sistema','') }}"></div>
+                <div class="col-md-4"><label class="form-label">Estado operacional</label><select class="form-select" name="estado_operacional"><option value="">(Por definir)</option>{% for opt in ['Operacional','Avariado','Fora de serviço','Não informado'] %}<option value="{{ opt }}" {% if d.get('estado_operacional','')==opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                <div class="col-md-4"><label class="form-label">Periodicidade</label><select class="form-select" name="periodicidade_manutencao"><option value="">(Por definir)</option>{% for opt in ['Mensal','Trimestral','Semestral','Anual'] %}<option value="{{ opt }}" {% if d.get('periodicidade_manutencao','')==opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                <div class="col-md-4"><label class="form-label">Código externo</label><input class="form-control" name="referencia_externa" value="{{ d.get('referencia_externa','') }}" placeholder="Código estável do activo"></div>
                 <div class="col-md-4"><label class="form-label">Ano</label><input class="form-control" name="ano_instalacao" value="{{ d.get('ano_instalacao','') }}" placeholder="AAAA"></div>
                 <div class="col-md-4"><label class="form-label">Quantidade</label><input class="form-control" name="quantidade" value="{{ d.get('quantidade',1) }}" type="number" min="1"></div>
                 <div class="col-md-4"><label class="form-label">Criticidade</label><select class="form-select" name="criticidade"><option value="">(Selecionar)</option>{% for opt in ['Baixa','Média','Alta'] %}<option value="{{ opt }}" {% if d.get('criticidade','') == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>

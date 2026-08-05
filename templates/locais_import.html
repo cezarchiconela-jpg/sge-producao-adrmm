@@ -16,18 +16,19 @@
     </div>
     <nav class="sge-nav">
       <a href="{{ url_for('listar_locais') }}" class="active">Locais</a>
-      <a href="{{ url_for('export_locais_template_csv') }}">Template</a>
+      <a href="{{ url_for('locais_template_xlsx') }}">Template Excel</a>
     </nav>
   </header>
   <section class="sge-grid-2">
     <article class="sge-card pad">
-      <h3 class="sge-panel-title">Carregar ficheiro CSV</h3>
-      <p class="sge-mini">Use o template oficial do módulo Locais. O sistema faz atualização por nome do local e também ajusta a configuração base.</p>
+      <h3 class="sge-panel-title">Carregar ficheiro Excel ou CSV</h3>
+      <p class="sge-mini">Use o modelo oficial do módulo Locais. O sistema actualiza por nome, preserva os identificadores existentes e também ajusta a configuração base.</p>
       <form method="post" enctype="multipart/form-data" class="d-grid gap-3 mt-3">
-        <input class="sge-input" type="file" name="arquivo" accept=".csv" required>
+        <input class="sge-input" type="file" name="arquivo" accept=".xlsx,.csv" required>
         <div class="d-flex gap-2 flex-wrap">
-          <button class="sge-btn sge-btn-primary" type="submit">Importar locais</button>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_template_csv') }}">Baixar template CSV</a>
+          <button class="sge-btn sge-btn-primary" type="submit">Importar / actualizar locais</button>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_template_xlsx') }}">Baixar modelo Excel</a>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_template_csv') }}">Modelo CSV</a>
           <a class="sge-btn sge-btn-outline" href="{{ url_for('listar_locais') }}">Voltar</a>
         </div>
       </form>

@@ -35,6 +35,16 @@ except Exception as _backup_error:
 
 # Migração canónica: garante uma instalação completa tanto em base nova como antiga.
 run_migrations(DB_PATH)
+
+# Cadastro mestre institucional: a primeira execução desta versão reconcilia
+# o cadastro DIMA com a base existente. O processo é idempotente e preserva
+# TAGs, custos, anexos, medições e outros dados preenchidos manualmente.
+BUNDLED_REGISTRY_RESULT = None
+try:
+    from asset_registry_service import bootstrap_bundled_registry
+    BUNDLED_REGISTRY_RESULT = bootstrap_bundled_registry(DB_PATH, BASE_DIR)
+except Exception as _registry_error:
+    print('Aviso: cadastro mestre DIMA não foi aplicado:', _registry_error)
 if STARTUP_BACKUP_RESULT:
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -670,6 +680,5 @@ def _apply_pacote2_migrations():
             pass
 
 # ==== /MIGRAÇÕES PACOTE 2 ====
-
 
 

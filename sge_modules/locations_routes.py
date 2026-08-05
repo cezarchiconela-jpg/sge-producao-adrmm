@@ -97,19 +97,22 @@ def export_locais_xlsx():
     hdr = wb.add_format({'bold': True, 'bg_color': '#EAF4FF', 'font_color': '#174983', 'border': 1})
     txt = wb.add_format({'border': 1})
     num = wb.add_format({'border': 1, 'num_format': '0.00'})
-    headers = ['ID','Nome','Tipo','Categoria','Código','Endereço','Contacto','Telefone','Email','Responsável alt.','Estado técnico','Prioridade','Ativo','Fator','Pot. contratada (kW)','Pot. instalada (kW)','Maturidade (%)']
+    headers = ['ID','Nome','Tipo','Categoria','Sector','Código','Província','Município','Distrito','Bairro','Latitude','Longitude','Endereço','Contacto','Telefone','Email','Responsável alt.','Estado técnico','Prioridade','Ativo','Fator','Pot. contratada (kW)','Pot. instalada (kW)','Maturidade (%)','Fonte','Referência externa','Última sincronização']
     for col,h in enumerate(headers): ws.write(0,col,h,hdr)
     for i,r in enumerate(data, start=1):
-        vals = [r['id'], r['nome'], r.get('tipo'), r.get('categoria_operacional') or '', r.get('codigo') or '', r.get('endereco') or '',
-                r.get('contato_nome') or '', r.get('contato_tel') or '', r.get('email') or '', r.get('responsavel_alt') or '',
-                r.get('estado_tecnico') or '', r.get('prioridade') or '', 'Sim' if int(r.get('ativo',1))==1 else 'Não',
-                float(r.get('fator_mult',1) or 1), float(r.get('pot_contratada',0) or 0), float(r.get('pot_instalada',0) or 0), int(r.get('maturidade',0) or 0)]
+        vals = [r['id'], r['nome'], r.get('tipo'), r.get('categoria_operacional') or '', r.get('sector_operacional') or '',
+                r.get('codigo') or '', r.get('provincia') or '', r.get('municipio') or '', r.get('distrito') or '', r.get('bairro') or '',
+                r.get('latitude'), r.get('longitude'), r.get('endereco') or '', r.get('contato_nome') or '', r.get('contato_tel') or '',
+                r.get('email') or '', r.get('responsavel_alt') or '', r.get('estado_tecnico') or '', r.get('prioridade') or '',
+                'Sim' if int(r.get('ativo',1))==1 else 'Não', float(r.get('fator_mult',1) or 1),
+                float(r.get('pot_contratada',0) or 0), float(r.get('pot_instalada',0) or 0), int(r.get('maturidade',0) or 0),
+                r.get('fonte_cadastro') or '', r.get('referencia_externa') or '', r.get('ultima_sincronizacao') or '']
         for col,v in enumerate(vals):
-            fmt = num if isinstance(v,(int,float)) and col in [13,14,15,16] else txt
+            fmt = num if isinstance(v,(int,float)) and col in [10,11,20,21,22,23] else txt
             ws.write(i,col,v,fmt)
     ws.autofilter(0,0,max(len(data),1),len(headers)-1)
     ws.freeze_panes(1,0)
-    for idx,w in enumerate([8,28,12,18,12,24,18,15,22,20,16,12,10,10,18,18,14]): ws.set_column(idx,idx,w)
+    for idx,w in enumerate([8,28,18,22,15,14,16,18,18,18,12,12,30,20,16,24,22,16,12,10,10,18,18,14,24,28,22]): ws.set_column(idx,idx,w)
     wb.close()
     output.seek(0)
     return Response(output.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition':'attachment; filename=locais.xlsx'})
@@ -152,14 +155,25 @@ def adicionar_local():
         ativo = 1 if (request.form.get('ativo', '1') == '1') else 0
         parent_raw = (request.form.get('parent_id') or '').strip()
         parent_id = int(parent_raw) if parent_raw.isdigit() else None
+        provincia = (request.form.get('provincia') or '').strip() or None
+        municipio = (request.form.get('municipio') or '').strip() or None
+        distrito = (request.form.get('distrito') or '').strip() or None
+        bairro = (request.form.get('bairro') or '').strip() or None
+        sector_operacional = (request.form.get('sector_operacional') or '').strip() or None
+        try: latitude = float((request.form.get('latitude') or '').replace(',','.'))
+        except Exception: latitude = None
+        try: longitude = float((request.form.get('longitude') or '').replace(',','.'))
+        except Exception: longitude = None
         if not nome:
             flash('O nome do local é obrigatório.', 'warning')
             return render_template('adicionar_local.html', form=request.form, parent_options=parent_options)
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         try:
-            c.execute('''INSERT INTO locais (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                      (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id))
+            c.execute('''INSERT INTO locais (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
+                                             provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, classificacao_confirmada)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
+                      (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
+                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional))
             lid = c.lastrowid
             c.execute('INSERT OR IGNORE INTO locais_cfg (local_id) VALUES (?)', (lid,))
             conn.commit()
@@ -200,6 +214,15 @@ def editar_local(local_id):
         parent_id = int(parent_raw) if parent_raw.isdigit() else None
         if parent_id == local_id:
             parent_id = None
+        provincia = (request.form.get('provincia') or '').strip() or None
+        municipio = (request.form.get('municipio') or '').strip() or None
+        distrito = (request.form.get('distrito') or '').strip() or None
+        bairro = (request.form.get('bairro') or '').strip() or None
+        sector_operacional = (request.form.get('sector_operacional') or '').strip() or None
+        try: latitude = float((request.form.get('latitude') or '').replace(',','.'))
+        except Exception: latitude = None
+        try: longitude = float((request.form.get('longitude') or '').replace(',','.'))
+        except Exception: longitude = None
         if not novo_nome:
             flash('O nome do local é obrigatório.', 'warning')
             local.update({'nome': novo_nome, 'codigo': codigo, 'endereco': endereco, 'contato_nome': contato_nome, 'contato_tel': contato_tel, 'email': email, 'responsavel_alt': responsavel_alt, 'tipo_local': tipo_local, 'categoria_operacional': categoria_operacional, 'estado_tecnico': estado_tecnico, 'prioridade': prioridade, 'notas': notas, 'ativo': ativo})
@@ -207,9 +230,11 @@ def editar_local(local_id):
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         try:
             c.execute('''UPDATE locais
-                            SET nome=?, codigo=?, endereco=?, contato_nome=?, contato_tel=?, email=?, responsavel_alt=?, tipo_local=?, categoria_operacional=?, estado_tecnico=?, prioridade=?, notas=?, ativo=?, parent_id=?
+                            SET nome=?, codigo=?, endereco=?, contato_nome=?, contato_tel=?, email=?, responsavel_alt=?, tipo_local=?, categoria_operacional=?, estado_tecnico=?, prioridade=?, notas=?, ativo=?, parent_id=?,
+                                provincia=?, municipio=?, distrito=?, bairro=?, latitude=?, longitude=?, sector_operacional=?, classificacao_confirmada=1
                           WHERE id=?''',
-                      (novo_nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id, local_id))
+                      (novo_nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo, parent_id,
+                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, local_id))
             conn.commit()
             log_local_history(local_id, 'Perfil atualizado', f'Nome: {novo_nome}; prioridade: {prioridade}; estado técnico: {estado_tecnico}', actor='locais_fase4')
             flash('Local atualizado com sucesso.', 'success')
@@ -232,18 +257,47 @@ def locais_import():
         if not f or f.filename == '':
             return redirect(url_for('listar_locais', msg='selecione um arquivo CSV'))
 
-        content = f.read().decode('utf-8', errors='ignore')
-        delimiter = ';' if content.count(';') > content.count(',') else ','
-        reader = csv.DictReader(StringIO(content), delimiter=delimiter)
-
-        # Checa coluna obrigatória
-        headers = [h.strip().lower() for h in (reader.fieldnames or [])]
+        from asset_registry_service import header_key
+        extension = os.path.splitext(f.filename or '')[1].lower()
+        if extension == '.xlsx':
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(f.read()), read_only=True, data_only=True)
+            ws = wb.active
+            matrix = list(ws.iter_rows(values_only=True))
+            header_index = next((i for i,row in enumerate(matrix[:30]) if 'nome' in [header_key(v) for v in row]), None)
+            if header_index is None:
+                wb.close()
+                return redirect(url_for('listar_locais', msg='Excel precisa conter a coluna "nome"'))
+            headers = [header_key(v) for v in matrix[header_index]]
+            reader = [
+                {headers[i]: value for i,value in enumerate(row) if i < len(headers) and headers[i]}
+                for row in matrix[header_index+1:]
+            ]
+            wb.close()
+        else:
+            content = f.read().decode('utf-8-sig', errors='ignore')
+            delimiter = ';' if content.count(';') > content.count(',') else ','
+            raw_reader = csv.DictReader(StringIO(content), delimiter=delimiter)
+            reader = [{header_key(k): v for k,v in row.items()} for row in raw_reader]
+            headers = [header_key(h) for h in (raw_reader.fieldnames or [])]
         if 'nome' not in headers:
-            return redirect(url_for('listar_locais', msg='CSV precisa conter a coluna "nome"'))
+            return redirect(url_for('listar_locais', msg='O ficheiro precisa conter a coluna "nome"'))
 
         add_count = 0; upd_count = 0; err_count = 0
         history_updates = []
+        pending_parents = []
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+
+        def ftext(value):
+            return '' if value is None else str(value).strip()
+
+        def fbool(value, default=1):
+            text = header_key(value)
+            if text in ('1', 'sim', 's', 'yes', 'true', 'activo', 'ativo'):
+                return 1
+            if text in ('0', 'nao', 'n', 'no', 'false', 'inactivo', 'inativo'):
+                return 0
+            return default
 
         def ffloat(v, dflt):
             try:
@@ -252,9 +306,16 @@ def locais_import():
             except Exception:
                 return dflt
 
+        def fcoord(v):
+            try:
+                value = float(str(v).replace(',','.'))
+                return value if math.isfinite(value) else None
+            except Exception:
+                return None
+
         for row in reader:
             try:
-                nome = (row.get('nome') or '').strip()
+                nome = ftext(row.get('nome'))
                 if not nome:
                     err_count += 1; continue
 
@@ -271,27 +332,45 @@ def locais_import():
                     "estado_tecnico": row.get('estado_tecnico') or 'Normal',
                     "prioridade": row.get('prioridade') or 'Média',
                     "notas": row.get('notas'),
-                    "ativo": int(row.get('ativo', '1')) if str(row.get('ativo','1')).strip() != '' else 1
+                    "ativo": fbool(row.get('ativo'), 1),
+                    "provincia": row.get('provincia'), "municipio": row.get('municipio'),
+                    "distrito": row.get('distrito'), "bairro": row.get('bairro'),
+                    "latitude": fcoord(row.get('latitude')), "longitude": fcoord(row.get('longitude')),
+                    "sector_operacional": row.get('sector_operacional') or row.get('sector'),
+                    "parent_nome": row.get('parent_nome') or row.get('local_pai'),
                 }
-                c.execute('SELECT id FROM locais WHERE nome=?', (nome,))
+                parent_id = None
+                if ftext(campos_locais['parent_nome']):
+                    c.execute('SELECT id FROM locais WHERE lower(trim(nome))=lower(trim(?))', (ftext(campos_locais['parent_nome']),))
+                    parent_found = c.fetchone(); parent_id = parent_found[0] if parent_found else None
+                c.execute('SELECT id FROM locais WHERE lower(trim(nome))=lower(trim(?))', (nome,))
                 found = c.fetchone()
                 if found:
                     lid = found[0]
                     c.execute('''UPDATE locais
-                                    SET codigo=?, endereco=?, contato_nome=?, contato_tel=?, email=?, responsavel_alt=?, tipo_local=?, categoria_operacional=?, estado_tecnico=?, prioridade=?, notas=?, ativo=?
+                                    SET codigo=?, endereco=?, contato_nome=?, contato_tel=?, email=?, responsavel_alt=?, tipo_local=?, categoria_operacional=?, estado_tecnico=?, prioridade=?, notas=?, ativo=?,
+                                        provincia=?, municipio=?, distrito=?, bairro=?, latitude=?, longitude=?, sector_operacional=?,
+                                        parent_id=COALESCE(?,parent_id), classificacao_confirmada=1
                                   WHERE id=?''',
                               (campos_locais["codigo"], campos_locais["endereco"],
                                campos_locais["contato_nome"], campos_locais["contato_tel"], campos_locais["email"], campos_locais["responsavel_alt"], campos_locais["tipo_local"], campos_locais["categoria_operacional"], campos_locais["estado_tecnico"], campos_locais["prioridade"],
-                               campos_locais["notas"], campos_locais["ativo"], lid))
+                               campos_locais["notas"], campos_locais["ativo"], campos_locais['provincia'], campos_locais['municipio'],
+                               campos_locais['distrito'], campos_locais['bairro'], campos_locais['latitude'], campos_locais['longitude'],
+                               campos_locais['sector_operacional'], parent_id, lid))
                     upd_count += 1
                 else:
-                    c.execute('''INSERT INTO locais (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    c.execute('''INSERT INTO locais (nome, codigo, endereco, contato_nome, contato_tel, email, responsavel_alt, tipo_local, categoria_operacional, estado_tecnico, prioridade, notas, ativo,
+                                                       provincia, municipio, distrito, bairro, latitude, longitude, sector_operacional, parent_id, classificacao_confirmada)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
                               (nome, campos_locais["codigo"], campos_locais["endereco"],
                                campos_locais["contato_nome"], campos_locais["contato_tel"], campos_locais["email"], campos_locais["responsavel_alt"], campos_locais["tipo_local"], campos_locais["categoria_operacional"], campos_locais["estado_tecnico"], campos_locais["prioridade"],
-                               campos_locais["notas"], campos_locais["ativo"]))
+                               campos_locais["notas"], campos_locais["ativo"], campos_locais['provincia'], campos_locais['municipio'],
+                               campos_locais['distrito'], campos_locais['bairro'], campos_locais['latitude'], campos_locais['longitude'],
+                               campos_locais['sector_operacional'], parent_id))
                     lid = c.lastrowid
                     add_count += 1
+                if ftext(campos_locais['parent_nome']):
+                    pending_parents.append((lid, ftext(campos_locais['parent_nome'])))
 
                 # Upsert em locais_cfg (se vierem colunas)
                 cfg = {
@@ -320,6 +399,18 @@ def locais_import():
             except Exception:
                 err_count += 1
 
+        # Segunda passagem: permite referenciar um local-pai que aparece mais
+        # abaixo na mesma folha Excel/CSV.
+        for child_id, parent_name in pending_parents:
+            try:
+                parent = c.execute(
+                    'SELECT id FROM locais WHERE lower(trim(nome))=lower(trim(?))', (parent_name,)
+                ).fetchone()
+                if parent and int(parent[0]) != int(child_id):
+                    c.execute('UPDATE locais SET parent_id=? WHERE id=?', (parent[0], child_id))
+            except Exception:
+                err_count += 1
+
         conn.commit(); conn.close()
         for lid, cfg in history_updates:
             try:
@@ -332,7 +423,7 @@ def locais_import():
         if add_count or upd_count:
             log_local_history(0, 'Importação CSV', f'{add_count} adicionados, {upd_count} atualizados, {err_count} com erro', actor='locais_fase4')
         return redirect(url_for('listar_locais', msg=f'import:{add_count} add, {upd_count} upd, {err_count} err'))
-    colunas = ['nome','codigo','endereco','contato_nome','contato_tel','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','notas']
+    colunas = ['nome','codigo','tipo_local','categoria_operacional','sector_operacional','parent_nome','provincia','municipio','distrito','bairro','endereco','latitude','longitude','contato_nome','contato_tel','email','responsavel_alt','estado_tecnico','prioridade','ativo','fator_mult','pot_contratada','pot_instalada','tarifa_ativa','tarifa_reativa','tarifa_ponta','tarifa_perdas','taxa_fixa','taxa_radio','taxa_lixo','iva','notas']
     return render_template('locais_import.html', colunas=colunas)
 
 # === NOVO: Duplicar e Ativar/Arquivar Local

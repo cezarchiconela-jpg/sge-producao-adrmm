@@ -34,8 +34,8 @@
           <p>Agora com cadastro mais inteligente, filtros operacionais, classificação manual por tipologia, prioridade, estado técnico e maior controlo institucional do parque operacional da empresa Águas e Saneamento de Maputo.</p>
           <div class="sge-hero-actions">
             <a class="sge-btn sge-btn-white" href="{{ url_for('adicionar_local') }}">Novo local</a>
-            <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_import') }}">Importar CSV</a>
-            <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_template_csv') }}">Baixar template</a>
+            <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_import') }}">Importar Excel/CSV</a>
+            <a class="sge-btn sge-btn-outline" href="{{ url_for('cadastro_activos') }}">Cadastro mestre</a>
           </div>
         </div>
         <div class="hero-aside">
@@ -181,7 +181,8 @@
         <div class="d-flex gap-2 flex-wrap">
           <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_csv', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}">Exportar CSV</a>
           <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_xlsx', q=q or None, inativos='1' if incluir_inativos else None, sort=sort, order=order) }}">Exportar XLSX</a>
-          <a class="sge-btn sge-btn-outline" href="{{ url_for('export_locais_template_csv') }}">Template CSV</a>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_export_pdf') }}">Exportar PDF</a>
+          <a class="sge-btn sge-btn-outline" href="{{ url_for('locais_template_xlsx') }}">Modelo Excel</a>
         </div>
       </div>
       <div class="table-wrap">

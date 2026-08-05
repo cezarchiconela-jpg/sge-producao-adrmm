@@ -101,6 +101,36 @@
                 <div class="col-md-4"><label class="form-label">Potência (kW)</label><input class="form-control" name="potencia_kw" value="{{ d.get('potencia_kw','') }}"></div>
                 <div class="col-md-4"><label class="form-label">Tensão (V)</label><input class="form-control" name="tensao_v" value="{{ d.get('tensao_v','') }}"></div>
                 <div class="col-md-4"><label class="form-label">Corrente (A)</label><input class="form-control" name="corrente_a" value="{{ d.get('corrente_a','') }}"></div>
+                <div class="col-md-6">
+                  <label class="form-label">Sector operacional</label>
+                  <input class="form-control" name="sector_operacional" value="{{ d.get('sector_operacional','') }}" placeholder="Ex.: UMBELUZI, SABIE, CDs, ADUCAO">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Instalação / área</label>
+                  <input class="form-control" name="instalacao" value="{{ d.get('instalacao','') }}" placeholder="Ex.: Captação, CD, campo de furos">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Sistema / processo</label>
+                  <input class="form-control" name="sistema" value="{{ d.get('sistema','') }}" placeholder="Ex.: Água bruta, filtração, bombagem">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Estado operacional</label>
+                  <select class="form-select" name="estado_operacional">
+                    <option value="">(Não informado)</option>
+                    {% for opt in ['Operacional','Avariado','Fora de serviço','Não informado'] %}<option value="{{ opt }}" {% if d.get('estado_operacional','') == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Periodicidade de manutenção</label>
+                  <select class="form-select" name="periodicidade_manutencao">
+                    <option value="">(Não definida)</option>
+                    {% for opt in ['Mensal','Trimestral','Semestral','Anual'] %}<option value="{{ opt }}" {% if d.get('periodicidade_manutencao','') == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Código externo do activo</label>
+                  <input class="form-control" name="referencia_externa" value="{{ d.get('referencia_externa','') }}" placeholder="Identificador estável para actualizações Excel">
+                </div>
               </div>
             </div>
 
