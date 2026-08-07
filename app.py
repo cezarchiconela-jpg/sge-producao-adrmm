@@ -139,6 +139,9 @@ _load_sge_feature('dashboard_core', globals())
 # Domínio modular: locations_routes
 _load_sge_feature('locations_routes', globals())
 
+# Domínio modular: cadastro mestre de locais e activos
+_load_sge_feature('asset_registry', globals())
+
 # Domínio modular: equipment_core
 _load_sge_feature('equipment_core', globals())
 

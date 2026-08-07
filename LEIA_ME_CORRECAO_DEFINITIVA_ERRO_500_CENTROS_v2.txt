@@ -1,0 +1,39 @@
+SGE — CORREÇÃO DEFINITIVA DO ERRO 500 EM CENTROS/LOCAIS
+Versão: v2 — 07/08/2026
+
+CAUSAS CONFIRMADAS
+
+1. A migração da base não criava todos os campos usados pelo cadastro mestre,
+   pelos locais e pela hierarquia ETA/CD.
+2. O módulo Cadastro mestre existia no projecto, mas não era carregado pelo
+   app.py; por isso o template de Centros tentava abrir uma rota inexistente.
+3. A correcção anterior ficou dentro de uma pasta duplicada e não substituiu o
+   ficheiro executado pelo Render.
+
+FICHEIROS DE PRODUÇÃO A SUBSTITUIR
+
+- app.py
+- migrations.py
+
+COMO APLICAR NO GITHUB
+
+1. Abra a raiz do repositório, onde já se encontram app.py e migrations.py.
+2. Substitua esses dois ficheiros pelos incluídos neste ZIP.
+3. Não crie outra pasta sge-producao-adrmm-main dentro do repositório.
+4. Não substitua, apague ou carregue o ficheiro sge.db.
+5. Faça o commit e aguarde o Render terminar o deploy com o estado Live.
+
+NO PRIMEIRO ARRANQUE
+
+O SGE executará a migração de forma automática e idempotente. Os dados
+existentes serão preservados. Se o cadastro DIMA ainda não tiver sido aplicado,
+o sistema fará a reconciliação automática na mesma inicialização; por isso o
+primeiro arranque pode demorar alguns segundos a mais.
+
+VALIDAÇÃO EXECUTADA
+
+- Migração numa cópia da base fornecida: concluída.
+- Cadastro mestre com 3.147 activos: concluído e idempotente.
+- /locais, ETAs, CDs, Equipamentos e Cadastro mestre: HTTP 200.
+- 30 testes automáticos: todos aprovados.
+
