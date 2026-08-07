@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sge-asm-v1';
+const CACHE_NAME = 'sge-asm-v2';
 const APP_SHELL = [
   '/offline',
   '/instalar',
@@ -12,8 +12,17 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Uma falha transitória num recurso não pode impedir a instalação inteira
+    // do service worker. Os recursos válidos são guardados individualmente.
+    await Promise.allSettled(APP_SHELL.map(async url => {
+      const response = await fetch(url, { cache: 'reload' });
+      if (!response.ok) throw new Error(`Falha ao preparar ${url}: ${response.status}`);
+      await cache.put(url, response);
+    }));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', event => {

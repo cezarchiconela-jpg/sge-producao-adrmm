@@ -25,12 +25,27 @@ https://DOMINIO-DO-SGE/instalar
 
 Substituir DOMINIO-DO-SGE pelo endereço real onde o SGE está publicado.
 
+No ambiente actual:
+https://sge-producao-adrmm.onrender.com/instalar
+
 4. INSTALAÇÃO NO ANDROID
 
 - Abrir o link no Google Chrome.
 - Tocar em "Instalar aplicativo" e confirmar.
 - Se o botão não aparecer, usar o menu ⋮ e escolher "Instalar app" ou
   "Adicionar ao ecrã principal".
+- Depois desta actualização, abrir/recarregar a página uma vez para o Chrome
+  substituir o service worker anterior pela versão corrigida.
+
+8. CORRECÇÃO ANDROID — VERSÃO 2
+
+- O service worker deixa de falhar por completo quando um único recurso tem
+  uma falha transitória durante a preparação da cache.
+- O navegador é instruído a procurar sempre a versão mais recente do serviço.
+- O manifesto passa a ser servido também na raiz com o tipo MIME próprio.
+- Os ícones normais e adaptáveis (maskable) são declarados separadamente.
+- O botão de instalação permanece visível e apresenta orientação ou erro,
+  mesmo quando o Chrome ainda não disponibilizou o aviso automático.
 
 5. INSTALAÇÃO NO IPHONE/IPAD
 
@@ -63,4 +78,3 @@ Substituir DOMINIO-DO-SGE pelo endereço real onde o SGE está publicado.
 - static/pwa-install.js
 - static/icons/sge-192.png
 - static/icons/sge-512.png
-

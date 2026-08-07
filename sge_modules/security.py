@@ -133,7 +133,7 @@ app.config.update(
 AUTH_EXEMPT_PREFIXES = ('/static/', '/api/v1/telemetria')
 AUTH_EXEMPT_PATHS = {
     '/login', '/logout', '/healthz', '/robots.txt', '/favicon.ico',
-    '/instalar', '/offline', '/service-worker.js',
+    '/instalar', '/offline', '/service-worker.js', '/manifest.webmanifest',
 }
 CSRF_EXEMPT_PREFIXES = ('/api/v1/telemetria',)
 LOGIN_FAILURES = {}

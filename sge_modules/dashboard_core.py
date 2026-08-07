@@ -26,6 +26,18 @@ def service_worker():
     return response
 
 
+@app.route('/manifest.webmanifest')
+def webmanifest():
+    """Manifesto na raiz para reconhecimento consistente em navegadores móveis."""
+    response = send_from_directory(
+        os.path.join(BASE_DIR, 'static'),
+        'manifest.webmanifest',
+        mimetype='application/manifest+json',
+    )
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
 @app.route('/offline')
 def offline():
     return render_template('offline.html')
