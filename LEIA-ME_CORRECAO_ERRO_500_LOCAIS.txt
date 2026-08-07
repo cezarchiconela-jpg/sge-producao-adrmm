@@ -1,0 +1,26 @@
+SGE — CORREÇÃO DO ERRO 500 NO MÓDULO CENTROS/LOCAIS
+Versão: 1.0 — 07/08/2026
+
+APLICAÇÃO
+1. Abra a pasta sge-producao-adrmm-main deste pacote.
+2. Copie sge_modules/locations_core.py para a mesma pasta do projeto no GitHub.
+3. Substitua somente o ficheiro correspondente.
+4. Não elimine nem substitua a base de dados sge.db.
+5. Aguarde o Render concluir o deploy e indicar Live.
+6. Entre novamente no SGE e abra Centros/Locais.
+
+O QUE FOI CORRIGIDO
+- Leitura segura de valores com vírgula decimal, espaços, campos vazios ou texto antigo.
+- Proteção contra falha completa da página quando um registo contém formato inesperado.
+- Conversão segura de potência, fator multiplicativo, estado, prioridade e campos do cadastro.
+- Redução de operações de escrita na base de dados durante a simples abertura da página.
+
+SEGURANÇA DOS DADOS
+- O pacote não contém base de dados, credenciais, uploads ou dados operacionais.
+- A correção não apaga nem altera os valores já guardados.
+- Não altera a telemetria, a PWA, as permissões ou os cálculos de eficiência energética.
+
+VALIDAÇÃO REALIZADA
+- /locais testado com valores 1,0; 6.000,50; vazio e texto legado: HTTP 200.
+- 27 testes automáticos aprovados.
+- Teste das rotas principais aprovado, sem respostas 500.
